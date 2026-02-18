@@ -3,8 +3,9 @@
 const path = require('path');
 const { lintProject } = require('./index');
 const { verifyProject } = require('./verify');
+const { initProject } = require('./init');
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -26,6 +27,7 @@ ${YELLOW}Options:${RESET}
   --help, -h     Show this help message
   --version, -v  Show version number
   --verify       Check if code follows rules with verify: blocks
+  --init         Generate starter .mdc rules (auto-detects your stack)
 
 ${YELLOW}What it checks (default):${RESET}
   • .cursorrules files (warns about agent mode compatibility)
@@ -56,6 +58,7 @@ ${YELLOW}verify: block syntax in .mdc frontmatter:${RESET}
 ${YELLOW}Examples:${RESET}
   npx cursor-lint              # Lint rule files
   npx cursor-lint --verify     # Check code against rules
+  npx cursor-lint --init       # Generate starter rules for your project
 
 ${YELLOW}More info:${RESET}
   https://github.com/cursorrulespacks/cursor-lint
@@ -77,8 +80,44 @@ async function main() {
 
   const cwd = process.cwd();
   const isVerify = args.includes('--verify');
+  const isInit = args.includes('--init');
 
-  if (isVerify) {
+  if (isInit) {
+    console.log(`\n🔍 cursor-lint v${VERSION} --init\n`);
+    console.log(`Detecting stack in ${cwd}...\n`);
+
+    const results = await initProject(cwd);
+
+    const stacks = Object.entries(results.detected)
+      .filter(([_, v]) => v)
+      .map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
+
+    if (stacks.length > 0) {
+      console.log(`Detected: ${stacks.join(', ')}\n`);
+    }
+
+    if (results.created.length > 0) {
+      console.log(`${GREEN}Created:${RESET}`);
+      for (const f of results.created) {
+        console.log(`  ${GREEN}✓${RESET} .cursor/rules/${f}`);
+      }
+    }
+
+    if (results.skipped.length > 0) {
+      console.log(`\n${YELLOW}Skipped (already exist):${RESET}`);
+      for (const f of results.skipped) {
+        console.log(`  ${YELLOW}⚠${RESET} .cursor/rules/${f}`);
+      }
+    }
+
+    if (results.created.length > 0) {
+      console.log(`\n${DIM}Run cursor-lint to check these rules${RESET}`);
+      console.log(`${DIM}Run cursor-lint --verify to check code against them${RESET}\n`);
+    }
+
+    process.exit(0);
+
+  } else if (isVerify) {
     console.log(`\n🔍 cursor-lint v${VERSION} --verify\n`);
     console.log(`Scanning ${cwd} for rule violations...\n`);
 
