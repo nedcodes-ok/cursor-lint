@@ -81,10 +81,16 @@ cursor-lint --version      Show version
 
 Every check in cursor-lint comes from [actual experiments](https://dev.to/nedcodes) testing what Cursor does and doesn't follow. Not guesswork — data.
 
+## Need help with your Cursor setup?
+
+I do async setup reviews. You share your rules and project config, I tell you what's broken and how to fix it. No calls needed.
+
+DM me on [Dev.to](https://dev.to/nedcodes) or the [Cursor Forum](https://forum.cursor.com) (nedcodes on both).
+
 ## License
 
 MIT
 
 ---
 
-Made by [nedcodes](https://dev.to/nedcodes)
+Made by [nedcodes](https://dev.to/nedcodes) · [56 free rules](https://github.com/cursorrulespacks/cursorrules-collection)
