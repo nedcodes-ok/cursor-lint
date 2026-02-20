@@ -5,7 +5,7 @@ const { lintProject } = require('./index');
 const { verifyProject } = require('./verify');
 const { initProject } = require('./init');
 
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -205,6 +205,11 @@ async function main() {
     if (totalWarnings > 0) parts.push(`${YELLOW}${totalWarnings} warning${totalWarnings !== 1 ? 's' : ''}${RESET}`);
     if (totalPassed > 0) parts.push(`${GREEN}${totalPassed} passed${RESET}`);
     console.log(parts.join(', ') + '\n');
+
+    if (totalErrors > 0) {
+      console.log(`${DIM}Need help fixing these? Get a full setup review:${RESET}`);
+      console.log(`${CYAN}https://cursorrulespacks.gumroad.com/l/cursor-setup-audit${RESET}\n`);
+    }
 
     process.exit(totalErrors > 0 ? 1 : 0);
   }
