@@ -83,7 +83,7 @@ Every check in cursor-lint comes from [actual experiments](https://dev.to/nedcod
 
 ## Need a deeper review?
 
-cursor-lint catches structural issues. For a full review of your rules, project structure, and model settings, I do [$50 async audits](https://cursorrulespacks.github.io/).
+cursor-lint catches structural issues. For a full review of your rules, project structure, and model settings, I do $50 async audits. Email **cursorrulespacks@gmail.com** to get started, or [see details](https://cursorrulespacks.github.io/).
 
 ## License
 
