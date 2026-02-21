@@ -5,8 +5,9 @@ const { lintProject } = require('./index');
 const { verifyProject } = require('./verify');
 const { initProject } = require('./init');
 const { fixProject } = require('./fix');
+const { generateRules } = require('./generate');
 
-const VERSION = '0.4.1';
+const VERSION = '0.5.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -30,6 +31,7 @@ ${YELLOW}Options:${RESET}
   --verify       Check if code follows rules with verify: blocks
   --init         Generate starter .mdc rules (auto-detects your stack)
   --fix          Auto-fix common issues (missing frontmatter, alwaysApply)
+  --generate     Auto-detect stack & download matching .mdc rules from GitHub
 
 ${YELLOW}What it checks (default):${RESET}
   • .cursorrules files (warns about agent mode compatibility)
@@ -61,6 +63,7 @@ ${YELLOW}Examples:${RESET}
   npx cursor-lint              # Lint rule files
   npx cursor-lint --verify     # Check code against rules
   npx cursor-lint --init       # Generate starter rules for your project
+  npx cursor-lint --generate   # Download community rules for your stack
 
 ${YELLOW}More info:${RESET}
   https://github.com/cursorrulespacks/cursor-lint
@@ -84,8 +87,50 @@ async function main() {
   const isVerify = args.includes('--verify');
   const isInit = args.includes('--init');
   const isFix = args.includes('--fix');
+  const isGenerate = args.includes('--generate');
 
-  if (isFix) {
+  if (isGenerate) {
+    console.log(`\n🚀 cursor-lint v${VERSION} --generate\n`);
+    console.log(`Detecting stack in ${cwd}...\n`);
+
+    const results = await generateRules(cwd);
+
+    if (results.detected.length > 0) {
+      console.log(`${CYAN}Detected:${RESET} ${results.detected.join(', ')}\n`);
+    } else {
+      console.log(`${YELLOW}No recognized stack detected.${RESET}`);
+      console.log(`${DIM}Supports: package.json, tsconfig.json, requirements.txt, Cargo.toml, go.mod, Dockerfile${RESET}\n`);
+      process.exit(0);
+    }
+
+    if (results.created.length > 0) {
+      console.log(`${GREEN}Downloaded:${RESET}`);
+      for (const r of results.created) {
+        console.log(`  ${GREEN}✓${RESET} .cursor/rules/${r.file} ${DIM}(${r.stack})${RESET}`);
+      }
+    }
+
+    if (results.skipped.length > 0) {
+      console.log(`\n${YELLOW}Skipped (already exist):${RESET}`);
+      for (const r of results.skipped) {
+        console.log(`  ${YELLOW}⚠${RESET} .cursor/rules/${r.file}`);
+      }
+    }
+
+    if (results.failed.length > 0) {
+      console.log(`\n${RED}Failed:${RESET}`);
+      for (const r of results.failed) {
+        console.log(`  ${RED}✗${RESET} ${r.file} — ${r.error}`);
+      }
+    }
+
+    if (results.created.length > 0) {
+      console.log(`\n${DIM}Run cursor-lint to check these rules${RESET}\n`);
+    }
+
+    process.exit(results.failed.length > 0 ? 1 : 0);
+
+  } else if (isFix) {
     console.log(`\n🔧 cursor-lint v${VERSION} --fix\n`);
     console.log(`Scanning ${cwd} for fixable issues...\n`);
 

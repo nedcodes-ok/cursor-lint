@@ -1,6 +1,6 @@
 {
   "name": "cursor-lint",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Lint your Cursor rules \u2014 catch common mistakes before they break your workflow",
   "main": "src/index.js",
   "bin": {
