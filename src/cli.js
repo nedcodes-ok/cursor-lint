@@ -7,7 +7,7 @@ const { initProject } = require('./init');
 const { fixProject } = require('./fix');
 const { generateRules } = require('./generate');
 
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -32,6 +32,7 @@ ${YELLOW}Options:${RESET}
   --init         Generate starter .mdc rules (auto-detects your stack)
   --fix          Auto-fix common issues (missing frontmatter, alwaysApply)
   --generate     Auto-detect stack & download matching .mdc rules from GitHub
+  --order        Show rule load order, priority tiers, and token estimates
 
 ${YELLOW}What it checks (default):${RESET}
   • .cursorrules files (warns about agent mode compatibility)
@@ -88,8 +89,76 @@ async function main() {
   const isInit = args.includes('--init');
   const isFix = args.includes('--fix');
   const isGenerate = args.includes('--generate');
+  const isOrder = args.includes('--order');
 
-  if (isGenerate) {
+  if (isOrder) {
+    const { showLoadOrder } = require('./order');
+    console.log(`\n📋 cursor-lint v${VERSION} --order\n`);
+    const dir = args.find(a => !a.startsWith('-')) ? path.resolve(args.find(a => !a.startsWith('-'))) : cwd;
+    console.log(`Analyzing rule load order in ${dir}...\n`);
+
+    const results = showLoadOrder(dir);
+
+    if (results.rules.length === 0) {
+      console.log(`${YELLOW}No rules found.${RESET}\n`);
+      process.exit(0);
+    }
+
+    // Show .cursorrules warning if present
+    if (results.hasCursorrules) {
+      console.log(`${YELLOW}⚠ .cursorrules found${RESET} — overridden by any .mdc rule covering the same topic`);
+      console.log(`${DIM}  .mdc files always take precedence when both exist${RESET}\n`);
+    }
+
+    // Group by priority tier
+    const tiers = {
+      'always': { label: 'Always Active', color: GREEN, rules: [] },
+      'glob': { label: 'File-Scoped (glob match)', color: CYAN, rules: [] },
+      'manual': { label: 'Manual Only (no alwaysApply, no globs)', color: DIM, rules: [] },
+    };
+
+    for (const rule of results.rules) {
+      tiers[rule.tier].rules.push(rule);
+    }
+
+    let position = 1;
+    for (const [key, tier] of Object.entries(tiers)) {
+      if (tier.rules.length === 0) continue;
+      console.log(`${tier.color}── ${tier.label} ──${RESET}`);
+      for (const rule of tier.rules) {
+        const globs = rule.globs.length > 0 ? ` ${DIM}[${rule.globs.join(', ')}]${RESET}` : '';
+        const desc = rule.description ? ` ${DIM}— ${rule.description}${RESET}` : '';
+        const size = ` ${DIM}(${rule.lines} lines, ~${rule.tokens} tokens)${RESET}`;
+        console.log(`  ${position}. ${rule.file}${globs}${desc}${size}`);
+        position++;
+      }
+      console.log();
+    }
+
+    // Token budget warning
+    const totalTokens = results.rules.reduce((s, r) => s + r.tokens, 0);
+    const alwaysTokens = tiers.always.rules.reduce((s, r) => s + r.tokens, 0);
+    console.log('─'.repeat(50));
+    console.log(`${CYAN}Total rules:${RESET} ${results.rules.length}`);
+    console.log(`${CYAN}Always-active token estimate:${RESET} ~${alwaysTokens} tokens`);
+    console.log(`${CYAN}All rules token estimate:${RESET} ~${totalTokens} tokens`);
+
+    if (alwaysTokens > 4000) {
+      console.log(`\n${YELLOW}⚠ Your always-active rules use ~${alwaysTokens} tokens.${RESET}`);
+      console.log(`${DIM}  Large rule sets eat into your context window. Consider moving some to glob-scoped rules.${RESET}`);
+    }
+
+    if (results.warnings.length > 0) {
+      console.log();
+      for (const w of results.warnings) {
+        console.log(`${YELLOW}⚠ ${w}${RESET}`);
+      }
+    }
+
+    console.log();
+    process.exit(0);
+
+  } else if (isGenerate) {
     console.log(`\n🚀 cursor-lint v${VERSION} --generate\n`);
     console.log(`Detecting stack in ${cwd}...\n`);
 
