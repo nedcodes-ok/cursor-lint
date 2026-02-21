@@ -76,7 +76,7 @@ async function lintMdcFile(filePath) {
     if (!fm.data.description) {
       issues.push({ severity: 'warning', message: 'Missing description in frontmatter', hint: 'Add a description so Cursor knows when to apply this rule' });
     }
-    if (fm.data.globs && typeof fm.data.globs === 'string' && fm.data.globs.includes(',')) {
+    if (fm.data.globs && typeof fm.data.globs === 'string' && fm.data.globs.includes(',') && !fm.data.globs.trim().startsWith('[')) {
       issues.push({ severity: 'error', message: 'Globs should be YAML array, not comma-separated string', hint: 'Use globs:\\n  - "*.ts"\\n  - "*.tsx"' });
     }
   }
@@ -141,7 +141,146 @@ async function lintProject(dir) {
     });
   }
 
+  // Conflict detection across .mdc files
+  const conflicts = detectConflicts(dir);
+  if (conflicts.length > 0) {
+    results.push({
+      file: path.join(dir, '.cursor/rules/'),
+      issues: conflicts,
+    });
+  }
+
   return results;
 }
 
-module.exports = { lintProject, lintMdcFile, lintCursorrules };
+function parseGlobs(globVal) {
+  if (!globVal) return [];
+  if (typeof globVal === 'string') {
+    // Handle both YAML array syntax and comma-separated
+    const trimmed = globVal.trim();
+    if (trimmed.startsWith('[')) {
+      // ["*.ts", "*.tsx"] format
+      return trimmed.slice(1, -1).split(',').map(g => g.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+    }
+    return trimmed.split(',').map(g => g.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+  }
+  if (Array.isArray(globVal)) return globVal;
+  return [];
+}
+
+function globsOverlap(globsA, globsB) {
+  // If either has no globs (alwaysApply), they overlap with everything
+  if (globsA.length === 0 || globsB.length === 0) return true;
+
+  for (const a of globsA) {
+    for (const b of globsB) {
+      // Exact match
+      if (a === b) return true;
+      // Both are wildcards covering same extension
+      const extA = a.match(/^\*\.(\w+)$/);
+      const extB = b.match(/^\*\.(\w+)$/);
+      if (extA && extB && extA[1] === extB[1]) return true;
+      // One is a superset pattern like **/*.ts
+      if (a.includes('**') || b.includes('**')) {
+        const extA2 = a.match(/\*\.(\w+)$/);
+        const extB2 = b.match(/\*\.(\w+)$/);
+        if (extA2 && extB2 && extA2[1] === extB2[1]) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function extractDirectives(content) {
+  // Extract actionable instructions from rule body (after frontmatter)
+  const body = content.replace(/^---[\s\S]*?---\n?/, '').toLowerCase();
+  const directives = [];
+
+  // Look for contradictory patterns: "always use X" vs "never use X"
+  const alwaysMatch = body.match(/always\s+use\s+(\S+)/g) || [];
+  const neverMatch = body.match(/never\s+use\s+(\S+)/g) || [];
+  const preferMatch = body.match(/prefer\s+(\S+)/g) || [];
+  const avoidMatch = body.match(/avoid\s+(\S+)/g) || [];
+  const doNotMatch = body.match(/do\s+not\s+use\s+(\S+)/g) || [];
+
+  for (const m of alwaysMatch) directives.push({ type: 'require', subject: m.replace(/^always\s+use\s+/, '') });
+  for (const m of neverMatch) directives.push({ type: 'forbid', subject: m.replace(/^never\s+use\s+/, '') });
+  for (const m of preferMatch) directives.push({ type: 'prefer', subject: m.replace(/^prefer\s+/, '') });
+  for (const m of avoidMatch) directives.push({ type: 'avoid', subject: m.replace(/^avoid\s+/, '') });
+  for (const m of doNotMatch) directives.push({ type: 'forbid', subject: m.replace(/^do\s+not\s+use\s+/, '') });
+
+  return directives;
+}
+
+function detectConflicts(dir) {
+  const rulesDir = path.join(dir, '.cursor', 'rules');
+  if (!fs.existsSync(rulesDir) || !fs.statSync(rulesDir).isDirectory()) return [];
+
+  const files = fs.readdirSync(rulesDir).filter(f => f.endsWith('.mdc'));
+  if (files.length < 2) return [];
+
+  const parsed = [];
+  for (const file of files) {
+    const filePath = path.join(rulesDir, file);
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const fm = parseFrontmatter(content);
+    const globs = fm.data ? parseGlobs(fm.data.globs) : [];
+    const alwaysApply = fm.data && fm.data.alwaysApply;
+    const directives = extractDirectives(content);
+    parsed.push({ file, filePath, globs, alwaysApply, directives, content });
+  }
+
+  const issues = [];
+
+  // Check for duplicate alwaysApply rules with overlapping globs
+  for (let i = 0; i < parsed.length; i++) {
+    for (let j = i + 1; j < parsed.length; j++) {
+      const a = parsed[i];
+      const b = parsed[j];
+
+      // Check glob overlap
+      const aGlobs = a.alwaysApply && a.globs.length === 0 ? [] : a.globs;
+      const bGlobs = b.alwaysApply && b.globs.length === 0 ? [] : b.globs;
+      const overlap = globsOverlap(aGlobs, bGlobs);
+
+      if (!overlap) continue;
+
+      // Check for contradictory directives
+      for (const dA of a.directives) {
+        for (const dB of b.directives) {
+          if (dA.subject !== dB.subject) continue;
+
+          const contradicts =
+            (dA.type === 'require' && (dB.type === 'forbid' || dB.type === 'avoid')) ||
+            (dA.type === 'forbid' && (dB.type === 'require' || dB.type === 'prefer')) ||
+            (dA.type === 'prefer' && dB.type === 'forbid') ||
+            (dA.type === 'avoid' && dB.type === 'require');
+
+          if (contradicts) {
+            issues.push({
+              severity: 'error',
+              message: `Conflicting rules: ${a.file} says "${dA.type} ${dA.subject}" but ${b.file} says "${dB.type} ${dB.subject}"`,
+              hint: 'Conflicting directives confuse the model. Remove or reconcile one of these rules.',
+            });
+          }
+        }
+      }
+
+      // Check for duplicate glob coverage (both alwaysApply targeting same files)
+      if (a.alwaysApply && b.alwaysApply && a.globs.length > 0 && b.globs.length > 0) {
+        const sharedGlobs = a.globs.filter(g => b.globs.includes(g));
+        if (sharedGlobs.length > 0) {
+          issues.push({
+            severity: 'warning',
+            message: `Overlapping globs: ${a.file} and ${b.file} both target ${sharedGlobs.join(', ')}`,
+            hint: 'Multiple rules targeting the same files may cause unpredictable behavior. Consider merging them.',
+          });
+        }
+      }
+    }
+  }
+
+  return issues;
+}
+
+module.exports = { lintProject, lintMdcFile, lintCursorrules, detectConflicts };

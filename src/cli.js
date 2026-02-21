@@ -7,7 +7,7 @@ const { initProject } = require('./init');
 const { fixProject } = require('./fix');
 const { generateRules } = require('./generate');
 
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
