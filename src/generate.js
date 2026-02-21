@@ -444,4 +444,57 @@ async function generateRules(cwd) {
   return { detected, created, skipped, failed };
 }
 
-module.exports = { generateRules };
+const SKILLS_API = 'https://skills.sh/api/search';
+
+function searchSkillsAPI(query, limit) {
+  return new Promise((resolve) => {
+    const url = `${SKILLS_API}?q=${encodeURIComponent(query)}&limit=${limit || 5}`;
+    https.get(url, (res) => {
+      if (res.statusCode !== 200) { res.resume(); resolve([]); return; }
+      let data = '';
+      res.on('data', (c) => data += c);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve(parsed.skills || []);
+        } catch { resolve([]); }
+      });
+      res.on('error', () => resolve([]));
+    }).on('error', () => resolve([]));
+  });
+}
+
+async function suggestSkills(detected) {
+  // Map detected stack items to search queries
+  const queries = new Set();
+  for (const item of detected) {
+    const lower = item.toLowerCase();
+    // Skip generic terms that return noisy results
+    if (['CI/CD', 'Docker', 'Kubernetes', 'Terraform'].includes(item)) {
+      queries.add(lower);
+    } else {
+      queries.add(lower);
+    }
+  }
+
+  // Search for top 3 unique queries to avoid API spam
+  const searchTerms = [...queries].slice(0, 5);
+  const allResults = [];
+  const seen = new Set();
+
+  for (const term of searchTerms) {
+    const results = await searchSkillsAPI(term, 3);
+    for (const skill of results) {
+      if (!seen.has(skill.id)) {
+        seen.add(skill.id);
+        allResults.push(skill);
+      }
+    }
+  }
+
+  // Sort by installs descending, take top 10
+  allResults.sort((a, b) => (b.installs || 0) - (a.installs || 0));
+  return allResults.slice(0, 10);
+}
+
+module.exports = { generateRules, suggestSkills };

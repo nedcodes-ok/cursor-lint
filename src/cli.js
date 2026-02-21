@@ -5,10 +5,10 @@ const { lintProject } = require('./index');
 const { verifyProject } = require('./verify');
 const { initProject } = require('./init');
 const { fixProject } = require('./fix');
-const { generateRules } = require('./generate');
+const { generateRules, suggestSkills } = require('./generate');
 const { checkVersions, checkRuleVersionMismatches } = require('./versions');
 
-const VERSION = '0.9.0';
+const VERSION = '0.10.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -248,7 +248,26 @@ async function main() {
     }
 
     if (results.created.length > 0) {
-      console.log(`\n${DIM}Run cursor-lint to check these rules${RESET}\n`);
+      console.log(`\n${DIM}Run cursor-lint to check these rules${RESET}`);
+    }
+
+    // Search skills.sh for relevant skills
+    if (results.detected.length > 0) {
+      console.log(`\n${CYAN}Searching skills.sh for your stack...${RESET}\n`);
+      try {
+        const skills = await suggestSkills(results.detected);
+        if (skills.length > 0) {
+          console.log(`${CYAN}Recommended skills from skills.sh:${RESET}`);
+          for (const skill of skills) {
+            const installs = skill.installs >= 1000
+              ? `${(skill.installs / 1000).toFixed(1).replace(/\.0$/, '')}K`
+              : `${skill.installs}`;
+            console.log(`  ${GREEN}↓${RESET} ${skill.name} ${DIM}(${installs} installs)${RESET}`);
+          }
+          console.log(`\n${DIM}Install with: npx skills add <source>${RESET}`);
+          console.log(`${DIM}Example: npx skills add ${skills[0].source}${RESET}\n`);
+        }
+      } catch {}
     }
 
     process.exit(results.failed.length > 0 ? 1 : 0);
