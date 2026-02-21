@@ -94,6 +94,98 @@ async function lintMdcFile(filePath) {
   return { file: filePath, issues };
 }
 
+async function lintSkillFile(filePath) {
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const issues = [];
+
+  const fm = parseFrontmatter(content);
+
+  if (!fm.found) {
+    issues.push({ severity: 'error', message: 'Missing YAML frontmatter', hint: 'Add --- block with name and description fields' });
+  } else if (fm.error) {
+    issues.push({ severity: 'error', message: `YAML frontmatter error: ${fm.error}`, hint: 'Fix frontmatter syntax' });
+  } else {
+    if (!fm.data.name) {
+      issues.push({ severity: 'error', message: 'Missing name in frontmatter', hint: 'Add name: your-skill-name to frontmatter' });
+    }
+    if (!fm.data.description) {
+      issues.push({ severity: 'error', message: 'Missing description in frontmatter', hint: 'Add a description so the agent knows when to use this skill' });
+    }
+    if (fm.data.description && fm.data.description.length < 20) {
+      issues.push({ severity: 'warning', message: 'Description is very short', hint: 'A longer description helps agents understand when to invoke this skill' });
+    }
+  }
+
+  // Check body content
+  const body = fm.found ? content.replace(/^---\n[\s\S]*?\n---\n?/, '') : content;
+
+  if (body.trim().length === 0) {
+    issues.push({ severity: 'error', message: 'Skill file has no body content', hint: 'Add instructions for the agent after the frontmatter' });
+  } else if (body.trim().length < 50) {
+    issues.push({ severity: 'warning', message: 'Skill body is very short (< 50 chars)', hint: 'Skills with more detail produce better agent behavior' });
+  }
+
+  // Check for headings (structure)
+  const headings = body.match(/^#{1,3}\s+.+/gm);
+  if (body.trim().length > 500 && (!headings || headings.length === 0)) {
+    issues.push({ severity: 'warning', message: 'Long skill with no headings', hint: 'Add ## sections to organize instructions for better agent comprehension' });
+  }
+
+  // Vague rules (same as .mdc)
+  const contentLower = content.toLowerCase();
+  for (const pattern of VAGUE_PATTERNS) {
+    const idx = contentLower.indexOf(pattern);
+    if (idx !== -1) {
+      const lineNum = content.slice(0, idx).split('\n').length;
+      issues.push({ severity: 'warning', message: `Vague instruction: "${pattern}"`, line: lineNum });
+    }
+  }
+
+  return { file: filePath, issues };
+}
+
+function findSkillDirs(dir) {
+  const skillDirs = [];
+  // .claude/skills/ (Claude Code)
+  const claudeSkills = path.join(dir, '.claude', 'skills');
+  if (fs.existsSync(claudeSkills)) skillDirs.push(claudeSkills);
+  // .cursor/skills/ (Cursor agent skills - future)
+  const cursorSkills = path.join(dir, '.cursor', 'skills');
+  if (fs.existsSync(cursorSkills)) skillDirs.push(cursorSkills);
+  // skills/ at project root (skills.sh convention)
+  const rootSkills = path.join(dir, 'skills');
+  if (fs.existsSync(rootSkills) && fs.statSync(rootSkills).isDirectory()) {
+    // Only if it looks like agent skills (has SKILL.md files in subdirs)
+    try {
+      const entries = fs.readdirSync(rootSkills);
+      const hasSkillMd = entries.some(e => {
+        const sub = path.join(rootSkills, e);
+        return fs.statSync(sub).isDirectory() && fs.existsSync(path.join(sub, 'SKILL.md'));
+      });
+      if (hasSkillMd) skillDirs.push(rootSkills);
+    } catch {}
+  }
+  return skillDirs;
+}
+
+function collectSkillFiles(skillDirs) {
+  const files = [];
+  for (const dir of skillDirs) {
+    try {
+      for (const entry of fs.readdirSync(dir)) {
+        const sub = path.join(dir, entry);
+        if (fs.statSync(sub).isDirectory()) {
+          const skillMd = path.join(sub, 'SKILL.md');
+          if (fs.existsSync(skillMd)) files.push(skillMd);
+        }
+        // Also handle flat SKILL.md files
+        if (entry === 'SKILL.md') files.push(path.join(dir, entry));
+      }
+    } catch {}
+  }
+  return files;
+}
+
 async function lintCursorrules(filePath) {
   const content = fs.readFileSync(filePath, 'utf-8');
   const issues = [];
@@ -134,10 +226,17 @@ async function lintProject(dir) {
     }
   }
 
+  // Skill files (.claude/skills/, skills/, etc.)
+  const skillDirs = findSkillDirs(dir);
+  const skillFiles = collectSkillFiles(skillDirs);
+  for (const sf of skillFiles) {
+    results.push(await lintSkillFile(sf));
+  }
+
   if (results.length === 0) {
     results.push({
       file: dir,
-      issues: [{ severity: 'warning', message: 'No Cursor rules found in this directory' }],
+      issues: [{ severity: 'warning', message: 'No Cursor rules or agent skills found in this directory' }],
     });
   }
 

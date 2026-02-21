@@ -8,7 +8,7 @@ const { fixProject } = require('./fix');
 const { generateRules, suggestSkills } = require('./generate');
 const { checkVersions, checkRuleVersionMismatches } = require('./versions');
 
-const VERSION = '0.10.0';
+const VERSION = '0.11.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -39,6 +39,7 @@ ${YELLOW}Options:${RESET}
 ${YELLOW}What it checks (default):${RESET}
   • .cursorrules files (warns about agent mode compatibility)
   • .cursor/rules/*.mdc files (frontmatter, alwaysApply, etc.)
+  • Agent skill files (SKILL.md in .claude/skills/, skills/)
   • Vague rules that won't change AI behavior
   • YAML syntax errors
 
