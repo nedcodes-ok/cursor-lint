@@ -121,7 +121,7 @@ Every check in cursor-lint comes from [actual experiments](https://dev.to/nedcod
 
 ## Need a deeper review?
 
-cursor-lint catches structural issues. For a full review of your rules, project structure, and model settings, I offer [$50 async setup audits](https://cursorrulespacks.gumroad.com/l/cursor-setup-audit). You get a written report with specific fixes, not generic advice.
+cursor-lint catches structural issues. For a full review of your rules, project structure, and model settings, I offer [$50 async setup audits](https://nedcodes.gumroad.com/l/cursor-setup-audit). You get a written report with specific fixes, not generic advice.
 
 ## License
 
@@ -129,12 +129,12 @@ MIT
 
 ---
 
-Made by [nedcodes](https://dev.to/nedcodes) · [Free rules collection](https://github.com/cursorrulespacks/cursorrules-collection) · [Setup audits](https://cursorrulespacks.gumroad.com/l/cursor-setup-audit)
+Made by [nedcodes](https://dev.to/nedcodes) · [Free rules collection](https://github.com/cursorrulespacks/cursorrules-collection) · [Setup audits](https://nedcodes.gumroad.com/l/cursor-setup-audit)
 
 ---
 
 ## Related
 
 - [cursorrules-collection](https://github.com/cursorrulespacks/cursorrules-collection) — 104 free .mdc rules
-- [Cursor Setup Audit](https://cursorrulespacks.gumroad.com/l/cursor-setup-audit) — Professional review of your rules setup ($50)
+- [Cursor Setup Audit](https://nedcodes.gumroad.com/l/cursor-setup-audit) — Professional review of your rules setup ($50)
 - [Articles on Dev.to](https://dev.to/nedcodes) — Guides on writing effective Cursor rules
