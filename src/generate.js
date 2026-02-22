@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const BASE_URL = 'https://raw.githubusercontent.com/cursorrulespacks/cursorrules-collection/main/rules-mdc/';
+const BASE_URL = 'https://raw.githubusercontent.com/nedcodes-ok/cursorrules-collection/main/rules-mdc/';
 
 // package.json dependencies → rule files
 const PKG_DEP_MAP = {
