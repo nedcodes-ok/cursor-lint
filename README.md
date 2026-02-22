@@ -129,12 +129,12 @@ MIT
 
 ---
 
-Made by [nedcodes](https://dev.to/nedcodes) · [Free rules collection](https://github.com/cursorrulespacks/cursorrules-collection) · [Setup audits](https://nedcodes.gumroad.com/l/cursor-setup-audit)
+Made by [nedcodes](https://dev.to/nedcodes) · [Free rules collection](https://github.com/nedcodes-ok/cursorrules-collection) · [Setup audits](https://nedcodes.gumroad.com/l/cursor-setup-audit)
 
 ---
 
 ## Related
 
-- [cursorrules-collection](https://github.com/cursorrulespacks/cursorrules-collection) — 104 free .mdc rules
+- [cursorrules-collection](https://github.com/nedcodes-ok/cursorrules-collection) — 104 free .mdc rules
 - [Cursor Setup Audit](https://nedcodes.gumroad.com/l/cursor-setup-audit) — Professional review of your rules setup ($50)
 - [Articles on Dev.to](https://dev.to/nedcodes) — Guides on writing effective Cursor rules

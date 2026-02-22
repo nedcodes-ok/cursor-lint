@@ -21,10 +21,10 @@
   ],
   "author": "nedcodes",
   "license": "MIT",
-  "homepage": "https://github.com/cursorrulespacks/cursor-lint",
+  "homepage": "https://github.com/nedcodes-ok/cursor-lint",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cursorrulespacks/cursor-lint.git"
+    "url": "https://github.com/nedcodes-ok/cursor-lint.git"
   },
   "engines": {
     "node": ">=16"

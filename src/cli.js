@@ -70,7 +70,7 @@ ${YELLOW}Examples:${RESET}
   npx cursor-lint --generate   # Download community rules for your stack
 
 ${YELLOW}More info:${RESET}
-  https://github.com/cursorrulespacks/cursor-lint
+  https://github.com/nedcodes-ok/cursor-lint
 `);
 }
 
@@ -435,7 +435,7 @@ async function main() {
       console.log(`${DIM}Need help fixing these? Get a full setup review:${RESET}`);
       console.log(`${CYAN}https://nedcodes.gumroad.com/l/cursor-setup-audit${RESET}\n`);
     } else if (totalPassed > 0) {
-      console.log(`${DIM}If cursor-lint saved you time: ${CYAN}https://github.com/cursorrulespacks/cursor-lint${RESET} ${DIM}(⭐ helps others find it)${RESET}\n`);
+      console.log(`${DIM}If cursor-lint saved you time: ${CYAN}https://github.com/nedcodes-ok/cursor-lint${RESET} ${DIM}(⭐ helps others find it)${RESET}\n`);
     }
 
     process.exit(totalErrors > 0 ? 1 : 0);
