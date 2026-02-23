@@ -204,7 +204,7 @@ cursor-lint encodes what we learned into automated checks so you don't have to l
 - 📦 [npm](https://www.npmjs.com/package/cursor-lint)
 - 📚 [Free rules collection](https://github.com/nedcodes-ok/cursorrules-collection) — 105+ .mdc rules for every stack
 - 📝 [Experiment write-ups on Dev.to](https://dev.to/nedcodes)
-- 📬 [Subscribe](https://buttondown.com/nedcodes) — one email per new post, nothing else
+- 📋 [Free Cursor Safety Checklist](https://nedcodes.gumroad.com/l/cursor-safety-checklist) — pre-flight checklist for AI-assisted coding sessions
 
 ## License
 
