@@ -74,7 +74,7 @@ cursor-doctor fix --dry-run
 cursor-doctor activate <key>
 ```
 
-**Get a Pro key:** [nedcodes.gumroad.com/l/cursor-doctor](https://nedcodes.gumroad.com/l/cursor-doctor)
+**Get a Pro key:** [nedcodes.gumroad.com/l/cursor-doctor-pro](https://nedcodes.gumroad.com/l/cursor-doctor-pro)
 
 ## Why?
 

@@ -11,7 +11,7 @@ const { autoFix } = require('./autofix');
 const { isLicensed, activateLicense } = require('./license');
 const { fixProject } = require('./fix');
 
-const VERSION = '1.1.1';
+const VERSION = '1.1.2';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
