@@ -1,0 +1,18 @@
+---
+description: Code style preferences A
+globs: ["*.ts", "*.tsx"]
+alwaysApply: false
+---
+<!-- cursor-doctor: conflicts with style-b.mdc — review manually -->
+
+# Code Style Guidelines
+
+## Formatting
+- Always use semicolons at the end of statements
+- Use single quotes for strings
+- Indent with 2 spaces
+- Maximum line length: 100 characters
+
+## Naming Conventions
+- Use camelCase for variables and functions
+- Use PascalCase for classes and types

@@ -62,12 +62,12 @@ function findConflicts(rules) {
       
       if (!overlapping && !a.alwaysApply && !b.alwaysApply) continue;
       
-      // Check for contradictory instructions
-      const aBody = a.body.toLowerCase();
-      const bBody = b.body.toLowerCase();
+      // Extract directives from both rules
+      const aDirectives = extractDirectives(a.body);
+      const bDirectives = extractDirectives(b.body);
       
-      // Simple contradiction detection
-      const contradictions = findContradictions(aBody, bBody);
+      // Find conflicting directives
+      const contradictions = findDirectiveConflicts(aDirectives, bDirectives);
       if (contradictions.length > 0) {
         conflicts.push({
           fileA: a.file,
@@ -92,27 +92,126 @@ function globsOverlap(a, b) {
   return false;
 }
 
-function findContradictions(a, b) {
-  const contradictions = [];
-  const pairs = [
-    [/always use semicolons/i, /never use semicolons|no semicolons/i],
-    [/use single quotes/i, /use double quotes/i],
-    [/use tabs/i, /use spaces/i],
-    [/use css modules/i, /use tailwind|use styled-components/i],
-    [/use relative imports/i, /use absolute imports|use path aliases/i],
-    [/prefer classes/i, /prefer functions|prefer functional/i],
-    [/use default exports/i, /use named exports|no default exports/i],
-    [/use arrow functions/i, /use function declarations|avoid arrow functions/i],
-    [/use any/i, /never use any|avoid any|no any/i],
-  ];
+function extractDirectives(text) {
+  const directives = [];
+  const lines = text.split('\n');
   
-  for (const [patA, patB] of pairs) {
-    if ((patA.test(a) && patB.test(b)) || (patB.test(a) && patA.test(b))) {
-      contradictions.push(`Conflicting style: "${patA.source}" vs "${patB.source}"`);
+  // Handle compound directives like "always use X" or "never use X"
+  const compoundPattern = /\b(always|never)\s+(use|avoid|prefer|include|exclude)\s+([^.\n]{3,50})/gi;
+  // Single directives like "use X" or "avoid X"
+  const singlePattern = /\b(use|prefer|avoid|don't|do not|no|remove|add|include|exclude|enable|disable)\s+([^.\n]{3,50})/gi;
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#') || trimmed.startsWith('<!--') || trimmed.length < 5) continue;
+    
+    // Try compound pattern first
+    compoundPattern.lastIndex = 0;
+    let match = compoundPattern.exec(trimmed);
+    if (match) {
+      const modifier = match[1].toLowerCase(); // always/never
+      const action = match[2].toLowerCase();   // use/avoid/etc
+      const subject = normalizeSubject(match[3]);
+      if (subject) {
+        // Combine modifier and action: "always use" becomes "use", "never use" becomes "never"
+        const finalAction = modifier === 'never' ? 'never' : action;
+        directives.push({ action: finalAction, subject, line: trimmed });
+      }
+      continue;
+    }
+    
+    // Try single pattern
+    singlePattern.lastIndex = 0;
+    match = singlePattern.exec(trimmed);
+    if (match) {
+      const action = match[1].toLowerCase();
+      const subject = normalizeSubject(match[2]);
+      if (subject) {
+        directives.push({ action, subject, line: trimmed });
+      }
     }
   }
   
-  return contradictions;
+  return directives;
+}
+
+function normalizeSubject(text) {
+  // Lowercase and trim
+  let normalized = text.toLowerCase().trim();
+  
+  // Remove trailing punctuation
+  normalized = normalized.replace(/[.,;:!?]+$/, '');
+  
+  // Remove leading articles
+  normalized = normalized.replace(/^(the|a|an)\s+/i, '');
+  
+  // Remove extra whitespace
+  normalized = normalized.replace(/\s+/g, ' ');
+  
+  // Return null if too short or too long
+  if (normalized.length < 3 || normalized.length > 50) return null;
+  
+  return normalized;
+}
+
+function findDirectiveConflicts(aDirectives, bDirectives) {
+  const conflicts = [];
+  const opposites = {
+    'use': ['never', 'avoid', 'don\'t', 'do not', 'no', 'remove', 'exclude', 'disable'],
+    'prefer': ['avoid', 'never', 'don\'t', 'do not', 'no'],
+    'always': ['never', 'avoid', 'don\'t', 'do not', 'no'],
+    'add': ['remove', 'exclude', 'no'],
+    'include': ['exclude', 'remove', 'no'],
+    'enable': ['disable', 'no'],
+  };
+  
+  for (const aDir of aDirectives) {
+    for (const bDir of bDirectives) {
+      // Check if subjects are similar (allowing for minor variations)
+      if (subjectsSimilar(aDir.subject, bDir.subject)) {
+        // Check if actions are contradictory
+        const aAction = aDir.action;
+        const bAction = bDir.action;
+        
+        if (opposites[aAction] && opposites[aAction].includes(bAction)) {
+          conflicts.push(`"${aAction} ${aDir.subject}" vs "${bAction} ${bDir.subject}"`);
+        } else if (opposites[bAction] && opposites[bAction].includes(aAction)) {
+          conflicts.push(`"${aAction} ${aDir.subject}" vs "${bAction} ${bDir.subject}"`);
+        }
+      }
+    }
+  }
+  
+  return conflicts;
+}
+
+function subjectsSimilar(a, b) {
+  // Exact match
+  if (a === b) return true;
+  
+  // One contains the other (allowing for variations)
+  if (a.length > 5 && b.includes(a)) return true;
+  if (b.length > 5 && a.includes(b)) return true;
+  
+  // Extract key words (longer than 4 chars) and check for overlap
+  const wordsA = a.split(/\s+/).filter(w => w.length > 4);
+  const wordsB = b.split(/\s+/).filter(w => w.length > 4);
+  
+  // If they share a significant word, consider them similar
+  for (const wordA of wordsA) {
+    for (const wordB of wordsB) {
+      if (wordA === wordB || wordA.includes(wordB) || wordB.includes(wordA)) {
+        return true;
+      }
+    }
+  }
+  
+  // Remove common variations and compare
+  const cleanA = a.replace(/\b(ing|ed|s)\b/g, '').replace(/\s+/g, '');
+  const cleanB = b.replace(/\b(ing|ed|s)\b/g, '').replace(/\s+/g, '');
+  if (cleanA === cleanB) return true;
+  
+  return false;
 }
 
 function findRedundancy(rules) {

@@ -11,7 +11,7 @@ const { autoFix } = require('./autofix');
 const { isLicensed, activateLicense } = require('./license');
 const { fixProject } = require('./fix');
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -291,7 +291,10 @@ async function main() {
       process.exit(1);
     }
 
-    if (results.fixed.length === 0 && results.splits.length === 0 && results.deduped.length === 0) {
+    var totalActions = results.fixed.length + results.splits.length + results.merged.length + 
+                       results.annotated.length + results.generated.length + results.deduped.length;
+
+    if (totalActions === 0) {
       console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' Nothing to fix. Setup looks clean.');
       console.log();
       process.exit(0);
@@ -301,10 +304,19 @@ async function main() {
       console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' ' + results.fixed[i].file + ': ' + results.fixed[i].change);
     }
     for (var i = 0; i < results.splits.length; i++) {
-      console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' Split ' + results.splits[i].file + ' -> ' + results.splits[i].parts.join(', '));
+      console.log('  ' + BLUE + String.fromCharCode(9986) + RESET + ' Split ' + results.splits[i].file + ' -> ' + results.splits[i].parts.join(', '));
+    }
+    for (var i = 0; i < results.merged.length; i++) {
+      console.log('  ' + CYAN + String.fromCharCode(8645) + RESET + ' Merged ' + results.merged[i].removed + ' into ' + results.merged[i].kept + ' (' + results.merged[i].overlapPct + '% overlap)');
+    }
+    for (var i = 0; i < results.annotated.length; i++) {
+      console.log('  ' + YELLOW + String.fromCharCode(9888) + RESET + ' Annotated ' + results.annotated[i].file + ' (conflicts with ' + results.annotated[i].conflictsWith + ')');
+    }
+    for (var i = 0; i < results.generated.length; i++) {
+      console.log('  ' + GREEN + String.fromCharCode(10010) + RESET + ' Generated ' + results.generated[i].file + ' (' + results.generated[i].reason + ')');
     }
     for (var i = 0; i < results.deduped.length; i++) {
-      console.log('  ' + YELLOW + '!' + RESET + ' ' + results.deduped[i].fileA + ' + ' + results.deduped[i].fileB + ': ' + results.deduped[i].overlapPct + '% overlap');
+      console.log('  ' + YELLOW + '!' + RESET + ' ' + results.deduped[i].fileA + ' + ' + results.deduped[i].fileB + ': ' + results.deduped[i].overlapPct + '% overlap (manual review)');
     }
     console.log();
     process.exit(0);

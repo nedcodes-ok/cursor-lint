@@ -1,0 +1,30 @@
+---
+description: Python style and conventions
+globs: ["*.py"]
+alwaysApply: false
+---
+
+# Python Guidelines
+
+## Style
+- Follow PEP 8 for formatting (use black or ruff for auto-formatting)
+- Type hints on all public functions: `def get_user(id: int) -> User | None:`
+- Docstrings for modules, classes, and public functions (Google or NumPy style)
+- Max line length: 88 characters (black default)
+
+## Structure
+- One class per file unless tightly coupled
+- Group imports: stdlib, third-party, local (separated by blank lines)
+- Use `__init__.py` to expose public API, keep internals private with `_prefix`
+
+## Typing
+- Use `from __future__ import annotations` for modern type syntax in 3.9+
+- Prefer `list[str]` over `List[str]` (3.9+)
+- Use `| None` instead of `Optional` (3.10+)
+- Use Protocol for structural subtyping, not abstract classes
+
+## Patterns
+- Use dataclasses for data containers, not dicts
+- Context managers (`with`) for resource management
+- Comprehensions for simple transformations, generator expressions for large data
+- Avoid mutable default arguments — use `None` and initialize in function body

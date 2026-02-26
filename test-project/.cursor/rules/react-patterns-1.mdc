@@ -1,0 +1,34 @@
+---
+description: React component patterns
+globs: ["*.tsx", "*.jsx"]
+alwaysApply: false
+---
+
+# React Best Practices
+
+## Component Structure
+- Use functional components with hooks
+- Keep components small and focused
+- Extract reusable logic into custom hooks
+- Use named exports for components
+
+## State Management
+- Use useState for local state
+- Use useEffect for side effects
+- Prefer composition over prop drilling
+- Keep state close to where it's used
+
+## Performance
+- Use React.memo for expensive components
+- Use useCallback for function props
+- Use useMemo for expensive calculations
+
+## Props
+- Destructure props in function signature
+- Use TypeScript interfaces for prop types
+- Validate props with PropTypes or TypeScript
+
+# React Component Guidelines
+## Additional Tips
+- Write unit tests for components
+- Use React DevTools for debugging

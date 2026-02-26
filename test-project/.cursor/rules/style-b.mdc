@@ -1,0 +1,18 @@
+---
+description: Code style preferences B
+globs: ["*.ts", "*.tsx"]
+alwaysApply: false
+---
+<!-- cursor-doctor: conflicts with style-a.mdc — review manually -->
+
+# JavaScript/TypeScript Style
+
+## Formatting Rules
+- Avoid semicolons - use ASI (Automatic Semicolon Insertion)
+- Prefer double quotes for consistency
+- Use 2-space indentation
+- Keep lines under 100 characters
+
+## Best Practices
+- Use descriptive variable names
+- Write clear comments

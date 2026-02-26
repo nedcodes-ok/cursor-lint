@@ -1,0 +1,36 @@
+---
+description: Django models, views, and architecture
+globs: ["*.py"]
+alwaysApply: false
+---
+
+# Django Guidelines
+
+## Models
+- Singular names: `User`, `Order` (Django pluralizes automatically)
+- Use `models.TextChoices` or `models.IntegerChoices` for choice fields
+- Indexes: add `db_index=True` to foreign keys and frequently queried fields
+- Use `select_related` for one-to-one/foreign key, `prefetch_related` for many-to-many
+- Custom managers for reusable querysets
+
+## Views
+- Prefer class-based views for CRUD, function-based for custom logic
+- Use `get_object_or_404` instead of manual try/except for single-object lookups
+- Keep views thin — move business logic to models, managers, or services
+- Return JSON with `JsonResponse`, not serialized strings
+
+## URLs
+- Use path converters: `path('users/<int:id>/', ...)` not regex
+- Name all URL patterns: `name='user-detail'`
+- Namespace apps: `app_name = 'blog'` in urls.py
+
+## Queries
+- Use `.only()` and `.defer()` to limit fields when fetching large models
+- Annotate/aggregate at database level, not Python loops
+- Use `Q` objects for complex lookups, not raw SQL
+- Avoid N+1 queries — use debug toolbar to catch them
+
+## Settings
+- Use environment variables for secrets (python-decouple or django-environ)
+- Split settings: base.py, dev.py, prod.py
+- Never commit SECRET_KEY or database credentials
