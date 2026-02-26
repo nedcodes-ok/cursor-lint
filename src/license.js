@@ -3,7 +3,7 @@ const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
 
-const PRODUCT_PERMALINK = 'cursor-doctor-pro';
+const PRODUCT_ID = 'IlErCQxex46U8kXSE12IJw==';
 const LICENSE_FILE = '.cursor-doctor-license';
 const SALT = 'cursor-doctor-v1';
 
@@ -23,7 +23,7 @@ function isLicensed() {
 
 function verifyWithGumroad(key) {
   return new Promise(function(resolve) {
-    var postData = 'product_permalink=' + encodeURIComponent(PRODUCT_PERMALINK) + '&license_key=' + encodeURIComponent(key.trim());
+    var postData = 'product_id=' + encodeURIComponent(PRODUCT_ID) + '&license_key=' + encodeURIComponent(key.trim());
 
     var options = {
       hostname: 'api.gumroad.com',
