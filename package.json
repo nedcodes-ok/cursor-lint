@@ -1,6 +1,6 @@
 {
   "name": "cursor-doctor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Fix your Cursor AI setup in seconds — health checks, diagnostics, and auto-repair for your .cursor config",
   "main": "src/index.js",
   "bin": {
@@ -31,5 +31,8 @@
   },
   "files": [
     "src/"
-  ]
+  ],
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
 }
