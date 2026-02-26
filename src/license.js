@@ -1,60 +1,88 @@
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const crypto = require('crypto');
 
+const PRODUCT_PERMALINK = 'cursor-doctor';
 const LICENSE_FILE = '.cursor-doctor-license';
 const SALT = 'cursor-doctor-v1';
 
-function hashKey(key) {
-  return crypto.createHash('sha256').update(SALT + ':' + key.trim()).digest('hex');
+function getLicensePath() {
+  const home = process.env.HOME || process.env.USERPROFILE || '.';
+  return path.join(home, LICENSE_FILE);
 }
 
-function validateKeyFormat(key) {
-  // Lemon Squeezy keys: UUID-like format
-  const trimmed = key.trim();
-  if (trimmed.length < 16 || trimmed.length > 128) return false;
-  // Accept any alphanumeric+dash key of reasonable length
-  return /^[a-zA-Z0-9\-_]+$/.test(trimmed);
+function isLicensed() {
+  var p = getLicensePath();
+  if (!fs.existsSync(p)) return false;
+  try {
+    var stored = fs.readFileSync(p, 'utf-8').trim();
+    return stored.length === 64 && /^[a-f0-9]+$/.test(stored);
+  } catch (e) { return false; }
 }
 
-function getLicensePath(dir) {
-  // Check project dir first, then home dir
-  const projectPath = path.join(dir, LICENSE_FILE);
-  const homePath = path.join(process.env.HOME || process.env.USERPROFILE || '.', LICENSE_FILE);
-  if (fs.existsSync(projectPath)) return projectPath;
-  if (fs.existsSync(homePath)) return homePath;
-  return homePath; // default write location
+function verifyWithGumroad(key) {
+  return new Promise(function(resolve) {
+    var postData = 'product_permalink=' + encodeURIComponent(PRODUCT_PERMALINK) + '&license_key=' + encodeURIComponent(key.trim());
+
+    var options = {
+      hostname: 'api.gumroad.com',
+      path: '/v2/licenses/verify',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    var req = https.request(options, function(res) {
+      var body = '';
+      res.on('data', function(chunk) { body += chunk; });
+      res.on('end', function() {
+        try {
+          var json = JSON.parse(body);
+          if (json.success === true && json.purchase && !json.purchase.refunded && !json.purchase.chargebacked) {
+            resolve({ valid: true });
+          } else if (json.success === false) {
+            resolve({ valid: false, error: 'Invalid license key' });
+          } else {
+            resolve({ valid: false, error: 'Key is refunded or chargebacked' });
+          }
+        } catch (e) {
+          resolve({ valid: false, error: 'Could not parse Gumroad response' });
+        }
+      });
+    });
+
+    req.on('error', function(e) {
+      resolve({ valid: false, error: 'Could not reach Gumroad: ' + e.message });
+    });
+
+    req.write(postData);
+    req.end();
+  });
 }
 
-function isLicensed(dir) {
-  const projectPath = path.join(dir, LICENSE_FILE);
-  const homePath = path.join(process.env.HOME || process.env.USERPROFILE || '.', LICENSE_FILE);
-  
-  for (const p of [projectPath, homePath]) {
-    if (!fs.existsSync(p)) continue;
-    try {
-      const stored = fs.readFileSync(p, 'utf-8').trim();
-      // Stored as hash — valid if non-empty hash
-      if (stored.length === 64 && /^[a-f0-9]+$/.test(stored)) return true;
-    } catch {}
+async function activateLicense(dir, key) {
+  if (!key || key.trim().length < 8) {
+    return { ok: false, error: 'Key too short' };
   }
-  return false;
-}
 
-function activateLicense(dir, key) {
-  if (!validateKeyFormat(key)) {
-    return { ok: false, error: 'Invalid key format' };
+  var result = await verifyWithGumroad(key);
+
+  if (!result.valid) {
+    return { ok: false, error: result.error };
   }
-  
-  const hash = hashKey(key);
-  const homePath = path.join(process.env.HOME || process.env.USERPROFILE || '.', LICENSE_FILE);
-  
+
+  var hash = crypto.createHash('sha256').update(SALT + ':' + key.trim()).digest('hex');
+  var homePath = getLicensePath();
+
   try {
     fs.writeFileSync(homePath, hash + '\n', 'utf-8');
     return { ok: true, path: homePath };
   } catch (e) {
-    return { ok: false, error: `Failed to write license: ${e.message}` };
+    return { ok: false, error: 'Failed to save license: ' + e.message };
   }
 }
 
-module.exports = { isLicensed, activateLicense, validateKeyFormat };
+module.exports = { isLicensed, activateLicense };
