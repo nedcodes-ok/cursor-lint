@@ -11,7 +11,7 @@ const { autoFix } = require('./autofix');
 const { isLicensed, activateLicense } = require('./license');
 const { fixProject } = require('./fix');
 
-const VERSION = '1.1.2';
+const VERSION = '1.1.3';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -131,7 +131,8 @@ async function main() {
 
     var fixable = report.checks.filter(function(c) { return c.status === 'fail' || c.status === 'warn'; }).length;
     if (fixable > 0) {
-      console.log('  ' + CYAN + fixable + ' issue(s) found.' + RESET + ' Run ' + CYAN + 'cursor-doctor fix' + RESET + ' to auto-repair. ' + DIM + '(Pro)' + RESET);
+      console.log('  ' + CYAN + fixable + ' issue(s) found.' + RESET + ' Run ' + CYAN + 'cursor-doctor fix' + RESET + ' to auto-repair.');
+      console.log('  ' + DIM + 'Pro ($9 one-time) ' + PURCHASE_URL + RESET);
       console.log();
     }
 
