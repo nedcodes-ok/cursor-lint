@@ -1,3 +1,6 @@
 test-project/
 .git/
 .github/
+images/
+*.png
+*.gif
