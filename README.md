@@ -29,7 +29,12 @@ No install needed. Runs directly with npx. Zero dependencies.
 
 ### VS Code / Cursor Extension
 
-Search **"Cursor Doctor"** in the extensions panel, or install from [OpenVSX](https://open-vsx.org/extension/nedcodes/cursor-doctor).
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/nedcodes.cursor-doctor?label=VS%20Code%20Marketplace&color=blue)](https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor)
+[![OpenVSX](https://img.shields.io/open-vsx/v/nedcodes/cursor-doctor?label=OpenVSX&color=purple)](https://open-vsx.org/extension/nedcodes/cursor-doctor)
+
+Search **"Cursor Doctor"** in the extensions panel, or install from:
+- [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor)
+- [OpenVSX](https://open-vsx.org/extension/nedcodes/cursor-doctor) (used by Cursor)
 
 Health grade in your status bar. Inline diagnostics on save. Same engine, zero config.
 
