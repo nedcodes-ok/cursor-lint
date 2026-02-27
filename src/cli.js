@@ -11,7 +11,7 @@ const { autoFix } = require('./autofix');
 const { isLicensed, activateLicense } = require('./license');
 const { fixProject } = require('./fix');
 
-const VERSION = '1.1.4';
+const VERSION = '1.2.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -110,11 +110,19 @@ async function main() {
     }
 
     var gradeColors = { A: GREEN, B: GREEN, C: YELLOW, D: YELLOW, F: RED };
+    var gradeEmoji = { A: String.fromCharCode(11088), B: String.fromCharCode(10004), C: String.fromCharCode(9888), D: String.fromCharCode(9881), F: String.fromCharCode(128680) };
     var gc = gradeColors[report.grade] || RESET;
 
     console.log();
-    console.log('  ' + gc + BOLD + 'Cursor Health: ' + report.grade + '  (' + report.percentage + '%)' + RESET);
-    console.log('  ' + gc + String.fromCharCode(9472).repeat(34) + RESET);
+    console.log('  ' + gc + BOLD + String.fromCharCode(9618).repeat(2) + ' Cursor Health: ' + report.grade + ' ' + String.fromCharCode(9618).repeat(2) + RESET);
+    console.log();
+
+    // Progress bar
+    var barWidth = 30;
+    var filled = Math.round((report.percentage / 100) * barWidth);
+    var empty = barWidth - filled;
+    var bar = gc + String.fromCharCode(9608).repeat(filled) + RESET + DIM + String.fromCharCode(9617).repeat(empty) + RESET;
+    console.log('  ' + bar + '  ' + gc + BOLD + report.percentage + '%' + RESET);
     console.log();
 
     for (var i = 0; i < report.checks.length; i++) {
@@ -129,9 +137,13 @@ async function main() {
     }
     console.log();
 
+    var passes = report.checks.filter(function(c) { return c.status === 'pass'; }).length;
     var fixable = report.checks.filter(function(c) { return c.status === 'fail' || c.status === 'warn'; }).length;
+    console.log('  ' + GREEN + passes + ' passed' + RESET + '  ' + (fixable > 0 ? YELLOW + fixable + ' fixable' + RESET : ''));
+    console.log();
+
     if (fixable > 0) {
-      console.log('  ' + CYAN + fixable + ' issue(s) found.' + RESET + ' Run ' + CYAN + 'cursor-doctor fix' + RESET + ' to auto-repair.');
+      console.log('  ' + CYAN + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
       console.log('  ' + DIM + 'Pro ($9 one-time) ' + PURCHASE_URL + RESET);
       console.log();
     }

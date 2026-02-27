@@ -22,7 +22,7 @@ async function doctor(dir) {
     report.score += 20;
     report.checks.push({ name: 'Rules exist', status: 'pass', detail: '.cursor/rules/ found with .mdc files' });
   } else if (hasCursorrules) {
-    report.score += 5;
+    report.score += 12;
     report.checks.push({ name: 'Rules exist', status: 'warn', detail: 'Only .cursorrules found — run cursor-doctor migrate to convert' });
   } else {
     report.checks.push({ name: 'Rules exist', status: 'fail', detail: 'No rules found. Run cursor-doctor generate to create rules for your stack.' });
@@ -37,6 +37,7 @@ async function doctor(dir) {
     report.score += 10;
     report.checks.push({ name: 'No legacy .cursorrules', status: 'pass', detail: 'Using modern .mdc format' });
   } else {
+    report.score += 4;
     report.checks.push({ name: 'No legacy .cursorrules', status: 'warn', detail: 'Using legacy .cursorrules — run cursor-doctor migrate' });
   }
 
@@ -54,7 +55,7 @@ async function doctor(dir) {
     report.score += 25;
     report.checks.push({ name: 'Rule syntax', status: 'pass', detail: 'All rules pass lint checks' });
   } else if (errors === 0) {
-    report.score += 15;
+    report.score += 18;
     report.checks.push({ name: 'Rule syntax', status: 'warn', detail: `${warnings} warning(s). Run cursor-doctor lint for details.` });
   } else {
     report.score += Math.max(0, 8 - errors * 2);
@@ -205,10 +206,10 @@ async function doctor(dir) {
 
   // Calculate grade
   const pct = report.maxScore > 0 ? (report.score / report.maxScore) * 100 : 0;
-  if (pct >= 90) report.grade = 'A';
-  else if (pct >= 75) report.grade = 'B';
-  else if (pct >= 60) report.grade = 'C';
-  else if (pct >= 40) report.grade = 'D';
+  if (pct >= 85) report.grade = 'A';
+  else if (pct >= 70) report.grade = 'B';
+  else if (pct >= 50) report.grade = 'C';
+  else if (pct >= 30) report.grade = 'D';
   else report.grade = 'F';
   report.percentage = Math.round(pct);
 
