@@ -59,11 +59,16 @@ function extractDirectives(text) {
     { regex: /\b(use|allow|prefer)\s+(any\s+type|any\b)\s+(when|for|if)/gi, action: 'use' },
   ];
   
+  var inCodeBlock = false;
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
+    // Track code block state
+    if (line.startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
     if (line.startsWith('#') || line.startsWith('<!--') || line.length < 5) continue;
-    // Skip code blocks
-    if (line.startsWith('```')) continue;
     
     for (var j = 0; j < patterns.length; j++) {
       var p = patterns[j];
@@ -110,6 +115,8 @@ function normalizeSubject(text) {
 
 function subjectsSimilar(a, b) {
   if (a === b) return true;
+  
+  // One contains the other entirely (short subject inside longer one)
   if (a.length > 4 && b.includes(a)) return true;
   if (b.length > 4 && a.includes(b)) return true;
   
@@ -118,12 +125,46 @@ function subjectsSimilar(a, b) {
   var cleanB = b.replace(/s$/, '').replace(/-/g, ' ');
   if (cleanA === cleanB) return true;
   
-  // Check for key overlapping words
-  var wordsA = a.split(/\s+/).filter(function(w) { return w.length > 3; });
-  var wordsB = b.split(/\s+/).filter(function(w) { return w.length > 3; });
+  // Strip language/framework qualifiers to compare the CORE subject
+  // "semicolons in typescript files" -> "semicolons"
+  // "single quotes" -> "single quotes"  
+  var stripQualifiers = function(text) {
+    return text
+      .replace(/\b(in|for|of|with|on)\s+(typescript|javascript|python|ruby|go|rust|java|kotlin|swift|php|react|vue|svelte|angular|css|html|json|yaml|sql)\b.*/gi, '')
+      .replace(/\b(typescript|javascript|python|ruby|go|rust|java|kotlin|swift|php|react|vue|svelte|angular)\s+(files?|code|modules?|projects?)\b/gi, '')
+      .trim();
+  };
+  
+  var coreA = stripQualifiers(cleanA);
+  var coreB = stripQualifiers(cleanB);
+  
+  // If after stripping qualifiers, one is empty or too short, they're not comparable
+  if (coreA.length < 3 || coreB.length < 3) return false;
+  
+  // Compare core subjects
+  if (coreA === coreB) return true;
+  if (coreA.length > 4 && coreB.includes(coreA)) return true;
+  if (coreB.length > 4 && coreA.includes(coreB)) return true;
+  
+  // Check for key overlapping words (excluding language/framework names and common words)
+  var stopWords = new Set(['typescript', 'javascript', 'python', 'ruby', 'rust', 'java', 'react', 
+    'vue', 'svelte', 'angular', 'files', 'file', 'code', 'always', 'never', 'should', 'must',
+    'that', 'this', 'with', 'from', 'when', 'your', 'each', 'every', 'their', 'have', 'been']);
+  
+  var wordsA = coreA.split(/\s+/).filter(function(w) { return w.length > 3 && !stopWords.has(w); });
+  var wordsB = coreB.split(/\s+/).filter(function(w) { return w.length > 3 && !stopWords.has(w); });
+  
+  // Need at least one meaningful word match, AND both subjects should be short enough
+  // that the shared word represents a significant overlap
   for (var i = 0; i < wordsA.length; i++) {
     for (var j = 0; j < wordsB.length; j++) {
-      if (wordsA[i] === wordsB[j]) return true;
+      if (wordsA[i] === wordsB[j]) {
+        // Only count as similar if the shared word is a substantial part of both subjects
+        var wordLen = wordsA[i].length;
+        if (wordLen >= coreA.length * 0.3 || wordLen >= coreB.length * 0.3) {
+          return true;
+        }
+      }
     }
   }
   

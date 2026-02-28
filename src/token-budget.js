@@ -146,6 +146,19 @@ function detectWaste(rules) {
     
     var types = Object.keys(matchCounts);
     
+    // Also count mentions of OTHER file types that didn't hit the threshold
+    // to detect multi-language rules
+    var allMentionedTypes = 0;
+    for (var j = 0; j < fileTypeSignals.length; j++) {
+      var signal = fileTypeSignals[j];
+      var matches = body.match(signal.pattern);
+      if (matches && matches.length >= 1) allMentionedTypes++;
+    }
+    
+    // If the rule mentions 3+ different file types (even with 1 match each),
+    // it's a multi-language rule — don't flag as waste
+    if (allMentionedTypes >= 3) continue;
+    
     // If rule is clearly about 1-2 specific file types
     if (types.length >= 1 && types.length <= 2) {
       var dominantType = types[0];
