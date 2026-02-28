@@ -234,6 +234,8 @@ The [Cursor Doctor extension](https://marketplace.visualstudio.com/items?itemNam
 
 ## Related
 
+Part of the [nedcodes](https://nedcodes.dev) toolkit for Cursor AI developers.
+
 - **[rule-gen](https://github.com/nedcodes-ok/rule-gen)** — Generate rules from your codebase using Google Gemini. `npx rulegen-ai`
 - **[rule-porter](https://github.com/nedcodes-ok/rule-porter)** — Convert your Cursor rules to CLAUDE.md, AGENTS.md, Copilot, or Windsurf (and back). `npx rule-porter --to agents-md`
 
