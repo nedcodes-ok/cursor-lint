@@ -13,7 +13,7 @@ const { fixProject } = require('./fix');
 const { analyzeTokenBudget, CONTEXT_WINDOW_TOKENS } = require('./token-budget');
 const { crossConflictReport } = require('./cross-conflicts');
 
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
