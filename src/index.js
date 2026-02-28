@@ -35,23 +35,54 @@ function parseFrontmatter(content) {
   try {
     const data = {};
     const lines = match[1].split('\n');
-    for (const line of lines) {
-      const colonIdx = line.indexOf(':');
-      if (colonIdx === -1) continue;
-      const key = line.slice(0, colonIdx).trim();
-      const rawVal = line.slice(colonIdx + 1).trim();
+    var currentKey = null;
+    var currentList = null;
+    for (var i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // YAML list item (  - "value")
+      if (line.match(/^\s+-\s+/)) {
+        if (currentKey && currentList) {
+          var itemVal = line.replace(/^\s+-\s+/, '').trim();
+          if (itemVal.startsWith('"') && itemVal.endsWith('"')) itemVal = itemVal.slice(1, -1);
+          else if (itemVal.startsWith("'") && itemVal.endsWith("'")) itemVal = itemVal.slice(1, -1);
+          currentList.push(itemVal);
+        }
+        continue;
+      }
+
+      // Flush any pending list
+      if (currentKey && currentList) {
+        data[currentKey] = currentList;
+        currentKey = null;
+        currentList = null;
+      }
+
       // Check for bad indentation (key starts with space = likely nested/broken YAML)
       if (line.match(/^\s+\S/) && !line.match(/^\s+-/)) {
-        // Indented non-list line where we don't expect it
-        const prevLine = lines[lines.indexOf(line) - 1];
+        const prevLine = i > 0 ? lines[i - 1] : null;
         if (prevLine && !prevLine.endsWith(':')) {
           return { found: true, data: null, error: 'Invalid YAML indentation' };
         }
       }
-      if (rawVal === 'true') data[key] = true;
+
+      const colonIdx = line.indexOf(':');
+      if (colonIdx === -1) continue;
+      const key = line.slice(0, colonIdx).trim();
+      const rawVal = line.slice(colonIdx + 1).trim();
+
+      if (rawVal === '') {
+        // Could be start of a YAML list (key with no inline value)
+        currentKey = key;
+        currentList = [];
+      } else if (rawVal === 'true') data[key] = true;
       else if (rawVal === 'false') data[key] = false;
       else if (rawVal.startsWith('"') && rawVal.endsWith('"')) data[key] = rawVal.slice(1, -1);
       else data[key] = rawVal;
+    }
+    // Flush final list
+    if (currentKey && currentList) {
+      data[currentKey] = currentList;
     }
     return { found: true, data, error: null };
   } catch (e) {
@@ -101,14 +132,16 @@ async function lintMdcFile(filePath) {
   } else if (fm.error) {
     issues.push({ severity: 'error', message: `YAML frontmatter error: ${fm.error}`, hint: 'Fix frontmatter indentation/syntax' });
   } else {
-    if (!fm.data.alwaysApply) {
-      issues.push({ severity: 'error', message: 'Missing alwaysApply: true', hint: 'Add alwaysApply: true to frontmatter for agent mode' });
+    // alwaysApply check: only flag if BOTH alwaysApply is missing/undefined AND no globs are set
+    var hasGlobs = fm.data.globs && (Array.isArray(fm.data.globs) ? fm.data.globs.length > 0 : parseGlobs(fm.data.globs).length > 0);
+    if (fm.data.alwaysApply === undefined && !hasGlobs) {
+      issues.push({ severity: 'warning', message: 'No alwaysApply or globs set — rule may only apply when manually referenced', hint: 'Add alwaysApply: true for global rules, or add globs to scope to specific files' });
     }
     if (!fm.data.description) {
       issues.push({ severity: 'warning', message: 'Missing description in frontmatter', hint: 'Add a description so Cursor knows when to apply this rule' });
     }
     if (fm.data.globs && typeof fm.data.globs === 'string' && fm.data.globs.includes(',') && !fm.data.globs.trim().startsWith('[')) {
-      issues.push({ severity: 'error', message: 'Globs should be YAML array, not comma-separated string', hint: 'Use globs:\\n  - "*.ts"\\n  - "*.tsx"' });
+      issues.push({ severity: 'warning', message: 'Globs as comma-separated string — consider using YAML array format', hint: 'Use globs:\\n  - "*.ts"\\n  - "*.tsx"' });
     }
 
     // NEW: Frontmatter has unknown keys
@@ -132,8 +165,9 @@ async function lintMdcFile(filePath) {
       });
     }
 
-    // NEW: alwaysApply is false with no globs
-    if (fm.data.alwaysApply === false && (!fm.data.globs || parseGlobs(fm.data.globs).length === 0)) {
+    // alwaysApply is false with no globs
+    var parsedGlobs = fm.data.globs ? (Array.isArray(fm.data.globs) ? fm.data.globs : parseGlobs(fm.data.globs)) : [];
+    if (fm.data.alwaysApply === false && parsedGlobs.length === 0) {
       issues.push({
         severity: 'error',
         message: 'alwaysApply is false with no globs — rule will never trigger',
@@ -454,21 +488,34 @@ async function lintMdcFile(filePath) {
     });
   }
 
-  // NEW: Rule references a file path that doesn't exist
-  const filePathMatches = body.match(/[\.\/\w-]+\.(ts|js|tsx|jsx|py|go|rs|java|md|json|yml|yaml|toml|config|conf)/g);
-  if (filePathMatches) {
-    const projectRoot = path.dirname(path.dirname(filePath)); // Assuming filePath is in .cursor/rules/
-    for (const match of filePathMatches) {
-      // Skip URLs and code examples
-      if (match.startsWith('http') || /```/.test(body.substring(0, body.indexOf(match)))) continue;
-      
-      const potentialPath = path.join(projectRoot, match);
-      if (!fs.existsSync(potentialPath) && match.includes('/')) {
-        issues.push({
-          severity: 'info',
-          message: `Rule references file that may not exist: ${match}`,
-          hint: 'Verify this file path is correct or remove the reference if outdated.',
-        });
+  // Rule references a file path that doesn't exist
+  // Guard: skip bodies >10KB to avoid slow regex on large files
+  if (body.length <= 10000) {
+    var filePathLines = body.split('\n');
+    var filePathMatches = [];
+    for (var fpi = 0; fpi < filePathLines.length; fpi++) {
+      var fpLine = filePathLines[fpi];
+      // Only match lines that look like they contain file references (have a slash)
+      if (fpLine.includes('/')) {
+        var fpMatch = fpLine.match(/[\w.\/-]+\.(ts|js|tsx|jsx|py|go|rs|java|md|json|yml|yaml|toml)\b/g);
+        if (fpMatch) {
+          for (var fpj = 0; fpj < fpMatch.length; fpj++) filePathMatches.push(fpMatch[fpj]);
+        }
+      }
+    }
+    if (filePathMatches.length > 0) {
+      var projectRoot = path.dirname(path.dirname(filePath));
+      for (var fpi = 0; fpi < filePathMatches.length; fpi++) {
+        var fpRef = filePathMatches[fpi];
+        if (fpRef.startsWith('http')) continue;
+        var potentialPath = path.join(projectRoot, fpRef);
+        if (!fs.existsSync(potentialPath) && fpRef.includes('/')) {
+          issues.push({
+            severity: 'info',
+            message: 'Rule references file that may not exist: ' + fpRef,
+            hint: 'Verify this file path is correct or remove the reference if outdated.',
+          });
+        }
       }
     }
   }
@@ -709,11 +756,11 @@ async function lintProjectStructure(dir) {
       const fullPath = path.join(cursorDir, entry);
       const stat = fs.statSync(fullPath);
       
-      if (stat.isFile() && !['hooks.json', 'environment.json', 'agents.json'].includes(entry)) {
+      if (stat.isFile() && !['hooks.json', 'environment.json', 'agents.json', 'mcp.json'].includes(entry)) {
         issues.push({
           severity: 'info',
           message: `Unexpected file in .cursor/: ${entry}`,
-          hint: '.cursor/ should contain only rules/, hooks.json, environment.json, or agents.json.',
+          hint: '.cursor/ should contain only rules/, hooks.json, mcp.json, environment.json, or agents.json.',
         });
       }
       
@@ -863,29 +910,20 @@ async function lintCursorConfig(dir) {
     for (const file of agentFiles) {
       const filePath = path.join(agentsDir, file);
       const content = fs.readFileSync(filePath, 'utf-8');
-      
-      // Check for proper structure: frontmatter + body
-      const fm = parseFrontmatter(content);
-      if (!fm.found) {
-        issues.push({
-          severity: 'warning',
-          message: `Agent file ${file} has no frontmatter`,
-          hint: 'Agent files should have YAML frontmatter with name and description fields.',
-        });
-      } else if (!fm.data.name && !fm.data.description) {
-        issues.push({
-          severity: 'warning',
-          message: `Agent file ${file} missing name or description`,
-          hint: 'Add name and description to frontmatter for proper agent registration.',
-        });
-      }
-      
-      const body = getBody(content);
-      if (body.trim().length === 0) {
+
+      // Agent files are plain markdown — frontmatter is optional
+      // Just check they have content
+      if (content.trim().length === 0) {
         issues.push({
           severity: 'error',
-          message: `Agent file ${file} has no instructions`,
-          hint: 'Add agent behavior instructions after the frontmatter.',
+          message: `Agent file ${file} is empty`,
+          hint: 'Add agent behavior instructions or remove the file.',
+        });
+      } else if (content.trim().length < 20) {
+        issues.push({
+          severity: 'warning',
+          message: `Agent file ${file} is very short (${content.trim().length} chars)`,
+          hint: 'Agent files should contain enough detail for the agent to understand its role.',
         });
       }
     }
@@ -958,7 +996,7 @@ async function lintProject(dir) {
         const content = fs.readFileSync(filePath, 'utf-8');
         const body = getBody(content);
         const fm = parseFrontmatter(content);
-        parsed.push({ file, filePath, body, description: fm.data?.description });
+        parsed.push({ file, filePath, body, description: fm.data && fm.data.description ? fm.data.description : undefined });
       }
 
       // Compare each pair

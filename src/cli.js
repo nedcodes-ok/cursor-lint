@@ -9,7 +9,6 @@ const { doctor } = require('./doctor');
 const { fullAudit, formatAuditMarkdown } = require('./audit');
 const { autoFix } = require('./autofix');
 const { isLicensed, activateLicense } = require('./license');
-const { fixProject } = require('./fix');
 const { analyzeTokenBudget, CONTEXT_WINDOW_TOKENS } = require('./token-budget');
 const { crossConflictReport } = require('./cross-conflicts');
 const { analyzePerformance } = require('./performance');
@@ -18,16 +17,17 @@ const { exportRules, importRules, detectDrift, setBaseline } = require('./team-s
 const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
 const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
 
-const VERSION = '1.6.1';
+const VERSION = '1.7.0';
 
-const RED = '\x1b[31m';
-const YELLOW = '\x1b[33m';
-const GREEN = '\x1b[32m';
-const CYAN = '\x1b[36m';
-const BLUE = '\x1b[34m';
-const BOLD = '\x1b[1m';
-const DIM = '\x1b[2m';
-const RESET = '\x1b[0m';
+var useColor = process.stdout.isTTY && !process.env.NO_COLOR;
+const RED = useColor ? '\x1b[31m' : '';
+const YELLOW = useColor ? '\x1b[33m' : '';
+const GREEN = useColor ? '\x1b[32m' : '';
+const CYAN = useColor ? '\x1b[36m' : '';
+const BLUE = useColor ? '\x1b[34m' : '';
+const BOLD = useColor ? '\x1b[1m' : '';
+const DIM = useColor ? '\x1b[2m' : '';
+const RESET = useColor ? '\x1b[0m' : '';
 
 var PURCHASE_URL = 'https://nedcodes.gumroad.com/l/cursor-doctor-pro';
 
@@ -76,8 +76,8 @@ function requirePro(dir) {
   console.log();
   console.log(YELLOW + BOLD + 'Pro feature — $9 one-time, no subscription.' + RESET);
   console.log();
-  console.log('  Includes: audit (full diagnostics), fix (auto-repair),');
-  console.log('  conflict detection, redundancy cleanup, stack templates.');
+  console.log('  Includes: audit, fix, conflicts, budget --pro,');
+  console.log('  rule performance tracking, AI rule testing, team sync.');
   console.log();
   console.log('  ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=paywall' + RESET);
   console.log('  Then: ' + DIM + 'cursor-doctor activate <your-key>' + RESET);
@@ -178,6 +178,12 @@ async function main() {
   // --- check (free, CI) ---
   if (command === 'check') {
     var report = await doctor(cwd);
+
+    if (asJson) {
+      console.log(JSON.stringify(report, null, 2));
+      process.exit(report.grade === 'F' || report.grade === 'D' ? 1 : 0);
+    }
+
     var issues = report.checks.filter(function(c) { return c.status === 'fail' || c.status === 'warn'; });
 
     if (issues.length === 0) {
@@ -196,10 +202,20 @@ async function main() {
 
   // --- lint (free) ---
   if (command === 'lint') {
+    var results = await lintProject(cwd);
+
+    if (asJson) {
+      var jsonResults = results.map(function(r) {
+        return { file: path.relative(cwd, r.file) || r.file, issues: r.issues };
+      });
+      console.log(JSON.stringify(jsonResults, null, 2));
+      var hasJsonErrors = results.some(function(r) { return r.issues.some(function(i) { return i.severity === 'error'; }); });
+      process.exit(hasJsonErrors ? 1 : 0);
+    }
+
     console.log();
     console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- lint');
     console.log();
-    var results = await lintProject(cwd);
     var totalErrors = 0;
     var totalWarnings = 0;
     var totalPassed = 0;
@@ -262,10 +278,16 @@ async function main() {
 
   // --- stats (free) ---
   if (command === 'stats') {
+    var stats = showStats(cwd);
+
+    if (asJson) {
+      console.log(JSON.stringify(stats, null, 2));
+      process.exit(0);
+    }
+
     console.log();
     console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- stats');
     console.log();
-    var stats = showStats(cwd);
     console.log(CYAN + 'Rules:' + RESET + '  ' + stats.mdcFiles.length + ' .mdc | ' + stats.skillFiles.length + ' skills | ~' + stats.totalTokens + ' tokens');
     console.log(CYAN + 'Tiers:' + RESET + '  ' + stats.tiers.always + ' always | ' + stats.tiers.glob + ' glob | ' + stats.tiers.manual + ' manual');
     if (stats.mdcFiles.length > 0) {

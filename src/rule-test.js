@@ -160,17 +160,31 @@ function parseFrontmatter(content) {
   if (!match) return { found: false, data: null };
   var data = {};
   var lines = match[1].split('\n');
+  var currentKey = null;
+  var currentList = null;
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
+    if (line.match(/^\s+-\s+/)) {
+      if (currentKey && currentList) {
+        var itemVal = line.replace(/^\s+-\s+/, '').trim();
+        if (itemVal.startsWith('"') && itemVal.endsWith('"')) itemVal = itemVal.slice(1, -1);
+        else if (itemVal.startsWith("'") && itemVal.endsWith("'")) itemVal = itemVal.slice(1, -1);
+        currentList.push(itemVal);
+      }
+      continue;
+    }
+    if (currentKey && currentList) { data[currentKey] = currentList; currentKey = null; currentList = null; }
     var colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
     var key = line.slice(0, colonIdx).trim();
     var rawVal = line.slice(colonIdx + 1).trim();
-    if (rawVal === 'true') data[key] = true;
+    if (rawVal === '') { currentKey = key; currentList = []; }
+    else if (rawVal === 'true') data[key] = true;
     else if (rawVal === 'false') data[key] = false;
     else if (rawVal.startsWith('"') && rawVal.endsWith('"')) data[key] = rawVal.slice(1, -1);
     else data[key] = rawVal;
   }
+  if (currentKey && currentList) { data[currentKey] = currentList; }
   return { found: true, data: data };
 }
 

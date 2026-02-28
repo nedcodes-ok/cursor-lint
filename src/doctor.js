@@ -28,7 +28,7 @@ async function doctor(dir) {
     report.score += 12;
     report.checks.push({ name: 'Rules exist', status: 'warn', detail: 'Only .cursorrules found — run cursor-doctor migrate to convert' });
   } else {
-    report.checks.push({ name: 'Rules exist', status: 'fail', detail: 'No rules found. Run cursor-doctor generate to create rules for your stack.' });
+    report.checks.push({ name: 'Rules exist', status: 'fail', detail: 'No rules found. Create .cursor/rules/*.mdc files or use npx rulegen-ai to generate them.' });
   }
 
   // 2. Check for legacy .cursorrules
