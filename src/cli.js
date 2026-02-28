@@ -12,8 +12,11 @@ const { isLicensed, activateLicense } = require('./license');
 const { fixProject } = require('./fix');
 const { analyzeTokenBudget, CONTEXT_WINDOW_TOKENS } = require('./token-budget');
 const { crossConflictReport } = require('./cross-conflicts');
+const { analyzePerformance } = require('./performance');
+const { testRule, testAllRules, getProvider } = require('./rule-test');
+const { exportRules, importRules, detectDrift, setBaseline } = require('./team-sync');
 
-const VERSION = '1.4.1';
+const VERSION = '1.5.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -45,6 +48,13 @@ function showHelp() {
     '  npx cursor-doctor audit --md   # Export audit as markdown',
     '  npx cursor-doctor budget --pro # Per-file-type breakdown, waste detection, history',
     '  npx cursor-doctor conflicts    # Cross-format conflict detection',
+    '  npx cursor-doctor perf         # Rule performance tracking',
+    '  npx cursor-doctor test <file>  # Test rule adherence with AI',
+    '  npx cursor-doctor test <rule> <code>  # Test single rule against code',
+    '  npx cursor-doctor team export  # Export rules as shareable config',
+    '  npx cursor-doctor team import <source>  # Import rules from file/URL',
+    '  npx cursor-doctor team drift   # Detect drift from team baseline',
+    '  npx cursor-doctor team baseline <source>  # Set team baseline',
     '  npx cursor-doctor fix          # Auto-fix issues',
     '  npx cursor-doctor fix --dry-run # Preview fixes',
     '',
@@ -387,6 +397,460 @@ async function main() {
     }
 
     process.exit(0);
+  }
+
+  // --- perf (PRO) ---
+  if (command === 'perf' || command === 'performance') {
+    if (!requirePro(cwd)) process.exit(1);
+
+    var days = 30;
+    var daysArg = args.find(function(a) { return a.startsWith('--days='); });
+    if (daysArg) days = parseInt(daysArg.split('=')[1], 10) || 30;
+
+    var analysis = analyzePerformance(cwd, { days: days });
+
+    if (analysis.error) {
+      console.log(RED + String.fromCharCode(10007) + RESET + ' ' + analysis.error);
+      process.exit(1);
+    }
+
+    if (asJson) {
+      console.log(JSON.stringify(analysis, null, 2));
+      process.exit(0);
+    }
+
+    console.log();
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- rule performance');
+    console.log();
+    console.log('  ' + DIM + 'Period: ' + analysis.period + ' | Source: ' + analysis.dataSource +
+      (analysis.hasExtensionData ? ' + VS Code extension' : '') +
+      ' | Files: ' + analysis.totalFilesAnalyzed + RESET);
+    console.log();
+
+    var s = analysis.summary;
+    console.log('  ' + CYAN + BOLD + 'Summary' + RESET);
+    console.log('    ' + GREEN + s.active + ' active' + RESET + '  ' +
+      CYAN + s.always + ' always-on' + RESET + '  ' +
+      YELLOW + s.low + ' low activity' + RESET + '  ' +
+      RED + s.dead + ' dead' + RESET + '  ' +
+      DIM + s.manual + ' manual' + RESET);
+    console.log();
+
+    if (s.dead > 0) {
+      console.log('  ' + RED + BOLD + String.fromCharCode(9888) + ' Dead Rules (no matching files in ' + analysis.period + '):' + RESET);
+      for (var i = 0; i < analysis.rules.length; i++) {
+        var r = analysis.rules[i];
+        if (r.status !== 'dead') continue;
+        console.log('    ' + RED + String.fromCharCode(10007) + RESET + ' ' + r.file + ' (~' + r.tokens + ' tokens wasted)');
+        if (r.globs.length > 0) {
+          console.log('      ' + DIM + 'globs: ' + r.globs.join(', ') + ' — no matching files changed' + RESET);
+        } else {
+          console.log('      ' + DIM + 'no globs, not alwaysApply — requires manual @mention' + RESET);
+        }
+      }
+      console.log();
+      console.log('    ' + YELLOW + 'Wasted tokens: ~' + s.wastedTokens + '/request on dead rules' + RESET);
+      console.log('    ' + DIM + 'Consider removing or converting to glob-targeted rules.' + RESET);
+      console.log();
+    }
+
+    if (s.active > 0 || s.always > 0) {
+      console.log('  ' + GREEN + BOLD + 'Active Rules:' + RESET);
+      for (var i = 0; i < analysis.rules.length; i++) {
+        var r = analysis.rules[i];
+        if (r.status !== 'active' && r.status !== 'always') continue;
+        var icon = r.status === 'always' ? CYAN + String.fromCharCode(9679) + RESET : GREEN + String.fromCharCode(9679) + RESET;
+        var activationText = r.status === 'always'
+          ? 'always-on (' + r.matchedFileCount + ' files)'
+          : r.gitActivations + ' git changes, ' + r.matchedFileCount + ' files';
+        if (r.extensionActivations > 0) {
+          activationText += ', ' + r.extensionActivations + ' editor triggers';
+        }
+        console.log('    ' + icon + ' ' + r.file.padEnd(30) + ' ' + DIM + activationText + RESET);
+      }
+      console.log();
+    }
+
+    if (s.low > 0) {
+      console.log('  ' + YELLOW + BOLD + 'Low Activity:' + RESET);
+      for (var i = 0; i < analysis.rules.length; i++) {
+        var r = analysis.rules[i];
+        if (r.status !== 'low') continue;
+        console.log('    ' + YELLOW + String.fromCharCode(9675) + RESET + ' ' + r.file + ' (' + r.totalActivations + ' activation(s) in ' + analysis.period + ')');
+      }
+      console.log();
+    }
+
+    process.exit(0);
+  }
+
+  // --- test (PRO) ---
+  if (command === 'test') {
+    if (!requirePro(cwd)) process.exit(1);
+
+    var provider = getProvider();
+    if (!provider) {
+      console.log();
+      console.log(RED + 'No API key found.' + RESET + ' Set one of:');
+      console.log('  ' + CYAN + 'GEMINI_API_KEY' + RESET + '     (free tier available at ai.google.dev)');
+      console.log('  ' + CYAN + 'OPENAI_API_KEY' + RESET + '     (requires billing)');
+      console.log('  ' + CYAN + 'ANTHROPIC_API_KEY' + RESET + '  (requires billing)');
+      console.log();
+      console.log(DIM + 'Example: GEMINI_API_KEY=your-key npx cursor-doctor test src/app.tsx' + RESET);
+      console.log();
+      process.exit(1);
+    }
+
+    // Determine mode: test <code-file> (all rules) or test <rule-file> <code-file>
+    var nonFlagArgs = args.filter(function(a) { return !a.startsWith('-') && a !== 'test'; });
+    
+    if (nonFlagArgs.length === 0) {
+      console.log(RED + 'Usage:' + RESET);
+      console.log('  cursor-doctor test <code-file>              # Test all rules against file');
+      console.log('  cursor-doctor test <rule.mdc> <code-file>   # Test single rule');
+      console.log('  cursor-doctor test <rule.mdc> --code "..."  # Test with inline code');
+      process.exit(1);
+    }
+
+    console.log();
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- rule testing (' + provider.name + ')');
+    console.log();
+
+    if (nonFlagArgs.length === 1) {
+      // Test all rules against a code file
+      var codeFile = nonFlagArgs[0];
+      console.log('  ' + DIM + 'Testing all rules against ' + codeFile + '...' + RESET);
+      console.log();
+
+      var results = await testAllRules(cwd, codeFile, {});
+
+      if (results.error) {
+        console.log('  ' + RED + results.error + RESET);
+        process.exit(1);
+      }
+
+      if (asJson) {
+        console.log(JSON.stringify(results, null, 2));
+        process.exit(0);
+      }
+
+      for (var i = 0; i < results.results.length; i++) {
+        var r = results.results[i];
+        if (r.error) {
+          console.log('  ' + RED + String.fromCharCode(10007) + RESET + ' ' + r.file + ': ' + r.error);
+          continue;
+        }
+        var icon = r.adherence ? GREEN + String.fromCharCode(10003) + RESET : RED + String.fromCharCode(10007) + RESET;
+        var scoreText = r.score !== null ? ' (' + r.score + '/100)' : '';
+        console.log('  ' + icon + ' ' + BOLD + r.file + RESET + scoreText);
+        if (r.violations && r.violations.length > 0) {
+          for (var j = 0; j < r.violations.length; j++) {
+            console.log('    ' + RED + '-' + RESET + ' ' + r.violations[j]);
+          }
+        }
+        if (r.improvements && r.improvements.length > 0) {
+          for (var j = 0; j < r.improvements.length; j++) {
+            console.log('    ' + GREEN + '+' + RESET + ' ' + r.improvements[j]);
+          }
+        }
+        if (r.diff && r.diff.changeCount > 0) {
+          console.log('    ' + DIM + r.diff.changeCount + ' line(s) changed' + RESET);
+        }
+      }
+
+      console.log();
+      var sum = results.summary;
+      console.log('  ' + GREEN + sum.passed + ' passed' + RESET + '  ' +
+        RED + sum.failed + ' failed' + RESET + '  ' +
+        (sum.errors > 0 ? YELLOW + sum.errors + ' errors' + RESET + '  ' : '') +
+        CYAN + 'Adherence: ' + sum.adherenceRate + '%' + RESET);
+      console.log();
+    } else {
+      // Test single rule against code
+      var ruleFile = nonFlagArgs[0];
+      var codeSource = nonFlagArgs[1];
+      
+      // Load rule
+      var rulePath = ruleFile;
+      if (!path.isAbsolute(rulePath) && !fs.existsSync(rulePath)) {
+        rulePath = path.join(cwd, '.cursor', 'rules', ruleFile);
+      }
+      if (!fs.existsSync(rulePath)) {
+        console.log('  ' + RED + 'Rule file not found: ' + ruleFile + RESET);
+        process.exit(1);
+      }
+      var ruleContent = fs.readFileSync(rulePath, 'utf-8');
+      
+      // Load code
+      var codeSnippet;
+      var inlineCode = args.find(function(a) { return a.startsWith('--code='); });
+      if (inlineCode) {
+        codeSnippet = inlineCode.slice(7);
+      } else if (fs.existsSync(codeSource)) {
+        codeSnippet = fs.readFileSync(codeSource, 'utf-8');
+      } else {
+        codeSnippet = codeSource;
+      }
+      
+      console.log('  ' + DIM + 'Testing ' + path.basename(rulePath) + ' against code...' + RESET);
+      console.log();
+
+      var result = await testRule(ruleContent, codeSnippet, { abTest: true });
+
+      if (asJson) {
+        console.log(JSON.stringify(result, null, 2));
+        process.exit(0);
+      }
+
+      if (result.error) {
+        console.log('  ' + RED + result.error + RESET);
+        process.exit(1);
+      }
+
+      var icon = result.adherence ? GREEN + String.fromCharCode(10003) + ' PASS' + RESET : RED + String.fromCharCode(10007) + ' FAIL' + RESET;
+      console.log('  ' + icon + (result.score !== null ? '  Score: ' + BOLD + result.score + '/100' + RESET : ''));
+      console.log();
+
+      if (result.violations && result.violations.length > 0) {
+        console.log('  ' + RED + 'Violations:' + RESET);
+        for (var j = 0; j < result.violations.length; j++) {
+          console.log('    ' + RED + String.fromCharCode(8226) + RESET + ' ' + result.violations[j]);
+        }
+        console.log();
+      }
+
+      if (result.improvements && result.improvements.length > 0) {
+        console.log('  ' + GREEN + 'Improvements applied:' + RESET);
+        for (var j = 0; j < result.improvements.length; j++) {
+          console.log('    ' + GREEN + String.fromCharCode(8226) + RESET + ' ' + result.improvements[j]);
+        }
+        console.log();
+      }
+
+      if (result.diff && result.diff.changed) {
+        console.log('  ' + CYAN + 'Changes (' + result.diff.changeCount + ' lines):' + RESET);
+        for (var j = 0; j < Math.min(result.diff.changes.length, 15); j++) {
+          var change = result.diff.changes[j];
+          if (change.type === 'removed') {
+            console.log('    ' + RED + '- ' + change.text + RESET);
+          } else if (change.type === 'added') {
+            console.log('    ' + GREEN + '+ ' + change.text + RESET);
+          } else if (change.type === 'changed') {
+            console.log('    ' + RED + '- ' + change.from + RESET);
+            console.log('    ' + GREEN + '+ ' + change.to + RESET);
+          }
+        }
+        if (result.diff.changes.length > 15) {
+          console.log('    ' + DIM + '... and ' + (result.diff.changes.length - 15) + ' more' + RESET);
+        }
+        console.log();
+      }
+
+      if (result.abDiff && result.abDiff.changed) {
+        console.log('  ' + CYAN + BOLD + 'A/B Comparison' + RESET + ' (with rule vs without):');
+        console.log('    ' + DIM + result.abDiff.changeCount + ' lines differ between with-rule and without-rule output' + RESET);
+        console.log('    ' + DIM + 'The rule IS making a measurable difference.' + RESET);
+        console.log();
+      } else if (result.abDiff && !result.abDiff.changed) {
+        console.log('  ' + YELLOW + 'A/B: No difference' + RESET + ' — the model produces the same output with or without this rule.');
+        console.log('    ' + DIM + 'This rule may not be effective for this code pattern.' + RESET);
+        console.log();
+      }
+    }
+    process.exit(0);
+  }
+
+  // --- team (PRO) ---
+  if (command === 'team') {
+    if (!requirePro(cwd)) process.exit(1);
+
+    var subcommand = args.find(function(a) { return !a.startsWith('-') && a !== 'team'; });
+
+    if (!subcommand) {
+      console.log();
+      console.log(BOLD + 'cursor-doctor team' + RESET + ' — Team Sync');
+      console.log();
+      console.log(CYAN + 'Commands:' + RESET);
+      console.log('  team export              Export rules to shareable config');
+      console.log('  team import <source>     Import rules from file or URL');
+      console.log('  team baseline <source>   Set team baseline (file or URL)');
+      console.log('  team drift               Detect drift from baseline');
+      console.log();
+      console.log(CYAN + 'Options:' + RESET);
+      console.log('  --overwrite              Overwrite existing rules on import');
+      console.log('  --include-context        Include CLAUDE.md/AGENTS.md in export/import');
+      console.log('  --name="Config Name"     Name the exported config');
+      console.log('  --out=<file>             Output file for export (default: stdout)');
+      console.log();
+      process.exit(0);
+    }
+
+    // --- team export ---
+    if (subcommand === 'export') {
+      var result = exportRules(cwd, {
+        name: (args.find(function(a) { return a.startsWith('--name='); }) || '').slice(7) || undefined,
+        includeContext: args.includes('--include-context'),
+      });
+
+      if (result.error) {
+        console.log(RED + String.fromCharCode(10007) + RESET + ' ' + result.error);
+        process.exit(1);
+      }
+
+      var outFile = (args.find(function(a) { return a.startsWith('--out='); }) || '').slice(6);
+      var jsonOutput = JSON.stringify(result.config, null, 2);
+
+      if (outFile) {
+        fs.writeFileSync(outFile, jsonOutput, 'utf-8');
+        console.log();
+        console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' Exported ' + result.config.ruleCount + ' rules to ' + BOLD + outFile + RESET);
+        console.log('  ' + DIM + 'Share this file with your team, or host it at a URL for cursor-doctor team baseline.' + RESET);
+        console.log();
+      } else {
+        process.stdout.write(jsonOutput + '\n');
+      }
+      process.exit(0);
+    }
+
+    // --- team import ---
+    if (subcommand === 'import') {
+      var source = args.filter(function(a) { return !a.startsWith('-') && a !== 'team' && a !== 'import'; })[0];
+      if (!source) {
+        console.log(RED + 'Usage: cursor-doctor team import <file-or-url>' + RESET);
+        process.exit(1);
+      }
+
+      // Load config
+      var config;
+      if (source.startsWith('http://') || source.startsWith('https://')) {
+        try {
+          var { fetchUrl } = require('./team-sync');
+          // Use inline fetch for URL imports
+          var https = require('https');
+          var http = require('http');
+          var data = await new Promise(function(resolve, reject) {
+            var client = source.startsWith('https') ? https : http;
+            client.get(source, function(res) {
+              if (res.statusCode !== 200) { reject(new Error('HTTP ' + res.statusCode)); return; }
+              var d = '';
+              res.on('data', function(chunk) { d += chunk; });
+              res.on('end', function() { resolve(d); });
+            }).on('error', reject);
+          });
+          config = JSON.parse(data);
+        } catch (e) {
+          console.log(RED + 'Failed to fetch: ' + e.message + RESET);
+          process.exit(1);
+        }
+      } else if (fs.existsSync(source)) {
+        try {
+          config = JSON.parse(fs.readFileSync(source, 'utf-8'));
+        } catch (e) {
+          console.log(RED + 'Failed to parse: ' + e.message + RESET);
+          process.exit(1);
+        }
+      } else {
+        console.log(RED + 'Source not found: ' + source + RESET);
+        process.exit(1);
+      }
+
+      var dryRun = args.includes('--dry-run');
+      var result = importRules(cwd, config, {
+        dryRun: dryRun,
+        overwrite: args.includes('--overwrite'),
+        includeContext: args.includes('--include-context'),
+      });
+
+      if (result.error) {
+        console.log(RED + String.fromCharCode(10007) + RESET + ' ' + result.error);
+        process.exit(1);
+      }
+
+      console.log();
+      console.log(BOLD + 'cursor-doctor team import' + RESET + (dryRun ? ' ' + DIM + '(dry run)' + RESET : ''));
+      console.log();
+      for (var i = 0; i < result.created.length; i++) {
+        console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' Created: ' + result.created[i].file);
+      }
+      for (var i = 0; i < result.updated.length; i++) {
+        console.log('  ' + CYAN + String.fromCharCode(8635) + RESET + ' Updated: ' + result.updated[i].file);
+      }
+      for (var i = 0; i < result.skipped.length; i++) {
+        console.log('  ' + YELLOW + String.fromCharCode(9888) + RESET + ' Skipped: ' + result.skipped[i].file + ' (' + result.skipped[i].reason + ')');
+      }
+      console.log();
+      process.exit(0);
+    }
+
+    // --- team baseline ---
+    if (subcommand === 'baseline') {
+      var source = args.filter(function(a) { return !a.startsWith('-') && a !== 'team' && a !== 'baseline'; })[0];
+      if (!source) {
+        console.log(RED + 'Usage: cursor-doctor team baseline <file-or-url>' + RESET);
+        console.log(DIM + 'Sets the team baseline for drift detection.' + RESET);
+        process.exit(1);
+      }
+
+      var result = setBaseline(cwd, source);
+      console.log();
+      console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' Baseline set: ' + BOLD + source + RESET);
+      console.log('  ' + DIM + 'Saved to ' + result.path + RESET);
+      console.log('  ' + DIM + 'Run "cursor-doctor team drift" to check for divergence.' + RESET);
+      console.log();
+      process.exit(0);
+    }
+
+    // --- team drift ---
+    if (subcommand === 'drift') {
+      var result = await detectDrift(cwd);
+
+      if (result.error) {
+        console.log();
+        console.log('  ' + RED + String.fromCharCode(10007) + RESET + ' ' + result.error);
+        console.log();
+        process.exit(1);
+      }
+
+      if (asJson) {
+        console.log(JSON.stringify(result, null, 2));
+        process.exit(0);
+      }
+
+      console.log();
+      console.log(BOLD + 'cursor-doctor team drift' + RESET);
+      console.log();
+      console.log('  ' + DIM + 'Baseline: ' + result.baselineSource + ' (' + result.baselineDate + ')' + RESET);
+      console.log('  ' + DIM + 'Rules: ' + result.totalRulesLocal + ' local / ' + result.totalRulesBaseline + ' baseline' + RESET);
+      console.log();
+
+      if (result.clean) {
+        console.log('  ' + GREEN + String.fromCharCode(10003) + ' No drift detected. Local rules match baseline.' + RESET);
+        console.log();
+      } else {
+        console.log('  ' + YELLOW + BOLD + result.driftCount + ' difference(s) found:' + RESET);
+        console.log();
+
+        for (var i = 0; i < result.drifts.length; i++) {
+          var d = result.drifts[i];
+          var icon;
+          if (d.type === 'deleted') icon = RED + String.fromCharCode(10007) + ' DELETED' + RESET;
+          else if (d.type === 'modified') icon = YELLOW + String.fromCharCode(9998) + ' MODIFIED' + RESET;
+          else if (d.type === 'added') icon = GREEN + String.fromCharCode(10010) + ' ADDED' + RESET;
+          else icon = DIM + '?' + RESET;
+
+          console.log('  ' + icon + '  ' + BOLD + d.file + RESET);
+          console.log('    ' + DIM + d.detail + RESET);
+        }
+        console.log();
+        console.log('  ' + DIM + 'To sync: cursor-doctor team import <baseline> --overwrite' + RESET);
+        console.log();
+      }
+      process.exit(result.clean ? 0 : 1);
+    }
+
+    console.log('Unknown team subcommand: ' + subcommand);
+    console.log('Run ' + DIM + 'cursor-doctor team' + RESET + ' for usage.');
+    process.exit(1);
   }
 
   // --- conflicts (PRO) ---
