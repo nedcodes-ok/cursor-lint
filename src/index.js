@@ -110,6 +110,36 @@ async function lintMdcFile(filePath) {
     if (fm.data.globs && typeof fm.data.globs === 'string' && fm.data.globs.includes(',') && !fm.data.globs.trim().startsWith('[')) {
       issues.push({ severity: 'error', message: 'Globs should be YAML array, not comma-separated string', hint: 'Use globs:\\n  - "*.ts"\\n  - "*.tsx"' });
     }
+
+    // NEW: Frontmatter has unknown keys
+    const validKeys = ['description', 'globs', 'alwaysApply'];
+    for (const key in fm.data) {
+      if (!validKeys.includes(key)) {
+        issues.push({
+          severity: 'warning',
+          message: `Unknown frontmatter key: ${key}`,
+          hint: `Valid keys: ${validKeys.join(', ')}. Unknown keys are ignored by Cursor.`,
+        });
+      }
+    }
+
+    // NEW: Description contains markdown formatting
+    if (fm.data.description && /[*_`#\[\]]/. test(fm.data.description)) {
+      issues.push({
+        severity: 'warning',
+        message: 'Description contains markdown formatting',
+        hint: 'Descriptions should be plain text. Save formatting for the rule body.',
+      });
+    }
+
+    // NEW: alwaysApply is false with no globs
+    if (fm.data.alwaysApply === false && (!fm.data.globs || parseGlobs(fm.data.globs).length === 0)) {
+      issues.push({
+        severity: 'error',
+        message: 'alwaysApply is false with no globs — rule will never trigger',
+        hint: 'Either set alwaysApply: true or add globs to specify when this rule applies.',
+      });
+    }
   }
 
   // Vague rules
@@ -131,6 +161,15 @@ async function lintMdcFile(filePath) {
       severity: 'warning',
       message: 'Rule body is very long (>2000 chars, ~500+ tokens)',
       hint: 'Shorter, specific rules outperform long generic ones. Consider splitting into focused rules.',
+    });
+  }
+
+  // NEW: Rule body exceeds 5000 chars (hard error)
+  if (body.length > 5000) {
+    issues.push({
+      severity: 'error',
+      message: 'Rule body exceeds 5000 chars (~1250 tokens)',
+      hint: 'Rules this long waste context and confuse the model. Split into multiple focused rules.',
     });
   }
 
@@ -198,6 +237,49 @@ async function lintMdcFile(filePath) {
           message: 'Glob pattern has no file extension after dot',
         });
       }
+
+      // NEW: Glob uses Windows backslashes
+      if (glob.includes('\\')) {
+        issues.push({
+          severity: 'warning',
+          message: `Glob pattern uses Windows backslashes: ${glob}`,
+          hint: 'Use forward slashes for cross-platform compatibility.',
+        });
+      }
+
+      // NEW: Glob has trailing slash
+      if (glob.endsWith('/')) {
+        issues.push({
+          severity: 'warning',
+          message: `Glob pattern has trailing slash: ${glob}`,
+          hint: 'Trailing slashes are not valid glob syntax. Remove the trailing /.',
+        });
+      }
+
+      // NEW: Glob starts with ./
+      if (glob.startsWith('./')) {
+        issues.push({
+          severity: 'info',
+          message: `Glob starts with ./: ${glob}`,
+          hint: 'Cursor resolves globs from project root. The ./ prefix is unnecessary.',
+        });
+      }
+    }
+
+    // NEW: Multiple globs that could be simplified
+    if (globs.length >= 2) {
+      const extensions = globs.map(g => {
+        const match = g.match(/^\*\.(\w+)$/);
+        return match ? match[1] : null;
+      }).filter(Boolean);
+      
+      if (extensions.length >= 2 && extensions.length === globs.length) {
+        issues.push({
+          severity: 'info',
+          message: `Multiple globs could be simplified: ${globs.join(', ')}`,
+          hint: `Consider using ["*.{${extensions.join(',')}}"] for cleaner syntax.`,
+        });
+      }
     }
   }
 
@@ -224,6 +306,213 @@ async function lintMdcFile(filePath) {
         severity: 'warning',
         message: 'Rule body appears to be just a URL',
         hint: 'Cursor cannot follow URLs. Put the actual instructions in the rule body.',
+      });
+    }
+  }
+
+  // NEW: Body/Content Rules
+  
+  // Rule body contains XML tags
+  if (/<[^>]+>/.test(body) && !hasCodeBlocks) {
+    const xmlTags = body.match(/<\w+[^>]*>/g);
+    if (xmlTags && xmlTags.length > 0) {
+      issues.push({
+        severity: 'warning',
+        message: 'Rule body contains XML/HTML tags',
+        hint: 'Cursor doesn\'t process XML/HTML in rules. Use markdown or plain text instead.',
+      });
+    }
+  }
+
+  // Rule has broken markdown links
+  if (/\]\[/.test(body) || /\[[^\]]*\]\([^\)]*$/.test(body)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule body has broken markdown links',
+      hint: 'Fix link syntax: [text](url)',
+    });
+  }
+
+  // Rule body starts with the description repeated
+  if (fm.data && fm.data.description && body.trim().startsWith(fm.data.description)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule body starts with description repeated',
+      hint: 'Redundant content wastes tokens. Remove the duplicate description from the body.',
+    });
+  }
+
+  // Rule contains TODO/FIXME/HACK comments
+  if (/\b(TODO|FIXME|HACK|XXX)\b/i.test(body)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule contains TODO/FIXME/HACK comments',
+      hint: 'Unfinished rules confuse the model. Finish the rule or remove it.',
+    });
+  }
+
+  // Rule has inconsistent heading levels
+  const headings = body.match(/^#{1,6}\s+.+/gm);
+  if (headings && headings.length >= 2) {
+    const levels = headings.map(h => h.match(/^#+/)[0].length);
+    const firstLevel = levels[0];
+    let hasSkip = false;
+    for (let i = 1; i < levels.length; i++) {
+      if (levels[i] > firstLevel + 1 && levels[i - 1] < levels[i] - 1) {
+        hasSkip = true;
+        break;
+      }
+    }
+    if (hasSkip) {
+      issues.push({
+        severity: 'warning',
+        message: 'Rule has inconsistent heading levels (jumps from # to ###)',
+        hint: 'Use consistent heading hierarchy for better structure.',
+      });
+    }
+  }
+
+  // Rule body has excessive blank lines
+  if (/\n\n\n\n/.test(body)) {
+    issues.push({
+      severity: 'info',
+      message: 'Rule body has excessive blank lines (>3 consecutive)',
+      hint: 'Excessive whitespace wastes tokens. Use 1-2 blank lines for separation.',
+    });
+  }
+
+  // Rule uses numbered lists where order doesn't matter
+  const numberedLists = body.match(/\n\d+\.\s+/g);
+  if (numberedLists && numberedLists.length >= 5) {
+    // Check if the list seems unordered (no sequence words like "first", "then", "next")
+    const listContext = body.toLowerCase();
+    const hasSequenceWords = /\b(first|second|third|then|next|finally|after|before)\b/.test(listContext);
+    if (!hasSequenceWords) {
+      issues.push({
+        severity: 'info',
+        message: 'Rule uses numbered lists where order may not matter',
+        hint: 'Bullet lists are more flexible for AI and clearer when order is unimportant.',
+      });
+    }
+  }
+
+  // NEW: Prompt Engineering Rules
+
+  // Rule uses weak language
+  const weakPatterns = [
+    { pattern: /\b(try to|maybe|consider|perhaps|possibly|might want to)\b/i, example: 'try to/maybe/consider' },
+  ];
+  for (const { pattern, example } of weakPatterns) {
+    if (pattern.test(body)) {
+      issues.push({
+        severity: 'warning',
+        message: `Rule uses weak language: "${example}"`,
+        hint: 'AI models follow commands better than suggestions. Use imperative mood: "Do X" instead of "try to do X".',
+      });
+    }
+  }
+
+  // Rule uses negations without alternatives
+  const negationMatches = body.match(/\b(don't|do not|never|avoid)\s+(?:use|do|write)\s+\w+/gi);
+  if (negationMatches && negationMatches.length > 0) {
+    // Check if there's a corresponding "instead" or "use X instead"
+    const hasAlternative = /instead|rather|prefer|use \w+ (?:rather|instead)/.test(body.toLowerCase());
+    if (!hasAlternative) {
+      issues.push({
+        severity: 'warning',
+        message: 'Rule uses negations without alternatives',
+        hint: 'Instead of "don\'t use X", say "use Y instead of X" to give the model clear direction.',
+      });
+    }
+  }
+
+  // Rule has no clear actionable instructions
+  const imperativeVerbs = /\b(use|write|create|add|remove|ensure|check|validate|follow|apply|implement)\b/i;
+  if (body.length > 100 && !imperativeVerbs.test(body)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule has no clear actionable instructions',
+      hint: 'Rules should contain clear commands. Use imperative verbs: use, write, create, ensure, etc.',
+    });
+  }
+
+  // Rule uses first person
+  if (/\b(I want|I need|I'd like|my preference)\b/i.test(body)) {
+    issues.push({
+      severity: 'info',
+      message: 'Rule uses first person ("I want you to...")',
+      hint: 'First person wastes tokens. Use direct commands: "Use X" instead of "I want you to use X".',
+    });
+  }
+
+  // Rule uses please/thank you
+  if (/\b(please|thank you|thanks)\b/i.test(body)) {
+    issues.push({
+      severity: 'info',
+      message: 'Rule uses please/thank you',
+      hint: 'Politeness wastes tokens. AI models don\'t need courtesy words. Be direct.',
+    });
+  }
+
+  // NEW: Rule references a file path that doesn't exist
+  const filePathMatches = body.match(/[\.\/\w-]+\.(ts|js|tsx|jsx|py|go|rs|java|md|json|yml|yaml|toml|config|conf)/g);
+  if (filePathMatches) {
+    const projectRoot = path.dirname(path.dirname(filePath)); // Assuming filePath is in .cursor/rules/
+    for (const match of filePathMatches) {
+      // Skip URLs and code examples
+      if (match.startsWith('http') || /```/.test(body.substring(0, body.indexOf(match)))) continue;
+      
+      const potentialPath = path.join(projectRoot, match);
+      if (!fs.existsSync(potentialPath) && match.includes('/')) {
+        issues.push({
+          severity: 'info',
+          message: `Rule references file that may not exist: ${match}`,
+          hint: 'Verify this file path is correct or remove the reference if outdated.',
+        });
+      }
+    }
+  }
+
+  // NEW: Rule mixes multiple concerns
+  const concernKeywords = {
+    testing: /\b(test|spec|jest|mocha|vitest|cypress|playwright)\b/i,
+    styling: /\b(css|style|styled|tailwind|emotion|sass|less)\b/i,
+    naming: /\b(naming|name|identifier|variable name|function name)\b/i,
+    types: /\b(type|interface|generic|typescript|type safety)\b/i,
+    architecture: /\b(architecture|structure|organization|folder|directory)\b/i,
+  };
+  
+  const matchedConcerns = [];
+  for (const [concern, pattern] of Object.entries(concernKeywords)) {
+    if (pattern.test(body)) {
+      matchedConcerns.push(concern);
+    }
+  }
+  
+  if (matchedConcerns.length >= 3) {
+    issues.push({
+      severity: 'warning',
+      message: `Rule mixes multiple concerns: ${matchedConcerns.join(', ')}`,
+      hint: 'Rules that cover too many topics are harder for the AI to apply correctly. Split into focused rules.',
+    });
+  }
+
+  // NEW: Rule has conflicting instructions within the same file
+  const bodyLower = body.toLowerCase();
+  const conflictPairs = [
+    { a: 'always use semicolons', b: 'no semicolons', subject: 'semicolons' },
+    { a: 'use single quotes', b: 'use double quotes', subject: 'quotes' },
+    { a: 'prefer const', b: 'prefer let', subject: 'const vs let' },
+    { a: 'use async/await', b: 'use promises', subject: 'async patterns' },
+    { a: 'use function', b: 'use arrow function', subject: 'function syntax' },
+  ];
+  
+  for (const { a, b, subject } of conflictPairs) {
+    if (bodyLower.includes(a) && bodyLower.includes(b)) {
+      issues.push({
+        severity: 'error',
+        message: `Rule has conflicting instructions about ${subject}`,
+        hint: `Rule contains both "${a}" and "${b}". Choose one approach.`,
       });
     }
   }
@@ -346,6 +635,265 @@ async function lintCursorrules(filePath) {
   return { file: filePath, issues };
 }
 
+// NEW: Project structure linting
+async function lintProjectStructure(dir) {
+  const issues = [];
+  const rulesDir = path.join(dir, '.cursor', 'rules');
+  
+  if (!fs.existsSync(rulesDir) || !fs.statSync(rulesDir).isDirectory()) {
+    return issues;
+  }
+
+  const mdcFiles = fs.readdirSync(rulesDir).filter(f => f.endsWith('.mdc'));
+  
+  // .cursor/rules/ has no subdirectory organization and >10 rules
+  const subdirs = fs.readdirSync(rulesDir).filter(entry => {
+    const fullPath = path.join(rulesDir, entry);
+    return fs.statSync(fullPath).isDirectory();
+  });
+  
+  if (mdcFiles.length > 10 && subdirs.length === 0) {
+    issues.push({
+      severity: 'warning',
+      message: `${mdcFiles.length} rules with no subdirectory organization`,
+      hint: 'Organize rules into subdirectories (e.g., .cursor/rules/typescript/, .cursor/rules/react/) for better maintainability.',
+    });
+  }
+
+  // Rule filenames don't follow kebab-case
+  for (const file of mdcFiles) {
+    const basename = file.replace(/\.mdc$/, '');
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(basename)) {
+      issues.push({
+        severity: 'info',
+        message: `Filename not in kebab-case: ${file}`,
+        hint: 'Use kebab-case for consistency: my-rule.mdc instead of MyRule.mdc or my_rule.mdc.',
+      });
+    }
+  }
+
+  // Rule filenames are too generic
+  const genericNames = ['rules.mdc', 'general.mdc', 'misc.mdc', 'config.mdc', 'setup.mdc', 'default.mdc'];
+  for (const generic of genericNames) {
+    if (mdcFiles.includes(generic)) {
+      issues.push({
+        severity: 'warning',
+        message: `Generic filename: ${generic}`,
+        hint: 'Use descriptive names that indicate what the rule does (e.g., react-hooks.mdc, typescript-naming.mdc).',
+      });
+    }
+  }
+
+  // Multiple rules with nearly identical filenames
+  const basenames = mdcFiles.map(f => f.replace(/\.mdc$/, ''));
+  for (let i = 0; i < basenames.length; i++) {
+    for (let j = i + 1; j < basenames.length; j++) {
+      const a = basenames[i];
+      const b = basenames[j];
+      // Check if one is a substring of the other or they differ by just a suffix
+      if (a.startsWith(b) || b.startsWith(a) || a.replace(/-rules?$/, '') === b.replace(/-rules?$/, '')) {
+        issues.push({
+          severity: 'warning',
+          message: `Similar filenames: ${mdcFiles[i]} and ${mdcFiles[j]}`,
+          hint: 'These filenames are very similar. Consider consolidating or renaming for clarity.',
+        });
+      }
+    }
+  }
+
+  // .cursor/ directory has files that don't belong
+  const cursorDir = path.join(dir, '.cursor');
+  if (fs.existsSync(cursorDir)) {
+    const entries = fs.readdirSync(cursorDir);
+    for (const entry of entries) {
+      const fullPath = path.join(cursorDir, entry);
+      const stat = fs.statSync(fullPath);
+      
+      if (stat.isFile() && !['hooks.json', 'environment.json', 'agents.json'].includes(entry)) {
+        issues.push({
+          severity: 'info',
+          message: `Unexpected file in .cursor/: ${entry}`,
+          hint: '.cursor/ should contain only rules/, hooks.json, environment.json, or agents.json.',
+        });
+      }
+      
+      if (entry === 'rules' && stat.isDirectory()) {
+        // Check for non-.mdc files in rules/
+        const checkDir = (dirPath) => {
+          const items = fs.readdirSync(dirPath);
+          for (const item of items) {
+            const itemPath = path.join(dirPath, item);
+            if (fs.statSync(itemPath).isDirectory()) {
+              checkDir(itemPath);
+            } else if (!item.endsWith('.mdc')) {
+              issues.push({
+                severity: 'warning',
+                message: `Non-.mdc file in rules/: ${path.relative(rulesDir, itemPath)}`,
+                hint: '.cursor/rules/ should only contain .mdc files.',
+              });
+            }
+          }
+        };
+        checkDir(fullPath);
+      }
+    }
+  }
+
+  return issues;
+}
+
+// NEW: Context file linting
+async function lintContextFiles(dir) {
+  const issues = [];
+
+  // Check AGENTS.md size
+  const agentsMd = path.join(dir, 'AGENTS.md');
+  if (fs.existsSync(agentsMd)) {
+    const size = fs.statSync(agentsMd).size;
+    if (size > 10000) {
+      issues.push({
+        severity: 'warning',
+        message: `AGENTS.md is very large (${Math.round(size / 1000)}KB)`,
+        hint: 'Context files over 10KB waste tokens. Consider splitting into smaller, more focused files.',
+      });
+    }
+  }
+
+  // Check CLAUDE.md size
+  const claudeMd = path.join(dir, 'CLAUDE.md');
+  if (fs.existsSync(claudeMd)) {
+    const size = fs.statSync(claudeMd).size;
+    if (size > 10000) {
+      issues.push({
+        severity: 'warning',
+        message: `CLAUDE.md is very large (${Math.round(size / 1000)}KB)`,
+        hint: 'Context files over 10KB waste tokens. Consider splitting into smaller, more focused files.',
+      });
+    }
+  }
+
+  // Both .cursorrules AND .cursor/rules/ exist
+  const cursorrules = path.join(dir, '.cursorrules');
+  const cursorRules = path.join(dir, '.cursor', 'rules');
+  if (fs.existsSync(cursorrules) && fs.existsSync(cursorRules)) {
+    issues.push({
+      severity: 'error',
+      message: 'Both .cursorrules and .cursor/rules/ exist',
+      hint: 'This creates conflicts. Run "cursor-doctor migrate" to convert .cursorrules to .mdc files, then delete .cursorrules.',
+    });
+  }
+
+  // Multiple context files with overlapping instructions
+  if (fs.existsSync(agentsMd) && fs.existsSync(claudeMd)) {
+    const agentsContent = fs.readFileSync(agentsMd, 'utf-8').toLowerCase();
+    const claudeContent = fs.readFileSync(claudeMd, 'utf-8').toLowerCase();
+    
+    // Simple overlap detection: count shared unique words
+    const agentsWords = new Set(agentsContent.split(/\s+/).filter(w => w.length > 4));
+    const claudeWords = new Set(claudeContent.split(/\s+/).filter(w => w.length > 4));
+    const intersection = new Set([...agentsWords].filter(w => claudeWords.has(w)));
+    const overlapRatio = intersection.size / Math.min(agentsWords.size, claudeWords.size);
+    
+    if (overlapRatio > 0.3) {
+      issues.push({
+        severity: 'warning',
+        message: 'AGENTS.md and CLAUDE.md have overlapping content',
+        hint: 'Duplicated instructions across context files waste tokens. Consolidate into one file or clearly separate concerns.',
+      });
+    }
+  }
+
+  return issues;
+}
+
+// NEW: Cursor config linting
+async function lintCursorConfig(dir) {
+  const issues = [];
+
+  // Check hooks.json
+  const hooksJson = path.join(dir, '.cursor', 'hooks.json');
+  if (fs.existsSync(hooksJson)) {
+    try {
+      const content = fs.readFileSync(hooksJson, 'utf-8');
+      const hooks = JSON.parse(content);
+      
+      // Validate hook script references
+      if (hooks && typeof hooks === 'object') {
+        for (const [event, script] of Object.entries(hooks)) {
+          if (typeof script === 'string') {
+            // Check if script file exists
+            const scriptPath = path.isAbsolute(script) ? script : path.join(dir, script);
+            if (!fs.existsSync(scriptPath)) {
+              issues.push({
+                severity: 'error',
+                message: `Hook "${event}" references missing script: ${script}`,
+                hint: 'Create the script file or remove the hook reference.',
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      issues.push({
+        severity: 'error',
+        message: `.cursor/hooks.json has syntax errors: ${e.message}`,
+        hint: 'Fix JSON syntax errors in hooks.json.',
+      });
+    }
+  }
+
+  // Check environment.json
+  const envJson = path.join(dir, '.cursor', 'environment.json');
+  if (fs.existsSync(envJson)) {
+    try {
+      JSON.parse(fs.readFileSync(envJson, 'utf-8'));
+    } catch (e) {
+      issues.push({
+        severity: 'error',
+        message: `.cursor/environment.json has syntax errors: ${e.message}`,
+        hint: 'Fix JSON syntax errors in environment.json.',
+      });
+    }
+  }
+
+  // Check .cursor/agents/*.md structure
+  const agentsDir = path.join(dir, '.cursor', 'agents');
+  if (fs.existsSync(agentsDir) && fs.statSync(agentsDir).isDirectory()) {
+    const agentFiles = fs.readdirSync(agentsDir).filter(f => f.endsWith('.md'));
+    for (const file of agentFiles) {
+      const filePath = path.join(agentsDir, file);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      
+      // Check for proper structure: frontmatter + body
+      const fm = parseFrontmatter(content);
+      if (!fm.found) {
+        issues.push({
+          severity: 'warning',
+          message: `Agent file ${file} has no frontmatter`,
+          hint: 'Agent files should have YAML frontmatter with name and description fields.',
+        });
+      } else if (!fm.data.name && !fm.data.description) {
+        issues.push({
+          severity: 'warning',
+          message: `Agent file ${file} missing name or description`,
+          hint: 'Add name and description to frontmatter for proper agent registration.',
+        });
+      }
+      
+      const body = getBody(content);
+      if (body.trim().length === 0) {
+        issues.push({
+          severity: 'error',
+          message: `Agent file ${file} has no instructions`,
+          hint: 'Add agent behavior instructions after the frontmatter.',
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
 async function lintProject(dir) {
   const results = [];
 
@@ -409,7 +957,8 @@ async function lintProject(dir) {
         const filePath = path.join(rulesDirPath, file);
         const content = fs.readFileSync(filePath, 'utf-8');
         const body = getBody(content);
-        parsed.push({ file, filePath, body });
+        const fm = parseFrontmatter(content);
+        parsed.push({ file, filePath, body, description: fm.data?.description });
       }
 
       // Compare each pair
@@ -429,9 +978,48 @@ async function lintProject(dir) {
               }],
             });
           }
+          
+          // NEW: Check for duplicate descriptions
+          if (a.description && b.description && a.description === b.description) {
+            results.push({
+              file: rulesDirPath,
+              issues: [{
+                severity: 'warning',
+                message: `Duplicate descriptions: ${a.file} and ${b.file}`,
+                hint: 'Each rule should have a unique description so Cursor can differentiate them.',
+              }],
+            });
+          }
         }
       }
     }
+  }
+
+  // NEW: Run project structure checks
+  const structureIssues = await lintProjectStructure(dir);
+  if (structureIssues.length > 0) {
+    results.push({
+      file: path.join(dir, '.cursor/'),
+      issues: structureIssues,
+    });
+  }
+
+  // NEW: Run context file checks
+  const contextIssues = await lintContextFiles(dir);
+  if (contextIssues.length > 0) {
+    results.push({
+      file: dir,
+      issues: contextIssues,
+    });
+  }
+
+  // NEW: Run config checks
+  const configIssues = await lintCursorConfig(dir);
+  if (configIssues.length > 0) {
+    results.push({
+      file: path.join(dir, '.cursor/'),
+      issues: configIssues,
+    });
   }
 
   return results;

@@ -1,0 +1,24 @@
+name: 'Cursor Doctor'
+description: 'Lint and validate Cursor AI configuration files'
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+inputs:
+  path:
+    description: 'Path to scan for Cursor rules'
+    required: false
+    default: '.'
+  fail-on-warning:
+    description: 'Fail the action if warnings are found'
+    required: false
+    default: 'false'
+outputs:
+  issue-count:
+    description: 'Total number of issues found'
+  health-grade:
+    description: 'Health grade (A-F)'
+  percentage:
+    description: 'Health percentage (0-100)'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

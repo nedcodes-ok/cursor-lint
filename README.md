@@ -33,12 +33,14 @@ Health grade in your status bar. Inline diagnostics on save. Same engine, zero c
 |-------|-------------|
 | **Rules exist** | Verifies you have `.cursor/rules/*.mdc` files |
 | **Legacy files** | Flags `.cursorrules` that should be migrated to `.mdc` |
-| **Lint** | 20+ checks: broken YAML, missing frontmatter, vague rules, conflicts |
+| **Lint** | 60+ checks: broken YAML, missing frontmatter, vague rules, conflicts, prompt engineering anti-patterns |
 | **Token budget** | Estimates how many tokens your rules consume per request |
 | **Coverage** | Detects project file types with no matching rules |
 | **Skills** | Checks for agent skill definitions |
 | **Conflicts** | Finds contradictory instructions across rule files |
 | **Redundancy** | Spots duplicate content between rules |
+| **Structure** | Validates project organization, file naming, and configuration |
+| **Context files** | Checks AGENTS.md, CLAUDE.md, and other context files for bloat |
 
 ## Commands
 
@@ -93,6 +95,94 @@ cursor-doctor finds these problems and fixes them.
 cursor-doctor is the evolution of [cursor-lint](https://www.npmjs.com/package/cursor-lint) (1,800+ downloads). Same engine, broader scope, auto-fix capabilities.
 
 If you're already using cursor-lint, cursor-doctor includes everything cursor-lint does plus diagnostics, conflict detection, and automated repair.
+
+## GitHub Action
+
+Run cursor-doctor in your CI pipeline:
+
+```yaml
+name: Cursor Rules Check
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: nedcodes-ok/cursor-doctor@v1
+        with:
+          path: '.'
+          fail-on-warning: false
+```
+
+Outputs: `issue-count`, `health-grade`, `percentage`
+
+## LSP Server (Editor Integration)
+
+Get real-time diagnostics in Neovim, Zed, or any LSP-compatible editor.
+
+### Installation
+
+```bash
+npm install -g cursor-doctor
+```
+
+### Neovim (nvim-lspconfig)
+
+Add to your `init.lua`:
+
+```lua
+local lspconfig = require('lspconfig')
+local configs = require('lspconfig.configs')
+
+-- Register cursor-doctor LSP
+if not configs.cursor_doctor then
+  configs.cursor_doctor = {
+    default_config = {
+      cmd = { 'cursor-doctor-lsp' },
+      filetypes = { 'mdc' },
+      root_dir = lspconfig.util.root_pattern('.cursor', '.git'),
+      settings = {},
+    },
+  }
+end
+
+-- Enable for .mdc files
+lspconfig.cursor_doctor.setup{}
+```
+
+Set filetype for `.mdc` files in `~/.config/nvim/ftdetect/mdc.vim`:
+
+```vim
+au BufRead,BufNewFile *.mdc set filetype=mdc
+```
+
+### Zed
+
+Add to your `settings.json`:
+
+```json
+{
+  "lsp": {
+    "cursor-doctor": {
+      "binary": {
+        "path": "cursor-doctor-lsp"
+      },
+      "language_servers": ["cursor-doctor"]
+    }
+  },
+  "languages": {
+    "MDC": {
+      "language_servers": ["cursor-doctor"],
+      "file_types": ["mdc"]
+    }
+  }
+}
+```
+
+### VS Code
+
+The [Cursor Doctor extension](https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor) already includes LSP support. No additional setup needed.
 
 ## Related
 
