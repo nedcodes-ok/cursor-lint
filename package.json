@@ -29,7 +29,7 @@
   ],
   "author": "nedcodes",
   "license": "MIT",
-  "homepage": "https://github.com/nedcodes-ok/cursor-doctor",
+  "homepage": "https://nedcodes.dev",
   "repository": {
     "type": "git",
     "url": "https://github.com/nedcodes-ok/cursor-doctor.git"
@@ -42,5 +42,8 @@
   ],
   "devDependencies": {
     "playwright": "^1.58.2"
+  },
+  "bugs": {
+    "url": "https://github.com/nedcodes-ok/cursor-doctor/issues"
   }
 }

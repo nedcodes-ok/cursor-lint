@@ -138,11 +138,9 @@ Cursor's AI reads your `.cursor/rules/` directory to understand how you want cod
 
 cursor-doctor finds these problems and fixes them.
 
-## From the makers of cursor-lint
+## Part of the nedcodes toolkit
 
-cursor-doctor is the evolution of [cursor-lint](https://www.npmjs.com/package/cursor-lint) (1,800+ downloads). Same engine, broader scope, auto-fix capabilities.
-
-If you're already using cursor-lint, cursor-doctor includes everything cursor-lint does plus diagnostics, conflict detection, and automated repair.
+cursor-doctor is the flagship tool at [nedcodes.dev](https://nedcodes.dev). Previously known as cursor-lint (2,000+ downloads), now with full diagnostics, conflict detection, and automated repair.
 
 ## GitHub Action
 
