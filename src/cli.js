@@ -10,8 +10,10 @@ const { fullAudit, formatAuditMarkdown } = require('./audit');
 const { autoFix } = require('./autofix');
 const { isLicensed, activateLicense } = require('./license');
 const { fixProject } = require('./fix');
+const { analyzeTokenBudget, CONTEXT_WINDOW_TOKENS } = require('./token-budget');
+const { crossConflictReport } = require('./cross-conflicts');
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -36,10 +38,13 @@ function showHelp() {
     '  npx cursor-doctor lint         # Detailed rule linting',
     '  npx cursor-doctor migrate      # Convert .cursorrules to .mdc',
     '  npx cursor-doctor stats        # Token usage dashboard',
+    '  npx cursor-doctor budget       # Smart token budget analysis',
     '',
     YELLOW + 'Pro Commands ($9 one-time key):' + RESET,
     '  npx cursor-doctor audit        # Full diagnostic report',
     '  npx cursor-doctor audit --md   # Export audit as markdown',
+    '  npx cursor-doctor budget --pro # Per-file-type breakdown, waste detection, history',
+    '  npx cursor-doctor conflicts    # Cross-format conflict detection',
     '  npx cursor-doctor fix          # Auto-fix issues',
     '  npx cursor-doctor fix --dry-run # Preview fixes',
     '',
@@ -261,6 +266,175 @@ async function main() {
     }
     console.log();
     process.exit(0);
+  }
+
+  // --- budget (free basic, pro detailed) ---
+  if (command === 'budget') {
+    var isPro = args.includes('--pro');
+    if (isPro && !requirePro(cwd)) process.exit(1);
+
+    var analysis = analyzeTokenBudget(cwd, { pro: isPro });
+
+    if (asJson) {
+      console.log(JSON.stringify(analysis, null, 2));
+      process.exit(0);
+    }
+
+    console.log();
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- token budget');
+    console.log();
+
+    // Context window visualization
+    var pctAlways = Math.round((analysis.alwaysLoadedTokens / CONTEXT_WINDOW_TOKENS) * 100);
+    var pctCond = Math.round((analysis.conditionalTokens / CONTEXT_WINDOW_TOKENS) * 100);
+    var barWidth = 40;
+    var filledAlways = Math.max(0, Math.round((pctAlways / 100) * barWidth));
+    var filledCond = Math.max(0, Math.min(barWidth - filledAlways, Math.round((pctCond / 100) * barWidth)));
+    var empty = Math.max(0, barWidth - filledAlways - filledCond);
+
+    var barColor = pctAlways < 5 ? GREEN : pctAlways < 15 ? YELLOW : RED;
+    var bar = barColor + String.fromCharCode(9608).repeat(filledAlways) + RESET +
+              BLUE + String.fromCharCode(9608).repeat(filledCond) + RESET +
+              DIM + String.fromCharCode(9617).repeat(empty) + RESET;
+
+    console.log('  ' + CYAN + BOLD + 'Context Window Usage' + RESET);
+    console.log('  ' + bar + '  ' + barColor + BOLD + analysis.contextWindowPct + '%' + RESET + ' always loaded');
+    console.log();
+
+    console.log('  ' + CYAN + 'Always loaded:' + RESET + '  ~' + analysis.alwaysLoadedTokens + ' tokens (' + analysis.contextWindowPct + '% of ' + (CONTEXT_WINDOW_TOKENS / 1000) + 'K context window)');
+    console.log('  ' + CYAN + 'Conditional:' + RESET + '    ~' + analysis.conditionalTokens + ' tokens (loaded when matching files are open)');
+    console.log('  ' + CYAN + 'Total:' + RESET + '          ~' + analysis.totalTokens + ' tokens');
+    console.log();
+
+    // Context files
+    if (analysis.contextFiles.length > 0) {
+      console.log('  ' + CYAN + 'Context Files:' + RESET);
+      for (var i = 0; i < analysis.contextFiles.length; i++) {
+        var cf = analysis.contextFiles[i];
+        console.log('    ' + cf.file.padEnd(25) + ' ~' + String(cf.tokens).padStart(5) + ' tokens');
+      }
+      console.log();
+    }
+
+    // Top rules by cost (free: top 5, pro: all)
+    var showCount = isPro ? analysis.rankedRules.length : Math.min(5, analysis.rankedRules.length);
+    if (analysis.rankedRules.length > 0) {
+      console.log('  ' + CYAN + (isPro ? 'All Rules by Cost:' : 'Biggest Rules:') + RESET);
+      for (var i = 0; i < showCount; i++) {
+        var r = analysis.rankedRules[i];
+        var pct = analysis.totalTokens > 0 ? Math.round((r.tokens / analysis.totalTokens) * 100) : 0;
+        var tierIcon = r.tier === 'always' ? RED + String.fromCharCode(9679) + RESET : r.tier === 'glob' ? YELLOW + String.fromCharCode(9679) + RESET : DIM + String.fromCharCode(9675) + RESET;
+        console.log('    ' + tierIcon + ' ' + r.file.padEnd(30) + ' ~' + String(r.tokens).padStart(5) + ' tokens (' + pct + '%)');
+      }
+      if (!isPro && analysis.rankedRules.length > 5) {
+        console.log('    ' + DIM + '... and ' + (analysis.rankedRules.length - 5) + ' more. Use --pro for full breakdown.' + RESET);
+      }
+      console.log();
+      console.log('    ' + RED + String.fromCharCode(9679) + RESET + ' always  ' + YELLOW + String.fromCharCode(9679) + RESET + ' glob  ' + DIM + String.fromCharCode(9675) + RESET + ' manual');
+      console.log();
+    }
+
+    if (isPro) {
+      // Per-file-type breakdown
+      if (analysis.fileTypeGroups) {
+        console.log('  ' + CYAN + BOLD + 'Token Cost by File Type:' + RESET);
+        var sortedGroups = Object.entries(analysis.fileTypeGroups).sort(function(a, b) { return b[1].totalTokens - a[1].totalTokens; });
+        for (var i = 0; i < sortedGroups.length; i++) {
+          var group = sortedGroups[i];
+          var name = group[0];
+          var data = group[1];
+          var pct = analysis.totalTokens > 0 ? Math.round((data.totalTokens / analysis.totalTokens) * 100) : 0;
+          var miniBar = CYAN + String.fromCharCode(9608).repeat(Math.max(1, Math.round(pct / 5))) + RESET;
+          console.log('    ' + name.padEnd(15) + ' ~' + String(data.totalTokens).padStart(5) + ' tokens (' + pct + '%) ' + miniBar);
+          for (var j = 0; j < data.rules.length; j++) {
+            console.log('      ' + DIM + data.rules[j].file + ' (' + data.rules[j].tokens + ')' + RESET);
+          }
+        }
+        console.log();
+      }
+
+      // Waste detection
+      if (analysis.waste && analysis.waste.length > 0) {
+        console.log('  ' + YELLOW + BOLD + String.fromCharCode(9888) + ' Token Waste Detected:' + RESET);
+        for (var i = 0; i < analysis.waste.length; i++) {
+          var w = analysis.waste[i];
+          console.log('    ' + YELLOW + String.fromCharCode(9888) + RESET + ' ' + w.file + ' (' + w.tokens + ' tokens, ' + w.confidence + ' confidence)');
+          console.log('      ' + DIM + w.reason + RESET);
+          console.log('      ' + CYAN + 'Fix:' + RESET + ' Add globs: ' + w.suggestedGlob + ' to frontmatter');
+        }
+        console.log();
+        console.log('    ' + GREEN + 'Potential savings: ~' + analysis.totalWasteTokens + ' tokens/request' + RESET);
+        console.log();
+      } else {
+        console.log('  ' + GREEN + String.fromCharCode(10003) + ' No token waste detected.' + RESET);
+        console.log();
+      }
+
+      // Historical trend
+      if (analysis.trend) {
+        console.log('  ' + CYAN + BOLD + 'Trend (vs last snapshot):' + RESET);
+        var arrow = analysis.trend.direction === 'up' ? RED + String.fromCharCode(9650) : analysis.trend.direction === 'down' ? GREEN + String.fromCharCode(9660) : YELLOW + '=';
+        console.log('    ' + arrow + RESET + ' Tokens: ' + (analysis.trend.tokenDelta > 0 ? '+' : '') + analysis.trend.tokenDelta);
+        console.log('    Rules: ' + (analysis.trend.ruleDelta > 0 ? '+' : '') + analysis.trend.ruleDelta);
+        console.log();
+      }
+    } else {
+      // Free teaser
+      console.log('  ' + DIM + 'Want per-file-type breakdown, waste detection, and history?' + RESET);
+      console.log('  ' + CYAN + 'npx cursor-doctor budget --pro' + RESET + '  ' + DIM + '($9 one-time)' + RESET);
+      console.log('  ' + DIM + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=budget' + RESET);
+      console.log();
+    }
+
+    process.exit(0);
+  }
+
+  // --- conflicts (PRO) ---
+  if (command === 'conflicts') {
+    if (!requirePro(cwd)) process.exit(1);
+
+    var report = crossConflictReport(cwd);
+
+    if (asJson) {
+      console.log(JSON.stringify(report, null, 2));
+      process.exit(0);
+    }
+
+    console.log();
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- cross-format conflicts');
+    console.log();
+
+    if (report.clean) {
+      console.log('  ' + GREEN + String.fromCharCode(10003) + ' ' + report.summary + RESET);
+      console.log();
+      console.log('  ' + DIM + 'Checked: .cursor/rules/*.mdc, CLAUDE.md, AGENTS.md, .cursorrules, hooks.json' + RESET);
+      console.log();
+    } else {
+      console.log('  ' + RED + BOLD + report.summary + RESET);
+      console.log();
+
+      var groups = report.groups;
+      for (var key in groups) {
+        console.log('  ' + BOLD + key + RESET);
+        var groupConflicts = groups[key];
+        for (var i = 0; i < groupConflicts.length; i++) {
+          var c = groupConflicts[i];
+          console.log('    ' + RED + String.fromCharCode(10007) + RESET + ' ' + c.directiveA + ' ' + DIM + '(line ' + c.lineA + ')' + RESET);
+          console.log('      vs ' + c.directiveB + ' ' + DIM + '(line ' + c.lineB + ')' + RESET);
+        }
+        console.log();
+      }
+
+      console.log('  ' + CYAN + 'Files with conflicts:' + RESET);
+      for (var i = 0; i < report.filesCovered.length; i++) {
+        console.log('    ' + report.filesCovered[i]);
+      }
+      console.log();
+      console.log('  ' + DIM + 'Fix: align the directives across files, or remove the contradictory instruction.' + RESET);
+      console.log();
+    }
+
+    process.exit(report.clean ? 0 : 1);
   }
 
   // --- audit (PRO) ---

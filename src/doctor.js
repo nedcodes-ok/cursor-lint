@@ -3,6 +3,7 @@ const path = require('path');
 const { lintProject } = require('./index');
 const { showStats } = require('./stats');
 const { lintPlugin } = require('./plugin');
+const { analyzeTokenBudget, CONTEXT_WINDOW_TOKENS } = require('./token-budget');
 
 async function doctor(dir) {
   const report = {
@@ -62,20 +63,22 @@ async function doctor(dir) {
     report.checks.push({ name: 'Rule syntax', status: 'fail', detail: `${errors} error(s), ${warnings} warning(s). Run cursor-doctor lint to see issues.` });
   }
 
-  // 4. Token budget
+  // 4. Token budget (enhanced with context window %)
   report.maxScore += 15;
   const stats = showStats(dir);
+  const tokenAnalysis = analyzeTokenBudget(dir, { pro: false });
+  var budgetPct = tokenAnalysis.contextWindowPct;
   if (stats.totalTokens === 0) {
     report.checks.push({ name: 'Token budget', status: 'info', detail: 'No rules to measure' });
-  } else if (stats.totalTokens < 2000) {
+  } else if (budgetPct < 3) {
     report.score += 15;
-    report.checks.push({ name: 'Token budget', status: 'pass', detail: `~${stats.totalTokens} tokens — well within budget` });
-  } else if (stats.totalTokens < 5000) {
+    report.checks.push({ name: 'Token budget', status: 'pass', detail: `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window)` });
+  } else if (budgetPct < 10) {
     report.score += 10;
-    report.checks.push({ name: 'Token budget', status: 'warn', detail: `~${stats.totalTokens} tokens — getting heavy. Consider trimming.` });
+    report.checks.push({ name: 'Token budget', status: 'warn', detail: `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window) — getting heavy` });
   } else {
     report.score += 3;
-    report.checks.push({ name: 'Token budget', status: 'fail', detail: `~${stats.totalTokens} tokens — very heavy. This eats your context window every request.` });
+    report.checks.push({ name: 'Token budget', status: 'fail', detail: `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window) — eating your context` });
   }
 
   // 5. Coverage gaps

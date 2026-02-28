@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { lintProject, parseFrontmatter } = require('./index');
 const { showStats } = require('./stats');
+const { analyzeTokenBudget } = require('./token-budget');
+const { detectCrossFormatConflicts } = require('./cross-conflicts');
 
 function detectStack(dir) {
   const stack = { frameworks: [], languages: [], packageManager: null };
@@ -324,20 +326,54 @@ async function fullAudit(dir) {
     ].filter(Boolean),
   });
   
-  // 2. Token budget breakdown
+  // 2. Token budget breakdown (enhanced with smart analysis)
   const stats = showStats(dir);
   const budget = tokenBudgetBreakdown(stats);
+  const tokenAnalysis = analyzeTokenBudget(dir, { pro: true });
+  
+  const budgetItems = [
+    { text: `Always loaded: ~${tokenAnalysis.alwaysLoadedTokens} tokens (${tokenAnalysis.contextWindowPct}% of context window)`, type: tokenAnalysis.contextWindowPct > 15 ? 'warning' : 'info' },
+    { text: `Conditional (max): ~${tokenAnalysis.conditionalTokens} tokens`, type: 'info' },
+    { text: `Total: ~${tokenAnalysis.totalTokens} tokens`, type: tokenAnalysis.totalTokens > 5000 ? 'warning' : 'info' },
+  ];
+  
+  // Per-file-type breakdown
+  if (tokenAnalysis.fileTypeGroups) {
+    const sortedGroups = Object.entries(tokenAnalysis.fileTypeGroups).sort((a, b) => b[1].totalTokens - a[1].totalTokens);
+    for (const [name, data] of sortedGroups) {
+      const pct = tokenAnalysis.totalTokens > 0 ? Math.round((data.totalTokens / tokenAnalysis.totalTokens) * 100) : 0;
+      budgetItems.push({ text: `  ${name}: ~${data.totalTokens} tokens (${pct}%)`, type: 'info' });
+    }
+  }
+  
+  // Per-rule ranking
+  budgetItems.push({ text: '', type: 'info' });
+  budgetItems.push({ text: 'Per-rule cost ranking:', type: 'info' });
+  for (const f of budget.files.slice(0, 10)) {
+    budgetItems.push({
+      text: `  ${f.file}: ~${f.tokens} tokens (${f.tier})`,
+      type: f.tokens > 1500 ? 'warning' : 'info',
+    });
+  }
+  
+  // Waste detection
+  if (tokenAnalysis.waste && tokenAnalysis.waste.length > 0) {
+    budgetItems.push({ text: '', type: 'info' });
+    for (const w of tokenAnalysis.waste) {
+      budgetItems.push({
+        text: `Waste: ${w.file} — ${w.reason}`,
+        type: 'warning',
+      });
+    }
+    budgetItems.push({
+      text: `Total potential savings: ~${tokenAnalysis.totalWasteTokens} tokens/request`,
+      type: 'fix',
+    });
+  }
+  
   report.sections.push({
     title: 'Token Budget',
-    items: [
-      { text: `Always loaded: ~${budget.alwaysLoaded} tokens`, type: budget.alwaysLoaded > 3000 ? 'warning' : 'info' },
-      { text: `Conditional (max): ~${budget.conditionalMax} tokens`, type: 'info' },
-      { text: `Total: ~${budget.total} tokens`, type: budget.total > 5000 ? 'warning' : 'info' },
-      ...budget.files.map(f => ({
-        text: `  ${f.file}: ~${f.tokens} tokens (${f.tier})`,
-        type: f.tokens > 1500 ? 'warning' : 'info',
-      })),
-    ],
+    items: budgetItems,
   });
   
   // 3. Lint issues
@@ -368,6 +404,18 @@ async function fullAudit(dir) {
       : conflicts.map(c => ({ text: `${c.fileA} vs ${c.fileB}: ${c.reason}`, type: c.severity })),
   });
   
+  // 4b. Cross-format conflicts
+  const crossConflicts = detectCrossFormatConflicts(dir);
+  report.sections.push({
+    title: 'Cross-Format Conflicts',
+    items: crossConflicts.length === 0
+      ? [{ text: 'No conflicts between .cursor/rules/, CLAUDE.md, AGENTS.md, .cursorrules, or hooks.json', type: 'pass' }]
+      : crossConflicts.map(c => ({
+        text: `${c.fileA} vs ${c.fileB}: "${c.directiveA}" conflicts with "${c.directiveB}"`,
+        type: 'error',
+      })),
+  });
+
   // 5. Redundancy
   const redundant = findRedundancy(rules);
   report.sections.push({
