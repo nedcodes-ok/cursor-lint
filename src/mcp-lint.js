@@ -199,6 +199,18 @@ function lintMcpFile(filePath, pattern) {
           severity: 'error',
           message: 'Server "' + name + '": "command" is empty',
         });
+      } else {
+        // Warn about potentially dangerous command patterns
+        var cmd = server.command.toLowerCase();
+        if (/\brm\s+-rf\b/.test(cmd) || /\bformat\s+[a-z]:/.test(cmd) ||
+            /\bcurl\b.*\|\s*(ba)?sh\b/.test(cmd) || /\bwget\b.*\|\s*(ba)?sh\b/.test(cmd) ||
+            /\beval\s*\(/.test(cmd) || />\s*\/dev\//.test(cmd)) {
+          issues.push({
+            severity: 'warning',
+            message: 'Server "' + name + '": command contains a potentially dangerous pattern',
+            hint: 'Verify this command is safe: ' + server.command,
+          });
+        }
       }
     }
 

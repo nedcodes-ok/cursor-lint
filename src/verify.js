@@ -264,6 +264,7 @@ function findFiles(baseDir, patterns) {
     
     for (const entry of entries) {
       if (ignore.includes(entry.name)) continue;
+      if (entry.isSymbolicLink()) continue; // Skip symlinks for security
       
       const fullPath = path.join(dir, entry.name);
       const relPath = rel ? path.join(rel, entry.name) : entry.name;

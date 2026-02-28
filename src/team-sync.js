@@ -140,7 +140,13 @@ function importRules(dir, config, options) {
   
   for (var i = 0; i < config.rules.length; i++) {
     var rule = config.rules[i];
-    var filePath = path.join(rulesDir, rule.file);
+    // Path traversal guard: only allow simple filenames
+    var safeFile = path.basename(rule.file);
+    var filePath = path.resolve(rulesDir, safeFile);
+    if (!filePath.startsWith(path.resolve(rulesDir))) {
+      results.errors.push({ file: rule.file, error: 'Invalid filename' });
+      continue;
+    }
     var exists = fs.existsSync(filePath);
     
     if (exists && !overwrite) {
@@ -176,7 +182,13 @@ function importRules(dir, config, options) {
   // Import context files if requested
   if (config.contextFiles && options.includeContext) {
     for (var name in config.contextFiles) {
-      var cfPath = path.join(dir, name);
+      // Path traversal guard: only allow known context files
+      var safeName = path.basename(name);
+      if (safeName !== name || name.includes('..')) {
+        results.errors.push({ file: name, error: 'Invalid filename' });
+        continue;
+      }
+      var cfPath = path.join(dir, safeName);
       var cfExists = fs.existsSync(cfPath);
       
       if (cfExists && !overwrite) {
@@ -220,7 +232,26 @@ function loadBaseline(dir) {
   }
 }
 
+function validateUrl(url) {
+  try {
+    var parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new Error('Only HTTP/HTTPS URLs allowed');
+    }
+    var host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0' ||
+        host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('169.254.') ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(host) || host.endsWith('.local') || host.endsWith('.internal')) {
+      throw new Error('Private/internal URLs not allowed');
+    }
+  } catch (e) {
+    if (e.message.includes('not allowed')) throw e;
+    throw new Error('Invalid URL: ' + url);
+  }
+}
+
 function fetchUrl(url) {
+  validateUrl(url);
   return new Promise(function(resolve, reject) {
     var client = url.startsWith('https') ? https : http;
     var req = client.get(url, function(res) {

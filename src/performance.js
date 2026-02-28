@@ -83,7 +83,8 @@ function loadRules(dir) {
 
 // Get recently modified files from git
 function getGitActivity(dir, days) {
-  days = days || 30;
+  days = parseInt(days, 10) || 30;
+  if (days < 1 || days > 3650) days = 30;
   try {
     var since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     var output = execSync(

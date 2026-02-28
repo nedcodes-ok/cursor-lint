@@ -85,7 +85,7 @@ function extractDirectives(text) {
       continue;
     }
     if (inCodeBlock) continue;
-    if (line.startsWith('#') || line.startsWith('<!--') || line.length < 5) continue;
+    if (line.startsWith('#') || line.startsWith('<!--') || line.length < 5 || line.length > 1000) continue;
     
     for (var j = 0; j < patterns.length; j++) {
       var p = patterns[j];

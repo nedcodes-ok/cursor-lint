@@ -467,7 +467,12 @@ async function generateRules(cwd) {
 
   for (const [rulePath, stackName] of rules) {
     const filename = path.basename(rulePath);
-    const destPath = path.join(rulesDir, filename);
+    const destPath = path.resolve(rulesDir, filename);
+    // Path traversal guard
+    if (!destPath.startsWith(path.resolve(rulesDir) + path.sep) && destPath !== path.resolve(rulesDir, filename)) {
+      failed.push({ file: filename, stack: stackName, error: 'Invalid filename' });
+      continue;
+    }
 
     if (fs.existsSync(destPath)) {
       skipped.push({ file: filename, stack: stackName });
@@ -676,7 +681,8 @@ async function generateFromPreset(cwd, presetName) {
 
   for (const rulePath of preset.rules) {
     const filename = path.basename(rulePath);
-    const destPath = path.join(rulesDir, filename);
+    const destPath = path.resolve(rulesDir, filename);
+    if (!destPath.startsWith(path.resolve(rulesDir))) { failed.push({ file: filename, rule: rulePath, error: 'Invalid filename' }); continue; }
 
     if (fs.existsSync(destPath)) {
       skipped.push({ file: filename, rule: rulePath });
