@@ -16,7 +16,7 @@ const { analyzePerformance } = require('./performance');
 const { testRule, testAllRules, getProvider } = require('./rule-test');
 const { exportRules, importRules, detectDrift, setBaseline } = require('./team-sync');
 
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -512,15 +512,19 @@ async function main() {
       process.exit(1);
     }
 
-    console.log();
-    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- rule testing (' + provider.name + ')');
-    console.log();
+    if (!asJson) {
+      console.log();
+      console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- rule testing (' + provider.name + ')');
+      console.log();
+    }
 
     if (nonFlagArgs.length === 1) {
       // Test all rules against a code file
       var codeFile = nonFlagArgs[0];
-      console.log('  ' + DIM + 'Testing all rules against ' + codeFile + '...' + RESET);
-      console.log();
+      if (!asJson) {
+        console.log('  ' + DIM + 'Testing all rules against ' + codeFile + '...' + RESET);
+        console.log();
+      }
 
       var results = await testAllRules(cwd, codeFile, {});
 
@@ -592,8 +596,10 @@ async function main() {
         codeSnippet = codeSource;
       }
       
-      console.log('  ' + DIM + 'Testing ' + path.basename(rulePath) + ' against code...' + RESET);
-      console.log();
+      if (!asJson) {
+        console.log('  ' + DIM + 'Testing ' + path.basename(rulePath) + ' against code...' + RESET);
+        console.log();
+      }
 
       var result = await testRule(ruleContent, codeSnippet, { abTest: true });
 

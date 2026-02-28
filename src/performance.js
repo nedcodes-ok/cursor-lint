@@ -124,6 +124,16 @@ function globMatch(pattern, filePath) {
   pattern = pattern.replace(/\\/g, '/');
   filePath = filePath.replace(/\\/g, '/');
   
+  // Brace expansion FIRST: *.{ts,tsx} or **/*.{ts,tsx}
+  var braceMatch = pattern.match(/\*\.\{([^}]+)\}/);
+  if (braceMatch) {
+    var exts = braceMatch[1].split(',').map(function(e) { return e.trim(); });
+    for (var i = 0; i < exts.length; i++) {
+      if (filePath.endsWith('.' + exts[i])) return true;
+    }
+    return false;
+  }
+  
   // *.ext — matches any file with that extension
   if (pattern.startsWith('*.')) {
     var ext = pattern.slice(1); // .ext
@@ -146,16 +156,6 @@ function globMatch(pattern, filePath) {
     if (parts.length === 2) {
       return filePath.startsWith(parts[0]) && filePath.endsWith(parts[1]);
     }
-  }
-  
-  // Brace expansion: *.{ts,tsx}
-  var braceMatch = pattern.match(/\*\.\{([^}]+)\}/);
-  if (braceMatch) {
-    var exts = braceMatch[1].split(',').map(function(e) { return e.trim(); });
-    for (var i = 0; i < exts.length; i++) {
-      if (filePath.endsWith('.' + exts[i])) return true;
-    }
-    return false;
   }
   
   // Exact match
