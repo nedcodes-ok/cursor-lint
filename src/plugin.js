@@ -89,16 +89,19 @@ function extractPathValues(value) {
 // Helper: Walk directory tree and collect files
 async function walkFiles(dirPath) {
   const files = [];
-  const stack = [dirPath];
+  const ignoreDirs = new Set(['node_modules', '.git', '.next', 'dist', 'build', '__pycache__', '.venv', 'venv', '.turbo', 'coverage']);
+  const stack = [{ path: dirPath, depth: 0 }];
   
   while (stack.length > 0) {
-    const current = stack.pop();
+    const { path: current, depth } = stack.pop();
+    if (depth > 5) continue; // Don't recurse too deep
     try {
       const entries = fs.readdirSync(current, { withFileTypes: true });
       for (const entry of entries) {
+        if (ignoreDirs.has(entry.name)) continue;
         const entryPath = path.join(current, entry.name);
         if (entry.isDirectory()) {
-          stack.push(entryPath);
+          stack.push({ path: entryPath, depth: depth + 1 });
         } else if (entry.isFile()) {
           files.push(entryPath);
         }
