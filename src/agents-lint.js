@@ -120,7 +120,7 @@ function lintClaudeMd(dir) {
   }
 
   // Check for duplicate headings
-  var headings = {};
+  var headings = Object.create(null);
   for (var i = 0; i < lines.length; i++) {
     var hMatch = lines[i].match(/^(#{1,4})\s+(.+)/);
     if (hMatch) {
@@ -249,7 +249,7 @@ function lintAgentsMd(dir) {
   }
 
   // Duplicate headings
-  var headings = {};
+  var headings = Object.create(null);
   for (var i = 0; i < lines.length; i++) {
     var hMatch = lines[i].match(/^(#{1,4})\s+(.+)/);
     if (hMatch) {

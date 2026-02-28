@@ -163,7 +163,7 @@ async function lintMdcFile(filePath) {
     }
 
     // NEW: Description contains markdown formatting
-    if (fm.data.description && /[*_`#\[\]]/. test(fm.data.description)) {
+    if (fm.data.description && /[*_`#\[\]]/.test(fm.data.description)) {
       issues.push({
         severity: 'warning',
         message: 'Description contains markdown formatting',

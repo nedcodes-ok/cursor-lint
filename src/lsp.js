@@ -7,34 +7,50 @@
  */
 
 const { lintMdcFile } = require('./index');
-const readline = require('readline');
 
 class CursorDoctorLSP {
   constructor() {
     this.documents = new Map(); // uri -> { version, content }
     this.initialized = false;
     
-    // Setup stdin/stdout for LSP communication
-    this.rl = readline.createInterface({
-      input: process.stdin,
-      output: null, // We write to stdout directly
-    });
-    
     this.buffer = '';
     this.contentLength = null;
     
-    // Read from stdin
-    this.rl.on('line', (line) => {
-      if (line.startsWith('Content-Length: ')) {
-        this.contentLength = parseInt(line.substring(16), 10);
-      } else if (line === '' && this.contentLength !== null) {
-        // Empty line after headers, next contentLength bytes are the message
-        this.rl.once('line', (jsonRpcMessage) => {
-          this.handleMessage(jsonRpcMessage);
-          this.contentLength = null;
-        });
-      }
+    // Read raw data from stdin for proper Content-Length handling
+    process.stdin.on('data', (chunk) => {
+      this.buffer += chunk.toString();
+      this.processBuffer();
     });
+  }
+
+  processBuffer() {
+    while (true) {
+      if (this.contentLength === null) {
+        // Look for headers
+        const headerEnd = this.buffer.indexOf('\r\n\r\n');
+        if (headerEnd === -1) return; // Need more data
+        
+        const header = this.buffer.substring(0, headerEnd);
+        const match = header.match(/Content-Length:\s*(\d+)/i);
+        if (match) {
+          this.contentLength = parseInt(match[1], 10);
+        }
+        this.buffer = this.buffer.substring(headerEnd + 4);
+      }
+      
+      if (this.contentLength !== null) {
+        if (Buffer.byteLength(this.buffer, 'utf8') < this.contentLength) return; // Need more data
+        
+        // Extract exact bytes for the message body
+        const body = Buffer.from(this.buffer, 'utf8').slice(0, this.contentLength).toString('utf8');
+        const charLen = body.length;
+        this.buffer = this.buffer.substring(charLen);
+        this.contentLength = null;
+        this.handleMessage(body);
+      } else {
+        return;
+      }
+    }
   }
 
   log(message) {

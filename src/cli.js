@@ -17,7 +17,7 @@ const { exportRules, importRules, detectDrift, setBaseline } = require('./team-s
 const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
 const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
 
-const VERSION = '1.7.2';
+const VERSION = '1.7.3';
 
 var useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const RED = useColor ? '\x1b[31m' : '';

@@ -136,8 +136,8 @@ function showLoadOrder(dir) {
   results.rules.sort((a, b) => {
     if (tierOrder[a.tier] !== tierOrder[b.tier]) return tierOrder[a.tier] - tierOrder[b.tier];
     // .cursorrules always last within 'always' tier (lowest priority)
-    if (a.file === '.cursorrules') return -1;
-    if (b.file === '.cursorrules') return 1;
+    if (a.file === '.cursorrules') return 1;
+    if (b.file === '.cursorrules') return -1;
     return a.file.localeCompare(b.file);
   });
 

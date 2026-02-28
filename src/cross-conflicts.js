@@ -431,7 +431,7 @@ function detectCrossFormatConflicts(dir) {
   }
   
   // Deduplicate conflicts (same pair of files, similar subjects)
-  var seen = {};
+  var seen = Object.create(null);
   var deduped = [];
   for (var i = 0; i < conflicts.length; i++) {
     var c = conflicts[i];
