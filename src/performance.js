@@ -6,7 +6,8 @@ var ACTIVITY_FILE = 'rule-activity.json';
 var HISTORY_DIR = '.doctor-history';
 
 function parseFrontmatter(content) {
-  var match = content.match(/^---\n([\s\S]*?)\n---/);
+  var normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { found: false, data: null };
   var data = {};
   var lines = match[1].split('\n');
@@ -87,7 +88,7 @@ function getGitActivity(dir, days) {
     var since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     var output = execSync(
       'git log --since="' + since + '" --name-only --pretty=format: --diff-filter=AMRC',
-      { cwd: dir, encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'] }
+      { cwd: dir, encoding: 'utf-8', timeout: 10000, maxBuffer: 10 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'] }
     );
     
     // Count frequency per file

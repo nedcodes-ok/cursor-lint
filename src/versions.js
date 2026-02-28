@@ -54,7 +54,7 @@ const VERSION_NOTES = [
  */
 function parseVersion(v) {
   if (!v) return null;
-  const cleaned = v.replace(/^[\^~>=<]+/, '').trim();
+  const cleaned = v.replace(/^[\^~>=<]+/, '').replace(/-.*$/, '').trim();
   const parts = cleaned.split('.').map(Number);
   return {
     major: parts[0] || 0,

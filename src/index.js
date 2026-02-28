@@ -29,7 +29,8 @@ const VAGUE_PATTERNS = [
 ];
 
 function parseFrontmatter(content) {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  var normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { found: false, data: null, error: null };
 
   try {
@@ -122,7 +123,12 @@ function similarity(textA, textB) {
 }
 
 async function lintMdcFile(filePath) {
-  const content = fs.readFileSync(filePath, 'utf-8');
+  var content;
+  try {
+    content = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  } catch (e) {
+    return { file: filePath, issues: [{ severity: 'error', message: 'Cannot read file: ' + e.code }] };
+  }
   const issues = [];
 
   const fm = parseFrontmatter(content);
@@ -358,8 +364,8 @@ async function lintMdcFile(filePath) {
     }
   }
 
-  // Rule has broken markdown links
-  if (/\]\[/.test(body) || /\[[^\]]*\]\([^\)]*$/.test(body)) {
+  // Rule has broken markdown links (skip on large bodies to avoid slow regex)
+  if (body.length <= 10000 && (/\]\[/.test(body) || /\[[^\]]*\]\([^\)]*$/.test(body))) {
     issues.push({
       severity: 'warning',
       message: 'Rule body has broken markdown links',
@@ -461,7 +467,7 @@ async function lintMdcFile(filePath) {
   }
 
   // Rule has no clear actionable instructions
-  const imperativeVerbs = /\b(use|write|create|add|remove|ensure|check|validate|follow|apply|implement)\b/i;
+  const imperativeVerbs = /\b(use|write|create|add|remove|ensure|check|validate|follow|apply|implement|wrap|handle|return|throw|test|run|call|import|export|set|define|configure|avoid|prefer|keep|split|merge|move|rename|update|delete|include|exclude|enable|disable)\b/i;
   if (body.length > 100 && !imperativeVerbs.test(body)) {
     issues.push({
       severity: 'warning',
@@ -568,7 +574,10 @@ async function lintMdcFile(filePath) {
 }
 
 async function lintSkillFile(filePath) {
-  const content = fs.readFileSync(filePath, 'utf-8');
+  var content;
+  try { content = fs.readFileSync(filePath, 'utf-8'); } catch (e) {
+    return { file: filePath, issues: [{ severity: 'error', message: 'Cannot read file: ' + e.code }] };
+  }
   const issues = [];
 
   const fm = parseFrontmatter(content);
@@ -660,7 +669,10 @@ function collectSkillFiles(skillDirs) {
 }
 
 async function lintCursorrules(filePath) {
-  const content = fs.readFileSync(filePath, 'utf-8');
+  var content;
+  try { content = fs.readFileSync(filePath, 'utf-8'); } catch (e) {
+    return { file: filePath, issues: [{ severity: 'error', message: 'Cannot read file: ' + e.code }] };
+  }
   const issues = [];
 
   issues.push({
@@ -839,7 +851,8 @@ async function lintContextFiles(dir) {
     const agentsWords = new Set(agentsContent.split(/\s+/).filter(w => w.length > 4));
     const claudeWords = new Set(claudeContent.split(/\s+/).filter(w => w.length > 4));
     const intersection = new Set([...agentsWords].filter(w => claudeWords.has(w)));
-    const overlapRatio = intersection.size / Math.min(agentsWords.size, claudeWords.size);
+    const minSize = Math.min(agentsWords.size, claudeWords.size);
+    const overlapRatio = minSize > 0 ? intersection.size / minSize : 0;
     
     if (overlapRatio > 0.3) {
       issues.push({
@@ -909,7 +922,8 @@ async function lintCursorConfig(dir) {
     const agentFiles = fs.readdirSync(agentsDir).filter(f => f.endsWith('.md'));
     for (const file of agentFiles) {
       const filePath = path.join(agentsDir, file);
-      const content = fs.readFileSync(filePath, 'utf-8');
+      var content;
+      try { content = fs.readFileSync(filePath, 'utf-8'); } catch (e) { continue; }
 
       // Agent files are plain markdown — frontmatter is optional
       // Just check they have content
@@ -993,9 +1007,10 @@ async function lintProject(dir) {
       const parsed = [];
       for (const file of mdcFiles) {
         const filePath = path.join(rulesDirPath, file);
-        const content = fs.readFileSync(filePath, 'utf-8');
-        const body = getBody(content);
-        const fm = parseFrontmatter(content);
+        var dupContent;
+        try { dupContent = fs.readFileSync(filePath, 'utf-8'); } catch (e) { continue; }
+        const body = getBody(dupContent);
+        const fm = parseFrontmatter(dupContent);
         parsed.push({ file, filePath, body, description: fm.data && fm.data.description ? fm.data.description : undefined });
       }
 
@@ -1034,31 +1049,37 @@ async function lintProject(dir) {
   }
 
   // NEW: Run project structure checks
-  const structureIssues = await lintProjectStructure(dir);
-  if (structureIssues.length > 0) {
-    results.push({
-      file: path.join(dir, '.cursor/'),
-      issues: structureIssues,
-    });
-  }
+  try {
+    const structureIssues = await lintProjectStructure(dir);
+    if (structureIssues.length > 0) {
+      results.push({
+        file: path.join(dir, '.cursor/'),
+        issues: structureIssues,
+      });
+    }
+  } catch (e) { /* structure lint failed gracefully */ }
 
   // NEW: Run context file checks
-  const contextIssues = await lintContextFiles(dir);
-  if (contextIssues.length > 0) {
-    results.push({
-      file: dir,
-      issues: contextIssues,
-    });
-  }
+  try {
+    const contextIssues = await lintContextFiles(dir);
+    if (contextIssues.length > 0) {
+      results.push({
+        file: dir,
+        issues: contextIssues,
+      });
+    }
+  } catch (e) { /* context lint failed gracefully */ }
 
   // NEW: Run config checks
-  const configIssues = await lintCursorConfig(dir);
-  if (configIssues.length > 0) {
-    results.push({
-      file: path.join(dir, '.cursor/'),
-      issues: configIssues,
-    });
-  }
+  try {
+    const configIssues = await lintCursorConfig(dir);
+    if (configIssues.length > 0) {
+      results.push({
+        file: path.join(dir, '.cursor/'),
+        issues: configIssues,
+      });
+    }
+  } catch (e) { /* config lint failed gracefully */ }
 
   return results;
 }
@@ -1132,12 +1153,13 @@ function detectConflicts(dir) {
   const parsed = [];
   for (const file of files) {
     const filePath = path.join(rulesDir, file);
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const fm = parseFrontmatter(content);
+    var conflictContent;
+    try { conflictContent = fs.readFileSync(filePath, 'utf-8'); } catch (e) { continue; }
+    const fm = parseFrontmatter(conflictContent);
     const globs = fm.data ? parseGlobs(fm.data.globs) : [];
     const alwaysApply = fm.data && fm.data.alwaysApply;
-    const directives = extractDirectives(content);
-    parsed.push({ file, filePath, globs, alwaysApply, directives, content });
+    const directives = extractDirectives(conflictContent);
+    parsed.push({ file, filePath, globs, alwaysApply, directives, content: conflictContent });
   }
 
   const issues = [];

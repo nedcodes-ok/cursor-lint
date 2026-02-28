@@ -210,7 +210,8 @@ async function doctor(dir) {
   }
 
   // 10. Agent config quality (CLAUDE.md, AGENTS.md)
-  var agentResults = lintAgentConfigs(dir);
+  var agentResults;
+  try { agentResults = lintAgentConfigs(dir); } catch (e) { agentResults = []; }
   var agentFilesExist = agentResults.some(function(r) { return r.exists; });
   if (agentFilesExist) {
     report.maxScore += 10;
@@ -235,7 +236,8 @@ async function doctor(dir) {
   }
 
   // 11. MCP config validation
-  var mcpReport = lintMcpConfigs(dir);
+  var mcpReport;
+  try { mcpReport = lintMcpConfigs(dir); } catch (e) { mcpReport = { totalFiles: 0, files: [] }; }
   if (mcpReport.totalFiles > 0) {
     report.maxScore += 10;
     var mcpErrors = 0, mcpWarnings = 0;

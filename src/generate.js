@@ -128,7 +128,7 @@ const PRACTICE_TRIGGERS = {
 function fetchFile(url) {
   return new Promise((resolve, reject) => {
     const get = (u) => {
-      https.get(u, (res) => {
+      const req = https.get(u, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           get(res.headers.location);
           return;
@@ -143,6 +143,7 @@ function fetchFile(url) {
         res.on('end', () => resolve(data));
         res.on('error', reject);
       }).on('error', reject);
+      req.setTimeout(15000, () => { req.destroy(new Error('Request timeout')); });
     };
     get(url);
   });

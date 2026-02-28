@@ -6,11 +6,13 @@ const { showStats } = require('./stats');
 const CONTEXT_WINDOW_TOKENS = 120000;
 
 function estimateTokens(text) {
-  return Math.ceil(text.length / 4);
+  // ~4 chars per token for English, +10% for frontmatter/metadata overhead
+  return Math.ceil(text.length / 4 * 1.1);
 }
 
 function parseFrontmatter(content) {
-  var match = content.match(/^---\n([\s\S]*?)\n---/);
+  var normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { found: false, data: null };
   var data = {};
   var lines = match[1].split('\n');

@@ -17,7 +17,7 @@ const { exportRules, importRules, detectDrift, setBaseline } = require('./team-s
 const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
 const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
 
-const VERSION = '1.7.0';
+const VERSION = '1.7.2';
 
 var useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const RED = useColor ? '\x1b[31m' : '';
@@ -897,7 +897,7 @@ async function main() {
     console.log();
     console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- agent config validation');
     console.log();
-    console.log(formatAgentLint(results, true));
+    console.log(formatAgentLint(results, useColor));
     console.log();
 
     var hasConflictFiles = results.some(function(r) { return r.exists; });
@@ -922,7 +922,7 @@ async function main() {
     console.log();
     console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- MCP config validation');
     console.log();
-    console.log(formatMcpLint(report, true));
+    console.log(formatMcpLint(report, useColor));
     console.log();
 
     var hasErrors = report.files.some(function(f) { return f.issues && f.issues.some(function(i) { return i.severity === 'error'; }); });

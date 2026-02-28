@@ -6,7 +6,8 @@ const http = require('http');
 var TEAM_CONFIG_FILE = '.cursor-doctor-team.json';
 
 function parseFrontmatter(content) {
-  var match = content.match(/^---\n([\s\S]*?)\n---/);
+  var normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { found: false, data: null };
   var data = {};
   var lines = match[1].split('\n');
@@ -39,7 +40,8 @@ function parseFrontmatter(content) {
 }
 
 function getBody(content) {
-  var match = content.match(/^---\n[\s\S]*?\n---\n?/);
+  var normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var match = normalized.match(/^---\n[\s\S]*?\n---\n?/);
   if (!match) return content;
   return content.slice(match[0].length);
 }
@@ -221,7 +223,7 @@ function loadBaseline(dir) {
 function fetchUrl(url) {
   return new Promise(function(resolve, reject) {
     var client = url.startsWith('https') ? https : http;
-    client.get(url, function(res) {
+    var req = client.get(url, function(res) {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // Follow redirect
         fetchUrl(res.headers.location).then(resolve).catch(reject);
@@ -235,6 +237,7 @@ function fetchUrl(url) {
       res.on('data', function(chunk) { data += chunk; });
       res.on('end', function() { resolve(data); });
     }).on('error', reject);
+    req.setTimeout(15000, function() { req.destroy(new Error('Request timeout')); });
   });
 }
 

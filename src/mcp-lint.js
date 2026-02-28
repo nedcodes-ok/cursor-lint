@@ -326,7 +326,9 @@ function lintMcpFile(filePath, pattern) {
     var server = parsed.mcpServers[serverNames[i]];
     if (server && typeof server.command === 'string') {
       var cmd = server.command;
-      if (commandMap[cmd]) {
+      // Skip common launchers like npx/node/python — different args = different servers
+      var commonLaunchers = ['npx', 'node', 'python', 'python3', 'uvx', 'bunx', 'deno'];
+      if (commandMap[cmd] && commonLaunchers.indexOf(cmd) === -1) {
         issues.push({
           severity: 'info',
           message: 'Servers "' + commandMap[cmd] + '" and "' + serverNames[i] + '" use the same command: ' + cmd,

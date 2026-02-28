@@ -156,7 +156,8 @@ function callLLM(provider, systemPrompt, userPrompt) {
 // ─── Rule Testing ──────────────────────────────────────────────────────────
 
 function parseFrontmatter(content) {
-  var match = content.match(/^---\n([\s\S]*?)\n---/);
+  var normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { found: false, data: null };
   var data = {};
   var lines = match[1].split('\n');
@@ -189,7 +190,8 @@ function parseFrontmatter(content) {
 }
 
 function getBody(content) {
-  var match = content.match(/^---\n[\s\S]*?\n---\n?/);
+  var normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var match = normalized.match(/^---\n[\s\S]*?\n---\n?/);
   if (!match) return content;
   return content.slice(match[0].length);
 }

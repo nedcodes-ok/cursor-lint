@@ -6,7 +6,8 @@ function estimateTokens(text) {
 }
 
 function parseFrontmatter(content) {
-  var match = content.match(/^---\n([\s\S]*?)\n---/);
+  var normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { found: false, data: null };
   var data = {};
   var lines = match[1].split('\n');

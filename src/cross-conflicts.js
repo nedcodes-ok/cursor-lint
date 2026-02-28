@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 function parseFrontmatter(content) {
-  var match = content.match(/^---\n([\s\S]*?)\n---/);
+  var normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { found: false, data: null };
   var data = {};
   var lines = match[1].split('\n');
@@ -35,7 +36,8 @@ function parseFrontmatter(content) {
 }
 
 function getBody(content) {
-  var match = content.match(/^---\n[\s\S]*?\n---\n?/);
+  var normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var match = normalized.match(/^---\n[\s\S]*?\n---\n?/);
   if (!match) return content;
   return content.slice(match[0].length);
 }
@@ -154,7 +156,7 @@ function subjectsSimilar(a, b) {
   var coreB = stripQualifiers(cleanB);
   
   // If after stripping qualifiers, one is empty or too short, they're not comparable
-  if (coreA.length < 3 || coreB.length < 3) return false;
+  if (coreA.length < 5 || coreB.length < 5) return false;
   
   // Compare core subjects
   if (coreA === coreB) return true;
