@@ -129,6 +129,12 @@ async function lintMdcFile(filePath) {
   } catch (e) {
     return { file: filePath, issues: [{ severity: 'error', message: 'Cannot read file: ' + e.code }] };
   }
+
+  // Skip binary files
+  if (/[\x00-\x08\x0E-\x1F]/.test(content.slice(0, 512))) {
+    return { file: filePath, issues: [{ severity: 'warning', message: 'File appears to be binary, not a text rule', hint: 'Remove non-text files from .cursor/rules/' }] };
+  }
+
   const issues = [];
 
   const fm = parseFrontmatter(content);
@@ -575,7 +581,7 @@ async function lintMdcFile(filePath) {
 
 async function lintSkillFile(filePath) {
   var content;
-  try { content = fs.readFileSync(filePath, 'utf-8'); } catch (e) {
+  try { content = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n'); } catch (e) {
     return { file: filePath, issues: [{ severity: 'error', message: 'Cannot read file: ' + e.code }] };
   }
   const issues = [];

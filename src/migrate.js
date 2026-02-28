@@ -10,7 +10,7 @@ function migrate(dir) {
     return result;
   }
 
-  const content = fs.readFileSync(cursorrules, 'utf-8').trim();
+  const content = fs.readFileSync(cursorrules, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
   result.source = { file: '.cursorrules', chars: content.length, lines: content.split('\n').length };
 
   if (content.length === 0) {

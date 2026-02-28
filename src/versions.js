@@ -109,7 +109,7 @@ function detectVersions(cwd) {
   const reqPath = path.join(cwd, 'requirements.txt');
   if (fs.existsSync(reqPath)) {
     try {
-      const lines = fs.readFileSync(reqPath, 'utf8').split('\n');
+      const lines = fs.readFileSync(reqPath, 'utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#')) continue;
@@ -177,7 +177,7 @@ function checkRuleVersionMismatches(cwd) {
   const files = fs.readdirSync(rulesDir).filter(f => f.endsWith('.mdc'));
 
   for (const file of files) {
-    const content = fs.readFileSync(path.join(rulesDir, file), 'utf8');
+    const content = fs.readFileSync(path.join(rulesDir, file), 'utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = content.split('\n');
 
     for (let i = 0; i < lines.length; i++) {

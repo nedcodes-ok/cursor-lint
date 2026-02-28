@@ -37,7 +37,7 @@ function fixFrontmatter(content) {
 }
 
 function splitOversizedFile(filePath, maxTokens = 1500) {
-  const content = fs.readFileSync(filePath, 'utf-8');
+  const content = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const tokens = Math.ceil(content.length / 4);
   
   if (tokens <= maxTokens) return null; // no split needed
@@ -215,7 +215,7 @@ async function autoFix(dir, options = {}) {
     const fileBPath = path.join(rulesDir, conflict.fileB);
     
     if (!annotated.has(conflict.fileA)) {
-      const content = fs.readFileSync(fileAPath, 'utf-8');
+      const content = fs.readFileSync(fileAPath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const annotatedContent = addConflictAnnotation(content, conflict.fileB, conflict.reason);
       if (annotatedContent !== content) {
         if (!options.dryRun) {
@@ -227,7 +227,7 @@ async function autoFix(dir, options = {}) {
     }
     
     if (!annotated.has(conflict.fileB)) {
-      const content = fs.readFileSync(fileBPath, 'utf-8');
+      const content = fs.readFileSync(fileBPath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const annotatedContent = addConflictAnnotation(content, conflict.fileA, conflict.reason);
       if (annotatedContent !== content) {
         if (!options.dryRun) {

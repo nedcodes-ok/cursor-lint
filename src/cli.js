@@ -17,7 +17,7 @@ const { exportRules, importRules, detectDrift, setBaseline } = require('./team-s
 const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
 const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
 
-const VERSION = '1.7.5';
+const VERSION = '1.7.6';
 
 var useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const RED = useColor ? '\x1b[31m' : '';
@@ -46,6 +46,12 @@ function showHelp() {
     '  npx cursor-doctor budget       # Smart token budget analysis',
     '  npx cursor-doctor agents       # Lint CLAUDE.md, AGENTS.md, .cursor/agents/',
     '  npx cursor-doctor mcp          # Validate MCP config files',
+    '  npx cursor-doctor doctor       # Quick health score (A-F grade)',
+    '  npx cursor-doctor order        # Show rule load order and priority',
+    '  npx cursor-doctor diff         # Show rule changes since last snapshot',
+    '  npx cursor-doctor init         # Generate starter rules for your project',
+    '  npx cursor-doctor generate     # Pull community rules by tech stack',
+    '  npx cursor-doctor verify       # Check codebase against rule patterns',
     '',
     YELLOW + 'Pro Commands ($9 one-time key):' + RESET,
     '  npx cursor-doctor audit        # Full diagnostic report',
@@ -431,7 +437,14 @@ async function main() {
 
     var days = 30;
     var daysArg = args.find(function(a) { return a.startsWith('--days='); });
-    if (daysArg) days = parseInt(daysArg.split('=')[1], 10) || 30;
+    if (daysArg) {
+      var parsed = parseInt(daysArg.split('=')[1], 10);
+      if (isNaN(parsed) || parsed < 1 || parsed > 3650) {
+        console.log(YELLOW + 'Invalid --days value, using default (30)' + RESET);
+      } else {
+        days = parsed;
+      }
+    }
 
     var analysis = analyzePerformance(cwd, { days: days });
 
@@ -1062,5 +1075,5 @@ async function main() {
 
 main().catch(function(err) {
   console.error(RED + 'Error:' + RESET + ' ' + err.message);
-  process.exit(1);
+  process.exit(2);
 });

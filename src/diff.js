@@ -18,7 +18,7 @@ function captureState(dir) {
   // .cursorrules
   const cursorrules = path.join(dir, '.cursorrules');
   if (fs.existsSync(cursorrules)) {
-    const content = fs.readFileSync(cursorrules, 'utf-8');
+    const content = fs.readFileSync(cursorrules, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     state.cursorrules = { hash: hashContent(content), tokens: estimateTokens(content), lines: content.split('\n').length };
   }
 
@@ -26,7 +26,7 @@ function captureState(dir) {
   const rulesDir = path.join(dir, '.cursor', 'rules');
   if (fs.existsSync(rulesDir) && fs.statSync(rulesDir).isDirectory()) {
     for (const entry of fs.readdirSync(rulesDir).filter(f => f.endsWith('.mdc')).sort()) {
-      const content = fs.readFileSync(path.join(rulesDir, entry), 'utf-8');
+      const content = fs.readFileSync(path.join(rulesDir, entry), 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       state.rules[entry] = { hash: hashContent(content), tokens: estimateTokens(content), lines: content.split('\n').length };
     }
   }

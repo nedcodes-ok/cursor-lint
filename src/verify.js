@@ -26,7 +26,7 @@ async function verifyProject(projectPath) {
 
   for (const file of mdcFiles) {
     const fullPath = path.join(mdcDir, file);
-    const content = fs.readFileSync(fullPath, 'utf-8');
+    const content = fs.readFileSync(fullPath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const frontmatter = parseFrontmatter(content);
     
     if (!frontmatter.data || !frontmatter.data.verify) {
@@ -62,7 +62,7 @@ async function verifyProject(projectPath) {
 
       let content;
       try {
-        content = fs.readFileSync(fullPath, 'utf-8');
+        content = fs.readFileSync(fullPath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       } catch (e) {
         continue;
       }

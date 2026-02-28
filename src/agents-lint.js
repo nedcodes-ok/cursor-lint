@@ -47,7 +47,7 @@ function lintClaudeMd(dir) {
   }
 
   var content;
-  try { content = fs.readFileSync(filePath, 'utf-8'); } catch (e) {
+  try { content = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n'); } catch (e) {
     return { file: 'CLAUDE.md', exists: true, size: 0, issues: [{ severity: 'error', message: 'Cannot read file: ' + e.code }] };
   }
   var lines = content.split('\n');
@@ -194,7 +194,7 @@ function lintAgentsMd(dir) {
   }
 
   var content;
-  try { content = fs.readFileSync(filePath, 'utf-8'); } catch (e) {
+  try { content = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n'); } catch (e) {
     return { file: 'AGENTS.md', exists: true, size: 0, issues: [{ severity: 'error', message: 'Cannot read file: ' + e.code }] };
   }
   var lines = content.split('\n');
@@ -283,7 +283,7 @@ function lintAgentFiles(dir) {
     var issues = [];
     var filePath = path.join(agentsDir, files[i]);
     var content;
-    try { content = fs.readFileSync(filePath, 'utf-8'); } catch (e) { continue; }
+    try { content = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n'); } catch (e) { continue; }
     var lines = content.split('\n');
     var size = Buffer.byteLength(content, 'utf-8');
 
