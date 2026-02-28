@@ -7,6 +7,9 @@
     "cursor-doctor": "src/cli.js",
     "cursor-doctor-lsp": "src/lsp.js"
   },
+  "scripts": {
+    "test": "node test/test.js"
+  },
   "keywords": [
     "cursor",
     "cursor-ai",
