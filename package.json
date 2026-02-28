@@ -1,7 +1,7 @@
 {
   "name": "cursor-doctor",
   "version": "1.7.7",
-  "description": "Fix your Cursor AI setup in seconds — health checks, diagnostics, and auto-repair for your .cursor config",
+  "description": "Fix your Cursor AI setup in seconds. Health checks, rule testing, performance tracking, and auto-repair for .cursor configs. 80+ tests. Zero dependencies.",
   "main": "src/index.js",
   "bin": {
     "cursor-doctor": "src/cli.js",
@@ -21,7 +21,11 @@
     "ai-coding",
     "code-quality",
     "diagnostics",
-    "health-check"
+    "health-check",
+    "linter",
+    "testing",
+    "security",
+    "cross-platform"
   ],
   "author": "nedcodes",
   "license": "MIT",

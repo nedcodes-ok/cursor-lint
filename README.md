@@ -63,6 +63,24 @@ cursor-doctor mcp
 
 # Convert .cursorrules to .cursor/rules/*.mdc
 cursor-doctor migrate
+
+# Token usage dashboard
+cursor-doctor stats
+
+# Smart token budget analysis
+cursor-doctor budget
+
+# Quick health score (A-F grade)
+cursor-doctor doctor
+
+# Show rule load order and priority
+cursor-doctor order
+
+# Generate starter rules for your project
+cursor-doctor init
+
+# Pull community rules by tech stack
+cursor-doctor generate
 ```
 
 ### Pro ($9 one-time)
@@ -80,11 +98,33 @@ cursor-doctor fix
 # Preview fixes without writing
 cursor-doctor fix --dry-run
 
+# Cross-format conflict detection
+cursor-doctor conflicts
+
+# Rule performance tracking (token usage trends, dead rules)
+cursor-doctor perf
+
+# Test rule adherence with AI (Gemini/OpenAI/Anthropic)
+cursor-doctor test <file>
+
+# Team sync: export/import/baseline/drift detection
+cursor-doctor team export
+cursor-doctor team import <source>
+cursor-doctor team drift
+
 # Activate your license
 cursor-doctor activate <key>
 ```
 
 **Get a Pro key:** [nedcodes.gumroad.com/l/cursor-doctor-pro](https://nedcodes.gumroad.com/l/cursor-doctor-pro)
+
+## Built to Last
+
+- **80+ automated tests** covering every feature, edge case, and regression
+- **Security hardened** with input sanitization, path traversal guards, and SSRF protection
+- **Cross-platform** with full Windows CRLF support, tested on macOS/Linux/Windows
+- **Zero dependencies** means no supply chain risk, fast installs, runs anywhere Node runs
+- **Context-aware linting** that understands qualified phrases, detects dead rules, and skips binary files
 
 ## Why?
 
