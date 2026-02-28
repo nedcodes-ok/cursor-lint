@@ -15,8 +15,10 @@ const { crossConflictReport } = require('./cross-conflicts');
 const { analyzePerformance } = require('./performance');
 const { testRule, testAllRules, getProvider } = require('./rule-test');
 const { exportRules, importRules, detectDrift, setBaseline } = require('./team-sync');
+const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
+const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
 
-const VERSION = '1.5.1';
+const VERSION = '1.6.0';
 
 const RED = '\x1b[31m';
 const YELLOW = '\x1b[33m';
@@ -42,6 +44,8 @@ function showHelp() {
     '  npx cursor-doctor migrate      # Convert .cursorrules to .mdc',
     '  npx cursor-doctor stats        # Token usage dashboard',
     '  npx cursor-doctor budget       # Smart token budget analysis',
+    '  npx cursor-doctor agents       # Lint CLAUDE.md, AGENTS.md, .cursor/agents/',
+    '  npx cursor-doctor mcp          # Validate MCP config files',
     '',
     YELLOW + 'Pro Commands ($9 one-time key):' + RESET,
     '  npx cursor-doctor audit        # Full diagnostic report',
@@ -857,6 +861,50 @@ async function main() {
     console.log('Unknown team subcommand: ' + subcommand);
     console.log('Run ' + DIM + 'cursor-doctor team' + RESET + ' for usage.');
     process.exit(1);
+  }
+
+  // --- agents (FREE) ---
+  if (command === 'agents') {
+    var results = lintAgentConfigs(cwd);
+
+    if (asJson) {
+      console.log(JSON.stringify(results, null, 2));
+      process.exit(0);
+    }
+
+    console.log();
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- agent config validation');
+    console.log();
+    console.log(formatAgentLint(results, true));
+    console.log();
+
+    var hasConflictFiles = results.some(function(r) { return r.exists; });
+    if (hasConflictFiles) {
+      console.log('  ' + DIM + 'Pro tip: run ' + CYAN + 'cursor-doctor conflicts' + DIM + ' to detect cross-format contradictions' + RESET);
+      console.log();
+    }
+
+    var hasErrors = results.some(function(r) { return r.issues && r.issues.some(function(i) { return i.severity === 'error'; }); });
+    process.exit(hasErrors ? 1 : 0);
+  }
+
+  // --- mcp (FREE) ---
+  if (command === 'mcp') {
+    var report = lintMcpConfigs(cwd);
+
+    if (asJson) {
+      console.log(JSON.stringify(report, null, 2));
+      process.exit(0);
+    }
+
+    console.log();
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- MCP config validation');
+    console.log();
+    console.log(formatMcpLint(report, true));
+    console.log();
+
+    var hasErrors = report.files.some(function(f) { return f.issues && f.issues.some(function(i) { return i.severity === 'error'; }); });
+    process.exit(hasErrors ? 1 : 0);
   }
 
   // --- conflicts (PRO) ---

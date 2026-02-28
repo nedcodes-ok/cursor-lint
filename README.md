@@ -41,6 +41,8 @@ Health grade in your status bar. Inline diagnostics on save. Same engine, zero c
 | **Redundancy** | Spots duplicate content between rules |
 | **Structure** | Validates project organization, file naming, and configuration |
 | **Context files** | Checks AGENTS.md, CLAUDE.md, and other context files for bloat |
+| **Agent configs** | Validates CLAUDE.md, AGENTS.md, and .cursor/agents/ structure and content |
+| **MCP config** | Validates .cursor/mcp.json syntax, missing fields, hardcoded secrets |
 
 ## Commands
 
@@ -52,6 +54,12 @@ cursor-doctor scan
 
 # CI-friendly: one line per issue, exit code 0/1
 cursor-doctor check
+
+# Validate CLAUDE.md, AGENTS.md, .cursor/agents/
+cursor-doctor agents
+
+# Validate MCP config files
+cursor-doctor mcp
 
 # Convert .cursorrules to .cursor/rules/*.mdc
 cursor-doctor migrate

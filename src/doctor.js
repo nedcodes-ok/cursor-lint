@@ -4,6 +4,8 @@ const { lintProject } = require('./index');
 const { showStats } = require('./stats');
 const { lintPlugin } = require('./plugin');
 const { analyzeTokenBudget, CONTEXT_WINDOW_TOKENS } = require('./token-budget');
+const { lintAgentConfigs } = require('./agents-lint');
+const { lintMcpConfigs } = require('./mcp-lint');
 
 async function doctor(dir) {
   const report = {
@@ -204,6 +206,58 @@ async function doctor(dir) {
       report.checks.push({ name: 'Plugin structure', status: 'pass', detail: 'Plugin is valid' });
     } else {
       report.checks.push({ name: 'Plugin structure', status: 'fail', detail: `${pluginErrors} plugin error(s)` });
+    }
+  }
+
+  // 10. Agent config quality (CLAUDE.md, AGENTS.md)
+  var agentResults = lintAgentConfigs(dir);
+  var agentFilesExist = agentResults.some(function(r) { return r.exists; });
+  if (agentFilesExist) {
+    report.maxScore += 10;
+    var agentErrors = 0, agentWarnings = 0;
+    for (var ai = 0; ai < agentResults.length; ai++) {
+      if (!agentResults[ai].exists) continue;
+      for (var aj = 0; aj < agentResults[ai].issues.length; aj++) {
+        if (agentResults[ai].issues[aj].severity === 'error') agentErrors++;
+        else if (agentResults[ai].issues[aj].severity === 'warning') agentWarnings++;
+      }
+    }
+    if (agentErrors === 0 && agentWarnings === 0) {
+      report.score += 10;
+      report.checks.push({ name: 'Agent configs', status: 'pass', detail: 'CLAUDE.md/AGENTS.md look good' });
+    } else if (agentErrors === 0) {
+      report.score += 7;
+      report.checks.push({ name: 'Agent configs', status: 'warn', detail: agentWarnings + ' warning(s) in agent files. Run cursor-doctor agents for details.' });
+    } else {
+      report.score += 3;
+      report.checks.push({ name: 'Agent configs', status: 'fail', detail: agentErrors + ' error(s) in agent files. Run cursor-doctor agents to fix.' });
+    }
+  }
+
+  // 11. MCP config validation
+  var mcpReport = lintMcpConfigs(dir);
+  if (mcpReport.totalFiles > 0) {
+    report.maxScore += 10;
+    var mcpErrors = 0, mcpWarnings = 0;
+    for (var mi = 0; mi < mcpReport.files.length; mi++) {
+      for (var mj = 0; mj < mcpReport.files[mi].issues.length; mj++) {
+        if (mcpReport.files[mi].issues[mj].severity === 'error') mcpErrors++;
+        else if (mcpReport.files[mi].issues[mj].severity === 'warning') mcpWarnings++;
+      }
+    }
+    if (mcpErrors === 0 && mcpWarnings === 0) {
+      report.score += 10;
+      var serverCount = 0;
+      for (var mi = 0; mi < mcpReport.files.length; mi++) {
+        if (mcpReport.files[mi].serverCount) serverCount += mcpReport.files[mi].serverCount;
+      }
+      report.checks.push({ name: 'MCP config', status: 'pass', detail: serverCount + ' MCP server(s) configured correctly' });
+    } else if (mcpErrors === 0) {
+      report.score += 6;
+      report.checks.push({ name: 'MCP config', status: 'warn', detail: mcpWarnings + ' warning(s). Run cursor-doctor mcp for details.' });
+    } else {
+      report.score += 2;
+      report.checks.push({ name: 'MCP config', status: 'fail', detail: mcpErrors + ' error(s) in MCP config. Run cursor-doctor mcp to fix.' });
     }
   }
 
