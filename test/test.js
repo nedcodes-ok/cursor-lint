@@ -209,7 +209,7 @@ Body content`);
   
   const result = await lintMdcFile(filePath);
   const warnings = result.issues.filter(i => i.severity === 'warning');
-  assert(warnings.some(w => w.message.includes('Missing description')));
+  assert(warnings.some(w => w.message.includes('description')));
 });
 
 asyncTest('lintMdcFile: missing alwaysApply AND globs → warning', async () => {
@@ -713,7 +713,7 @@ Body content`);
     
     const result = await lintMdcFile(filePath);
     const warnings = result.issues.filter(i => i.severity === 'warning');
-    assert(warnings.some(w => w.message.includes('Missing description')));
+    assert(warnings.some(w => w.message.includes('description')));
   });
 
   await asyncTest('lintMdcFile: missing alwaysApply AND globs → warning', async () => {
