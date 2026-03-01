@@ -7,6 +7,7 @@ const readline = require('readline');
 const { lintProject, lintMdcFile } = require('./index');
 const { doctor } = require('./doctor');
 const { autoFix } = require('./autofix');
+const { isLicensed } = require('./license');
 
 // JSON-RPC 2.0 message handler
 const rl = readline.createInterface({
@@ -108,6 +109,9 @@ async function executeTool(name, args) {
       }
       
       case 'fix_rules': {
+        if (!isLicensed()) {
+          throw new Error('Pro feature — activate with: npx cursor-doctor activate <key>. Get a key at https://nedcodes.gumroad.com/l/cursor-doctor-pro');
+        }
         const result = await autoFix(args.path, { dryRun: args.dryRun || false });
         return {
           fixed: result.fixed || [],
