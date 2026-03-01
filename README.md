@@ -152,7 +152,7 @@ Fixes 34 issue types: missing frontmatter, boolean strings, glob syntax, whitesp
 
 ## Built to Last
 
-- **242 automated tests** covering every feature, edge case, and regression
+- **247 automated tests** covering every feature, edge case, and regression
 - **Security hardened** with input sanitization, path traversal guards, and SSRF protection
 - **Cross-platform** with full Windows CRLF support, tested on macOS/Linux/Windows
 - **Zero dependencies** means no supply chain risk, fast installs, runs anywhere Node runs
