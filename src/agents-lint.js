@@ -404,6 +404,7 @@ function formatAgentLint(results, colors) {
   if (filesFound === 0) {
     lines.push('  ' + DIM + 'No CLAUDE.md, AGENTS.md, or .cursor/agents/ files found.' + RESET);
     lines.push('  ' + DIM + 'These files help AI agents understand your project.' + RESET);
+    lines.push('  ' + DIM + 'Create project rules with: npx cursor-doctor init' + RESET);
     lines.push('');
   }
 

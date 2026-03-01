@@ -44,12 +44,12 @@ function verifyWithGumroad(key) {
           if (json.success === true && json.purchase && !json.purchase.refunded && !json.purchase.chargebacked) {
             resolve({ valid: true });
           } else if (json.success === false) {
-            resolve({ valid: false, error: 'Invalid license key' });
+            resolve({ valid: false, error: 'Invalid license key. Check the key in your Gumroad receipt email. Still not working? hello@nedcodes.dev' });
           } else {
-            resolve({ valid: false, error: 'Key is refunded or chargebacked' });
+            resolve({ valid: false, error: 'This key has been deactivated. If this is unexpected, contact hello@nedcodes.dev' });
           }
         } catch (e) {
-          resolve({ valid: false, error: 'Could not parse Gumroad response' });
+          resolve({ valid: false, error: 'Couldn\'t verify your key right now. Check your internet connection and try again.' });
         }
       });
     });
@@ -65,7 +65,7 @@ function verifyWithGumroad(key) {
 
 async function activateLicense(dir, key) {
   if (!key || key.trim().length < 8) {
-    return { ok: false, error: 'Key too short' };
+    return { ok: false, error: 'Key too short. Your license key is in your Gumroad receipt email.' };
   }
 
   var result = await verifyWithGumroad(key);
