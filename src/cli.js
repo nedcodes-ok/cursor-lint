@@ -103,18 +103,21 @@ function showHelp() {
   console.log(lines.join('\n'));
 }
 
-function requirePro(dir) {
+function requirePro(dir, cmd) {
   if (isLicensed(dir)) return true;
   console.log();
-  console.log(YELLOW + BOLD + 'Pro feature — $9 one-time, no subscription.' + RESET);
+  if (cmd) {
+    console.log(YELLOW + 'cursor-doctor ' + cmd + RESET + ' requires a Pro license.');
+  } else {
+    console.log(YELLOW + 'Pro feature' + RESET + ' — requires a license.');
+  }
   console.log();
-  console.log('  Includes: audit, fix, conflicts, budget --pro,');
-  console.log('  rule performance tracking, AI rule testing, team sync.');
+  console.log('  ' + DIM + 'See what would be fixed (free):' + RESET + '  npx cursor-doctor lint');
   console.log();
-  console.log('  ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=paywall' + RESET);
+  console.log('  Pro key: $9 one-time — ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=paywall' + RESET);
   console.log('  Then: ' + DIM + 'cursor-doctor activate <your-key>' + RESET);
   console.log();
-  console.log('  ' + DIM + 'Full refund if it doesn\'t find real issues. No questions asked.' + RESET);
+  console.log('  ' + DIM + 'Full refund if it doesn\'t find real issues.' + RESET);
   console.log();
   return false;
 }
@@ -221,6 +224,9 @@ async function main() {
     if (fixable > 0) {
       console.log('  ' + DIM + 'See details:' + RESET + '  npx cursor-doctor lint');
       console.log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
+      console.log();
+    } else if (passes > 0 && (report.grade === 'A' || report.grade === 'B')) {
+      console.log('  ' + GREEN + String.fromCharCode(10024) + ' Your Cursor rules look good. Nothing to fix.' + RESET);
       console.log();
     }
 
@@ -623,7 +629,7 @@ async function main() {
   // --- budget (free basic, pro detailed) ---
   if (command === 'budget') {
     var isPro = args.includes('--pro');
-    if (isPro && !requirePro(cwd)) process.exit(1);
+    if (isPro && !requirePro(cwd, 'budget --pro')) process.exit(1);
 
     var analysis = analyzeTokenBudget(cwd, { pro: isPro });
 
@@ -743,7 +749,7 @@ async function main() {
 
   // --- perf (PRO) ---
   if (command === 'perf' || command === 'performance') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'perf')) process.exit(1);
 
     var days = 30;
     var daysArg = args.find(function(a) { return a.startsWith('--days='); });
@@ -835,7 +841,7 @@ async function main() {
 
   // --- test (PRO) ---
   if (command === 'test') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'test')) process.exit(1);
 
     var provider = getProvider();
     if (!provider) {
@@ -1017,7 +1023,7 @@ async function main() {
 
   // --- team (PRO) ---
   if (command === 'team') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'team')) process.exit(1);
 
     var subcommand = args.find(function(a) { return !a.startsWith('-') && a !== 'team'; });
 
@@ -1254,7 +1260,7 @@ async function main() {
 
   // --- conflicts (PRO) ---
   if (command === 'conflicts') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'conflicts')) process.exit(1);
 
     var report = crossConflictReport(cwd);
 
@@ -1302,7 +1308,7 @@ async function main() {
 
   // --- audit (PRO) ---
   if (command === 'audit') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'audit')) process.exit(1);
     var report = await fullAudit(cwd);
     if (args.includes('--md')) {
       process.stdout.write(formatAuditMarkdown(report));
@@ -1331,7 +1337,7 @@ async function main() {
 
   // --- fix (PRO) ---
   if (command === 'fix') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'fix')) process.exit(1);
     var dryRun = args.includes('--dry-run');
     var results = await autoFix(cwd, { dryRun: dryRun });
 
