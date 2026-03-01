@@ -1,6 +1,6 @@
 {
   "name": "cursor-doctor",
-  "version": "1.7.7",
+  "version": "1.8.0",
   "description": "Fix your Cursor AI setup in seconds. Health checks, rule testing, performance tracking, and auto-repair for .cursor configs. 80+ tests. Zero dependencies.",
   "main": "src/index.js",
   "bin": {
