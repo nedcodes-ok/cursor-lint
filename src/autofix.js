@@ -27,7 +27,8 @@ function fixBooleanStrings(content) {
     const lowerValue = fm.data.alwaysApply.toLowerCase();
     if (lowerValue === 'true' || lowerValue === 'false') {
       const properValue = lowerValue === 'true' ? 'true' : 'false';
-      yaml = yaml.replace(/^alwaysApply:\s*["']?(true|false|True|TRUE|False|FALSE)["']?$/im, `alwaysApply: ${properValue}`);
+      // Case-insensitive replacement - match any case variation
+      yaml = yaml.replace(/^alwaysApply:\s*["']?(true|false)["']?$/im, `alwaysApply: ${properValue}`);
       changes.push('Fixed boolean string in alwaysApply');
       modified = true;
     }
@@ -450,7 +451,8 @@ function fixGlobBackslashes(content) {
       // Replace all backslashes with forward slashes
       let fixed = line.replace(/\\/g, '/');
       // Clean up any double slashes that might result (but preserve :// for URLs)
-      fixed = fixed.replace(/([^:])\/{2,}/g, '$1/');
+      // Use negative lookbehind to avoid matching ://
+      fixed = fixed.replace(/(?<!:)\/\//g, '/');
       return fixed;
     }
     return line;
@@ -1088,10 +1090,13 @@ function fixDescriptionSentence(content) {
   if (!fm.found || !fm.data || !fm.data.description) return { content, changes };
   
   const desc = fm.data.description;
-  if (typeof desc !== 'string' || !desc.endsWith('.')) return { content, changes };
+  if (typeof desc !== 'string') return { content, changes };
   
-  // Don't remove period if it's part of an ellipsis
+  // Skip entirely if description ends with ellipsis
   if (desc.endsWith('...')) return { content, changes };
+  
+  // Only process if it ends with a period (but not ellipsis)
+  if (!desc.endsWith('.')) return { content, changes };
   
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { content, changes };
@@ -1172,19 +1177,22 @@ function fixTodoComments(content) {
   const lines = body.split('\n');
   const filteredLines = lines.filter(line => {
     const trimmed = line.trim();
-    // Match comment-style TODOs or bare TODO: lines
-    // But NOT list items (-, *, or numbered lists)
+    
+    // Keep list items (-, *, or numbered lists) even if they contain TODO
     if (/^[-*]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
-      // This is a list item, keep it even if it contains TODO
       return true;
     }
-    // Remove comment-style TODOs and bare TODO: lines
-    return !(
+    
+    // Remove lines that START with comment markers followed by TODO/FIXME/HACK
+    // OR bare TODO:/FIXME:/HACK: lines (but not list items, already filtered above)
+    const shouldRemove = (
       /^\/\/\s*(TODO|FIXME|HACK)/i.test(trimmed) ||
       /^#\s*(TODO|FIXME|HACK)/i.test(trimmed) ||
       /^<!--\s*(TODO|FIXME|HACK)/i.test(trimmed) ||
       /^(TODO|FIXME|HACK):/i.test(trimmed)
     );
+    
+    return !shouldRemove;
   });
   
   if (filteredLines.length !== lines.length) {
@@ -1313,15 +1321,16 @@ function fixDescriptionIdenticalToFilename(content, filename) {
   
   if (descNorm !== filenameNorm) return { content, changes };
   
+  // Generate the new description
+  const newDescription = kebabToTitleCase(basename);
+  
+  // Check if new description equals current - if same, return null (no change needed)
+  if (newDescription === fm.data.description) return { content, changes };
+  
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { content, changes };
   
   let yaml = match[1];
-  const newDescription = kebabToTitleCase(basename);
-  
-  // Check if the new description would be identical to current (for idempotency)
-  if (newDescription === fm.data.description) return { content, changes };
-  
   yaml = yaml.replace(/^description:.*$/m, `description: ${newDescription}`);
   content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
   changes.push('Improved description (was identical to filename)');
@@ -1399,12 +1408,17 @@ function fixBodyStartsWithDescription(content) {
   const frontmatter = fmMatch[0];
   let body = content.slice(frontmatter.length);
   
-  const firstLine = body.trim().split('\n')[0];
-  if (firstLine.trim() === fm.data.description.trim()) {
-    const lines = body.split('\n');
-    lines.shift(); // Remove first line
+  const lines = body.split('\n');
+  const firstNonEmptyLine = lines.find(line => line.trim().length > 0);
+  
+  if (firstNonEmptyLine && firstNonEmptyLine.trim() === fm.data.description.trim()) {
+    // Find and remove the duplicate line
+    const indexToRemove = lines.findIndex(line => line.trim() === fm.data.description.trim());
+    if (indexToRemove !== -1) {
+      lines.splice(indexToRemove, 1);
+    }
     body = lines.join('\n');
-    // Also trim leading blank lines for idempotency
+    // Trim leading blank lines after removal
     body = body.replace(/^\n+/, '');
     content = frontmatter + body;
     changes.push('Removed duplicate description from body');
