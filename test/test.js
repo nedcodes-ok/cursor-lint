@@ -1782,7 +1782,7 @@ alwaysApply:\ttrue
 Body`;
     const result = fixFrontmatterTabs(input);
     assert(!result.content.includes('\t'));
-    assert(result.content.includes('description:  Test'));
+    assert(result.content.includes('description: Test'));
     assert.strictEqual(result.changes.length, 1);
   });
 
@@ -1992,9 +1992,9 @@ Please use strict mode.
 Thank you for following these rules.
 Use TypeScript, please.`;
     const result = fixPleaseThankYou(input);
-    assert(!result.content.includes('Please use'));
-    assert(!result.content.includes('Thank you'));
-    assert(!result.content.includes(', please'));
+    assert(result.content.includes('Use strict mode.'), 'Should convert "Please use" → "Use"');
+    assert(!result.content.includes('Thank you'), 'Should remove thank you line');
+    assert(result.content.includes('Use TypeScript.'), 'Should strip trailing please');
     assert.strictEqual(result.changes.length, 1);
   });
 

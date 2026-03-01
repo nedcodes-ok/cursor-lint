@@ -38,7 +38,7 @@ function fixBooleanStrings(content) {
   return { content, changes };
 }
 
-// 2. Fix frontmatter tabs: replace tabs with 2 spaces
+// 2. Fix frontmatter tabs: replace tabs with spaces (preserving key: value format)
 function fixFrontmatterTabs(content) {
   const changes = [];
   const match = content.match(/^---\n([\s\S]*?)\n---/);
@@ -47,7 +47,12 @@ function fixFrontmatterTabs(content) {
   
   const yaml = match[1];
   if (yaml.includes('\t')) {
-    const fixed = yaml.replace(/\t/g, '  ');
+    // Replace tabs but normalize "key:\t+value" to "key: value" (single space)
+    const lines = yaml.split('\n');
+    const fixed = lines.map(line => {
+      // For "key:\tvalue" pattern, normalize to "key: value"
+      return line.replace(/^(\w+):\t+/g, '$1: ').replace(/\t/g, '  ');
+    }).join('\n');
     content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${fixed}\n---`);
     changes.push('Replaced tabs with spaces in frontmatter');
   }
@@ -258,28 +263,34 @@ function fixPleaseThankYou(content) {
   let body = content.slice(frontmatter.length);
   let modified = false;
   
-  // Remove lines that are just "Please..." or "Thank you..."
   const lines = body.split('\n');
-  const filteredLines = lines.filter(line => {
+  const fixedLines = lines.map(line => {
     const trimmed = line.trim();
-    if (/^please[\s.,!]|^thank\s+you[\s.,!]/i.test(trimmed)) {
+    
+    // Lines starting with "Thank you" / "Thanks" — remove entirely
+    if (/^thank\s*(you|s)\b/i.test(trimmed)) {
       modified = true;
-      return false;
+      return null;
     }
-    return true;
-  });
+    
+    // "Please X" at start of line → "X" (capitalize first word)
+    if (/^please\s+/i.test(trimmed)) {
+      modified = true;
+      const rest = trimmed.replace(/^please\s+/i, '');
+      return line.replace(trimmed, rest.charAt(0).toUpperCase() + rest.slice(1));
+    }
+    
+    // "X please" at end → "X"
+    if (/\s+please[.!]?\s*$/i.test(trimmed)) {
+      modified = true;
+      return line.replace(/,?\s+please([.!]?)\s*$/i, '$1');
+    }
+    
+    return line;
+  }).filter(l => l !== null);
   
   if (modified) {
-    body = filteredLines.join('\n');
-  }
-  
-  // Strip "please" from mid-sentence (case-insensitive)
-  if (/\bplease\b/i.test(body)) {
-    body = body.replace(/,?\s*please\b/gi, '');
-    modified = true;
-  }
-  
-  if (modified) {
+    body = fixedLines.join('\n');
     content = frontmatter + body;
     changes.push('Removed please/thank you');
   }
@@ -287,7 +298,7 @@ function fixPleaseThankYou(content) {
   return { content, changes };
 }
 
-// 11. Fix first person: "I want you to" → direct command
+// 11. Fix first person: "I want you to use X" → "Use X"
 function fixFirstPerson(content) {
   const changes = [];
   const fm = parseFrontmatter(content);
@@ -301,21 +312,30 @@ function fixFirstPerson(content) {
   let body = content.slice(frontmatter.length);
   let modified = false;
   
-  const patterns = [
-    { from: /I want you to\s+/gi, to: '' },
-    { from: /I need you to\s+/gi, to: '' },
-    { from: /I'd like you to\s+/gi, to: '' },
-    { from: /My preference is\s+/gi, to: '' },
-  ];
-  
-  for (const { from, to } of patterns) {
-    if (from.test(body)) {
-      body = body.replace(from, to);
-      modified = true;
+  const lines = body.split('\n');
+  const fixedLines = lines.map(line => {
+    const patterns = [
+      /^(\s*)I want you to\s+/i,
+      /^(\s*)I need you to\s+/i,
+      /^(\s*)I'd like you to\s+/i,
+      /^(\s*)My preference is (to\s+)?/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match) {
+        modified = true;
+        const indent = match[1] || '';
+        const rest = line.slice(match[0].length);
+        // Capitalize the first letter of the remaining text
+        return indent + rest.charAt(0).toUpperCase() + rest.slice(1);
+      }
     }
-  }
+    return line;
+  });
   
   if (modified) {
+    body = fixedLines.join('\n');
     content = frontmatter + body;
     changes.push('Removed first person language');
   }
@@ -453,8 +473,10 @@ function fixGlobTrailingSlash(content) {
   if (!match) return { content, changes };
   
   let yaml = match[1];
-  yaml = yaml.replace(/(globs:\s*-\s*"[^"]*)(\/")$/gm, '$1"');
-  yaml = yaml.replace(/("[^"]*)(\/")(\s*[,\]])/g, '$1"$3');
+  // Fix YAML array items: - "path/" → - "path"
+  yaml = yaml.replace(/^(\s*-\s*"[^"]*?)\/("\s*)$/gm, '$1$2');
+  // Fix inline array items: "path/" → "path"
+  yaml = yaml.replace(/("[^"]*?)\/("[\s,\]])/g, '$1$2');
   
   content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
   changes.push('Removed trailing slashes from globs');
@@ -478,8 +500,10 @@ function fixGlobDotSlash(content) {
   if (!match) return { content, changes };
   
   let yaml = match[1];
-  yaml = yaml.replace(/(globs:\s*-\s*")(\.\/)([^"]*")/gm, '$1$3');
-  yaml = yaml.replace(/(")(\.\/)/g, '$1');
+  // Fix YAML array items: - "./src/*.ts" → - "src/*.ts"
+  yaml = yaml.replace(/^(\s*-\s*")\.\//gm, '$1');
+  // Fix inline string: globs: "./src/*.ts" → globs: "src/*.ts"
+  yaml = yaml.replace(/(globs:\s*")\.\//g, '$1');
   
   content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
   changes.push('Removed ./ prefix from globs');
@@ -494,31 +518,44 @@ function fixGlobRegexSyntax(content) {
   
   if (!fm.found || !fm.data || !fm.data.globs) return { content, changes };
   
+  const globs = Array.isArray(fm.data.globs) ? fm.data.globs : [fm.data.globs];
+  // Check if any glob looks like regex (has \. or $ or ^)
+  const hasRegex = globs.some(g => typeof g === 'string' && (/\\\./.test(g) || /\$$/.test(g) || /^\^/.test(g)));
+  
+  if (!hasRegex) return { content, changes };
+  
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { content, changes };
   
   let yaml = match[1];
   let modified = false;
   
-  // Common patterns: \.ts$ → *.ts, \.jsx?$ → *.js
-  const patterns = [
-    { from: /\\"\.ts\$\\"/g, to: '"*.ts"' },
-    { from: /\\"\.tsx\$\\"/g, to: '"*.tsx"' },
-    { from: /\\"\.jsx?\$\\"/g, to: '"*.js"' },
-    { from: /\\"\.js\$\\"/g, to: '"*.js"' },
-    { from: /"\\\.ts\$"/g, to: '"*.ts"' },
-    { from: /"\\\.tsx\$"/g, to: '"*.tsx"' },
-    { from: /"\\\.jsx?\$"/g, to: '"*.js"' },
-  ];
-  
-  for (const { from, to } of patterns) {
-    if (from.test(yaml)) {
-      yaml = yaml.replace(from, to);
-      modified = true;
-    }
-  }
+  // Replace regex-style glob patterns within quoted strings in YAML
+  // Match: "\.ext$" and convert to "*.ext"
+  const lines = yaml.split('\n');
+  const fixedLines = lines.map(line => {
+    // Only process lines that contain glob values
+    if (!line.includes('"') || (!line.includes('\\.') && !line.includes('$'))) return line;
+    
+    return line.replace(/"([^"]+)"/g, (fullMatch, glob) => {
+      let fixed = glob;
+      // \.ext$ → *.ext
+      fixed = fixed.replace(/^\\\.([\w]+)\$?$/, '*.$1');
+      // ^something → something
+      fixed = fixed.replace(/^\^/, '');
+      // trailing $ → remove
+      fixed = fixed.replace(/\$$/, '');
+      
+      if (fixed !== glob) {
+        modified = true;
+        return `"${fixed}"`;
+      }
+      return fullMatch;
+    });
+  });
   
   if (modified) {
+    yaml = fixedLines.join('\n');
     content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
     changes.push('Converted regex syntax to glob syntax');
   }
@@ -634,10 +671,10 @@ async function autoFix(dir, options = {}) {
     fixCommentedHTML,
     fixUnclosedCodeBlocks,
     fixInconsistentListMarkers,
+    fixGlobRegexSyntax,
     fixGlobBackslashes,
     fixGlobTrailingSlash,
     fixGlobDotSlash,
-    fixGlobRegexSyntax,
   ];
   
   // 1. Apply all fixers to each .mdc file
@@ -752,7 +789,7 @@ async function autoFix(dir, options = {}) {
   for (const r of redundant) {
     if (merged.has(r.fileA) || merged.has(r.fileB)) continue;
     
-    if (r.overlapPct >= 60) {
+    if (r.overlapPct >= 90) {
       const ruleA = rules.find(rule => rule.file === r.fileA);
       const ruleB = rules.find(rule => rule.file === r.fileB);
       
