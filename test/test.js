@@ -559,6 +559,138 @@ test('migrate: handles CRLF content', () => {
   assert(result.created.length >= 1 || result.skipped.length >= 1);
 });
 
+test('migrate: detects TypeScript globs', () => {
+  setupTestProject();
+  writeFixture('.cursorrules', `## TypeScript Guidelines
+Use strict type checking in all TypeScript files.
+Never use any type unless absolutely necessary.`);
+  
+  const result = migrate(TEST_PROJECT);
+  assert(result.created.length === 1);
+  const created = result.created[0];
+  assert(created.globs && created.globs.includes('**/*.ts'));
+});
+
+test('migrate: detects React globs', () => {
+  setupTestProject();
+  writeFixture('.cursorrules', `## React Components
+Always use functional components with hooks.
+Follow React best practices.`);
+  
+  const result = migrate(TEST_PROJECT);
+  assert(result.created.length === 1);
+  const created = result.created[0];
+  assert(created.globs && (created.globs.includes('**/*.tsx') || created.globs.includes('**/*.jsx')));
+});
+
+test('migrate: detects test file globs', () => {
+  setupTestProject();
+  writeFixture('.cursorrules', `## Testing Rules
+All tests must have descriptive names.
+Use Jest for unit testing.`);
+  
+  const result = migrate(TEST_PROJECT);
+  assert(result.created.length === 1);
+  const created = result.created[0];
+  assert(created.globs && created.globs.some(g => g.includes('.test.') || g.includes('.spec.')));
+});
+
+test('migrate: sets alwaysApply when no tech detected', () => {
+  setupTestProject();
+  writeFixture('.cursorrules', `## General Guidelines
+Write clean and maintainable code.
+Follow best practices for the project.`);
+  
+  const result = migrate(TEST_PROJECT);
+  assert(result.created.length === 1);
+  const created = result.created[0];
+  assert(created.alwaysApply === true);
+  assert(!created.globs || created.globs.length === 0);
+});
+
+test('migrate: splits by triple-dash delimiters', () => {
+  setupTestProject();
+  writeFixture('.cursorrules', `## Section 1
+First section content with sufficient text for processing.
+
+---
+
+## Section 2
+Second section content with enough text to be valid.`);
+  
+  const result = migrate(TEST_PROJECT);
+  assert(result.created.length >= 2);
+});
+
+test('migrate: dry-run does not create files', () => {
+  setupTestProject();
+  writeFixture('.cursorrules', `## Test Section
+Content with enough text to create a valid section.`);
+  
+  const result = migrate(TEST_PROJECT, { dryRun: true });
+  assert(result.created.length >= 1);
+  
+  // Check that files were NOT actually created
+  const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
+  if (fs.existsSync(rulesDir)) {
+    const files = fs.readdirSync(rulesDir).filter(f => f.endsWith('.mdc'));
+    assert(files.length === 0);
+  }
+});
+
+test('migrate: warns when .cursor/rules/ has existing files', () => {
+  setupTestProject();
+  writeFixture('.cursor/rules/existing.mdc', `---
+description: Existing
+alwaysApply: true
+---
+Body`);
+  writeFixture('.cursorrules', `## Test
+Content here`);
+  
+  const result = migrate(TEST_PROJECT);
+  assert(result.error && result.error.includes('existing'));
+});
+
+test('migrate: force flag overwrites existing files', () => {
+  setupTestProject();
+  writeFixture('.cursor/rules/test-section.mdc', `---
+description: Old
+alwaysApply: true
+---
+Old body`);
+  writeFixture('.cursorrules', `## Test Section
+New content with enough text to be valid and replace old.`);
+  
+  const result = migrate(TEST_PROJECT, { force: true });
+  assert(result.created.length >= 1);
+  assert(result.error === null);
+});
+
+test('migrate: backs up .cursorrules to .bak', () => {
+  setupTestProject();
+  const content = `## Test Section
+Content for testing backup functionality.`;
+  writeFixture('.cursorrules', content);
+  
+  const result = migrate(TEST_PROJECT);
+  assert(result.backupCreated === '.cursorrules.bak');
+  
+  const backupPath = path.join(TEST_PROJECT, '.cursorrules.bak');
+  assert(fs.existsSync(backupPath));
+  assert.strictEqual(fs.readFileSync(backupPath, 'utf-8').trim(), content);
+});
+
+test('migrate: generates kebab-case filenames', () => {
+  setupTestProject();
+  writeFixture('.cursorrules', `## TypeScript Best Practices
+Content with enough text for a valid rule section.`);
+  
+  const result = migrate(TEST_PROJECT);
+  assert(result.created.length === 1);
+  assert(result.created[0].file.match(/^[a-z0-9-]+\.mdc$/));
+});
+
 // ─── 15. verify.js tests ───
 console.log('\n## verify.js');
 
@@ -873,6 +1005,301 @@ Never use semicolons.`);
     const conflicts = detectConflicts(TEST_PROJECT);
     assert(conflicts.length > 0);
     assert(conflicts.some(c => c.severity === 'error'));
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - tabs vs spaces', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/tabs.mdc', `---
+description: Use tabs
+alwaysApply: true
+---
+Use tabs for indentation.`);
+    
+    writeFixture('.cursor/rules/spaces.mdc', `---
+description: Use spaces
+alwaysApply: true
+---
+Use spaces for indentation.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    assert(conflicts.length > 0);
+    const indentConflict = conflicts.find(c => c.message.includes('indentation style'));
+    assert(indentConflict);
+    assert.strictEqual(indentConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - single vs double quotes', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/single-quotes.mdc', `---
+description: Single quotes
+globs:
+  - "*.js"
+---
+Use single quotes for strings.`);
+    
+    writeFixture('.cursor/rules/double-quotes.mdc', `---
+description: Double quotes
+globs:
+  - "*.js"
+---
+Use double quotes for strings.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const quoteConflict = conflicts.find(c => c.message.includes('quote style'));
+    assert(quoteConflict);
+    assert.strictEqual(quoteConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - camelCase vs snake_case', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/camel.mdc', `---
+description: CamelCase naming
+alwaysApply: true
+---
+Use camelCase for all variables.`);
+    
+    writeFixture('.cursor/rules/snake.mdc', `---
+description: Snake case naming
+alwaysApply: true
+---
+Use snake_case for all variables.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const namingConflict = conflicts.find(c => c.message.includes('naming convention'));
+    assert(namingConflict);
+    assert.strictEqual(namingConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - functional vs class components', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/functional.mdc', `---
+description: Functional components
+globs:
+  - "*.tsx"
+---
+Use functional components for all React code.`);
+    
+    writeFixture('.cursor/rules/classes.mdc', `---
+description: Class components
+globs:
+  - "*.tsx"
+---
+Use class components for all React code.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const reactConflict = conflicts.find(c => c.message.includes('React component style'));
+    assert(reactConflict);
+    assert.strictEqual(reactConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - async/await vs callbacks', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/async-await.mdc', `---
+description: Async await
+alwaysApply: true
+---
+Use async/await for all asynchronous code.`);
+    
+    writeFixture('.cursor/rules/callbacks.mdc', `---
+description: Callbacks
+alwaysApply: true
+---
+Use callbacks for asynchronous code.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const asyncConflict = conflicts.find(c => c.message.includes('async pattern'));
+    assert(asyncConflict);
+    assert.strictEqual(asyncConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - interfaces vs types', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/interfaces.mdc', `---
+description: Use interfaces
+globs:
+  - "*.ts"
+---
+Use interfaces for type definitions.`);
+    
+    writeFixture('.cursor/rules/types.mdc', `---
+description: Use types
+globs:
+  - "*.ts"
+---
+Use types for type definitions.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const typeConflict = conflicts.find(c => c.message.includes('TypeScript type definition'));
+    assert(typeConflict);
+    assert.strictEqual(typeConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - composition vs inheritance', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/composition.mdc', `---
+description: Prefer composition
+alwaysApply: true
+---
+Prefer composition over inheritance.`);
+    
+    writeFixture('.cursor/rules/inheritance.mdc', `---
+description: Prefer inheritance
+alwaysApply: true
+---
+Prefer inheritance for code reuse.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const patternConflict = conflicts.find(c => c.message.includes('code organization pattern'));
+    assert(patternConflict);
+    assert.strictEqual(patternConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - file length limits', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/short-files.mdc', `---
+description: Short files
+alwaysApply: true
+---
+Keep files under 100 lines.`);
+    
+    writeFixture('.cursor/rules/longer-files.mdc', `---
+description: Longer files OK
+alwaysApply: true
+---
+Keep files under 500 lines.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const lengthConflict = conflicts.find(c => c.message.includes('file length limit'));
+    assert(lengthConflict);
+    assert.strictEqual(lengthConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - parameter count', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/few-params.mdc', `---
+description: Few parameters
+alwaysApply: true
+---
+Maximum 2 parameters per function.`);
+    
+    writeFixture('.cursor/rules/more-params.mdc', `---
+description: More parameters
+alwaysApply: true
+---
+Maximum 5 parameters per function.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const paramConflict = conflicts.find(c => c.message.includes('parameter count limit'));
+    assert(paramConflict);
+    assert.strictEqual(paramConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - default vs named exports', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/default-exports.mdc', `---
+description: Default exports
+alwaysApply: true
+---
+Use default exports for all modules.`);
+    
+    writeFixture('.cursor/rules/named-exports.mdc', `---
+description: Named exports
+alwaysApply: true
+---
+Use named exports for all modules.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const exportConflict = conflicts.find(c => c.message.includes('export style'));
+    assert(exportConflict);
+    assert.strictEqual(exportConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - const vs let', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/prefer-const.mdc', `---
+description: Prefer const
+alwaysApply: true
+---
+Prefer const for all variable declarations.`);
+    
+    writeFixture('.cursor/rules/prefer-let.mdc', `---
+description: Prefer let
+alwaysApply: true
+---
+Prefer let for variable declarations.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const varConflict = conflicts.find(c => c.message.includes('variable declaration'));
+    assert(varConflict);
+    assert.strictEqual(varConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: semantic conflict - arrow vs function', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/arrow-functions.mdc', `---
+description: Arrow functions
+alwaysApply: true
+---
+Use arrow functions for all callbacks.`);
+    
+    writeFixture('.cursor/rules/function-declarations.mdc', `---
+description: Function declarations
+alwaysApply: true
+---
+Use function declarations instead of arrow functions.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    const funcConflict = conflicts.find(c => c.message.includes('function syntax'));
+    assert(funcConflict);
+    assert.strictEqual(funcConflict.severity, 'error');
+  });
+
+  await asyncTest('detectConflicts: no conflict when rules target different files', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/ts-semicolons.mdc', `---
+description: TypeScript semicolons
+globs:
+  - "*.ts"
+---
+Use semicolons in TypeScript files.`);
+    
+    writeFixture('.cursor/rules/js-no-semicolons.mdc', `---
+description: JavaScript no semicolons
+globs:
+  - "*.js"
+---
+No semicolons in JavaScript files.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    // Should not find semantic conflicts between non-overlapping globs
+    const semicolonConflicts = conflicts.filter(c => c.message.includes('semicolons'));
+    assert.strictEqual(semicolonConflicts.length, 0);
+  });
+
+  await asyncTest('detectConflicts: multiple semantic conflicts reported', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/style-a.mdc', `---
+description: Style A
+alwaysApply: true
+---
+Use tabs for indentation.
+Use single quotes for strings.
+Prefer const for variables.`);
+    
+    writeFixture('.cursor/rules/style-b.mdc', `---
+description: Style B
+alwaysApply: true
+---
+Use spaces for indentation.
+Use double quotes for strings.
+Prefer let for variables.`);
+    
+    const conflicts = detectConflicts(TEST_PROJECT);
+    // Should find at least 3 conflicts
+    assert(conflicts.length >= 3);
+    assert(conflicts.some(c => c.message.includes('indentation')));
+    assert(conflicts.some(c => c.message.includes('quote')));
+    assert(conflicts.some(c => c.message.includes('variable declaration')));
   });
 
   // Agent lint tests

@@ -43,7 +43,7 @@ function showHelp() {
     '  npx cursor-doctor check        # Quick pass/fail for CI',
     '  npx cursor-doctor init         # Generate rules based on your stack',
     '  npx cursor-doctor lint         # Detailed rule linting',
-    '  npx cursor-doctor migrate      # Convert .cursorrules to .mdc',
+    '  npx cursor-doctor migrate      # Convert .cursorrules to .mdc (--dry-run, --force)',
     '  npx cursor-doctor stats        # Token usage dashboard',
     '  npx cursor-doctor budget       # Smart token budget analysis',
     '  npx cursor-doctor agents       # Lint CLAUDE.md, AGENTS.md, .cursor/agents/',
@@ -326,27 +326,67 @@ async function main() {
 
   // --- migrate (free) ---
   if (command === 'migrate') {
+    var dryRun = args.includes('--dry-run');
+    var force = args.includes('--force');
+    
     console.log();
-    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- migrate');
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- migrate' + (dryRun ? ' ' + DIM + '(dry run)' + RESET : ''));
     console.log();
-    var result = migrate(cwd);
+    
+    var result = migrate(cwd, { dryRun: dryRun, force: force });
+    
     if (result.error) {
       console.log(RED + String.fromCharCode(10007) + RESET + ' ' + result.error);
+      console.log();
+      if (result.error.includes('existing .mdc')) {
+        console.log('  ' + CYAN + 'Use --force to overwrite existing rules' + RESET);
+        console.log();
+      }
       process.exit(1);
     }
-    console.log(CYAN + 'Source:' + RESET + ' .cursorrules (' + result.source.lines + ' lines)');
+    
+    console.log(CYAN + 'Migrated .cursorrules ' + String.fromCharCode(8594) + ' .cursor/rules/' + RESET);
     console.log();
+    
     if (result.created.length > 0) {
-      console.log(GREEN + 'Created:' + RESET);
-      for (var i = 0; i < result.created.length; i++) console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' .cursor/rules/' + result.created[i]);
+      console.log(GREEN + (dryRun ? 'Would create:' : 'Created') + ' ' + result.created.length + ' file(s):' + RESET);
+      for (var i = 0; i < result.created.length; i++) {
+        var file = result.created[i];
+        var globsText = '';
+        if (file.globs && file.globs.length > 0) {
+          globsText = ' (globs: ' + file.globs.join(', ') + ')';
+        } else if (file.alwaysApply) {
+          globsText = ' (alwaysApply: true)';
+        }
+        console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' ' + file.file + globsText);
+      }
+      console.log();
     }
+    
     if (result.skipped.length > 0) {
       console.log(YELLOW + 'Skipped:' + RESET);
-      for (var i = 0; i < result.skipped.length; i++) console.log('  ' + YELLOW + String.fromCharCode(9888) + RESET + ' .cursor/rules/' + result.skipped[i]);
+      for (var i = 0; i < result.skipped.length; i++) {
+        console.log('  ' + YELLOW + String.fromCharCode(9888) + RESET + ' ' + result.skipped[i].file + ' (' + result.skipped[i].reason + ')');
+      }
+      console.log();
     }
-    console.log();
-    console.log(DIM + '.cursorrules was NOT deleted -- verify, then remove manually.' + RESET);
-    console.log();
+    
+    // Lint warnings
+    if (result.lintIssues > 0 && !dryRun) {
+      console.log(YELLOW + result.lintIssues + ' lint warning(s) found ' + String.fromCharCode(8594) + ' run ' + CYAN + 'npx cursor-doctor fix' + YELLOW + ' to auto-fix' + RESET);
+      console.log();
+    }
+    
+    if (!dryRun && result.backupCreated) {
+      console.log(DIM + 'Original .cursorrules backed up to ' + result.backupCreated + RESET);
+      console.log();
+    }
+    
+    if (dryRun) {
+      console.log(DIM + 'This was a dry run. Run without --dry-run to apply changes.' + RESET);
+      console.log();
+    }
+    
     process.exit(0);
   }
 

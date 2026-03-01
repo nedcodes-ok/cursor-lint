@@ -1871,6 +1871,82 @@ function globsOverlap(globsA, globsB) {
   return false;
 }
 
+// Semantic contradiction patterns (20+ pairs)
+const SEMANTIC_PAIRS = [
+  // Style contradictions - indentation
+  { a: /\buse\s+tabs\b/i, b: /\buse\s+spaces\b/i, topic: 'indentation style' },
+  { a: /\btabs\s+for\s+indentation\b/i, b: /\bspaces\s+for\s+indentation\b/i, topic: 'indentation style' },
+  
+  // Style contradictions - semicolons
+  { a: /\bsemicolons?\b.*\brequir/i, b: /\bno\s+semicolons?\b/i, topic: 'semicolons' },
+  { a: /\balways\s+use\s+semicolons?\b/i, b: /\bomit\s+semicolons?\b/i, topic: 'semicolons' },
+  { a: /\bsemicolons?\b.*\bmandatory\b/i, b: /\bsemicolons?\b.*\boptional\b/i, topic: 'semicolons' },
+  
+  // Style contradictions - quotes
+  { a: /\bsingle\s+quotes?\b/i, b: /\bdouble\s+quotes?\b/i, topic: 'quote style' },
+  { a: /\buse\s+['`]\b/i, b: /\buse\s+["`]\b/i, topic: 'quote style' },
+  
+  // Style contradictions - naming conventions
+  { a: /\buse\s+camelCase\b/i, b: /\buse\s+snake_case\b/i, topic: 'naming convention' },
+  { a: /\buse\s+camelCase\b/i, b: /\buse\s+PascalCase\b/i, topic: 'naming convention' },
+  { a: /\buse\s+snake_case\b/i, b: /\buse\s+PascalCase\b/i, topic: 'naming convention' },
+  { a: /\bcamelCase\b.*\bvariables?\b/i, b: /\bsnake_case\b.*\bvariables?\b/i, topic: 'naming convention' },
+  
+  // Pattern contradictions - React components
+  { a: /\buse\s+functional\s+components?\b/i, b: /\buse\s+class\s+components?\b/i, topic: 'React component style' },
+  { a: /\bprefer\s+functional\s+components?\b/i, b: /\bprefer\s+class\s+components?\b/i, topic: 'React component style' },
+  { a: /\bfunction\s+components?\b.*\bonly\b/i, b: /\bclass\s+components?\b.*\bonly\b/i, topic: 'React component style' },
+  
+  // Pattern contradictions - async patterns
+  { a: /\buse\s+async\/await\b/i, b: /\buse\s+callbacks?\b/i, topic: 'async pattern' },
+  { a: /\bprefer\s+async\/await\b/i, b: /\bprefer\s+promises?\b/i, topic: 'async pattern' },
+  { a: /\bprefer\s+async\/await\b/i, b: /\bprefer\s+callbacks?\b/i, topic: 'async pattern' },
+  { a: /\balways\s+use\s+promises?\b/i, b: /\bavoid\s+promises?\b/i, topic: 'async pattern' },
+  
+  // Pattern contradictions - TypeScript
+  { a: /\buse\s+interfaces?\b/i, b: /\buse\s+types?\b/i, topic: 'TypeScript type definition' },
+  { a: /\bprefer\s+interfaces?\b/i, b: /\bprefer\s+type\s+aliases?\b/i, topic: 'TypeScript type definition' },
+  { a: /\binterfaces?\b.*\bonly\b/i, b: /\btypes?\b.*\bonly\b/i, topic: 'TypeScript type definition' },
+  
+  // Pattern contradictions - OOP vs FP
+  { a: /\bprefer\s+composition\b/i, b: /\bprefer\s+inheritance\b/i, topic: 'code organization pattern' },
+  { a: /\buse\s+composition\b/i, b: /\buse\s+inheritance\b/i, topic: 'code organization pattern' },
+  { a: /\bfavor\s+composition\b/i, b: /\bfavor\s+inheritance\b/i, topic: 'code organization pattern' },
+  
+  // Length contradictions - file size
+  { a: /\bfiles?\s+under\s+100\s+lines?\b/i, b: /\bfiles?\s+under\s+500\s+lines?\b/i, topic: 'file length limit' },
+  { a: /\bkeep\s+files?\s+under\s+100\b/i, b: /\bkeep\s+files?\s+under\s+200\b/i, topic: 'file length limit' },
+  { a: /\bmax(?:imum)?\s+100\s+lines?\b/i, b: /\bmax(?:imum)?\s+500\s+lines?\b/i, topic: 'file length limit' },
+  
+  // Length contradictions - parameters
+  { a: /\bmax(?:imum)?\s+2\s+parameters?\b/i, b: /\bmax(?:imum)?\s+5\s+parameters?\b/i, topic: 'parameter count limit' },
+  { a: /\bno\s+more\s+than\s+2\s+parameters?\b/i, b: /\bno\s+more\s+than\s+4\s+parameters?\b/i, topic: 'parameter count limit' },
+  
+  // Negation detection - general
+  { a: /\balways\s+use\s+(\w+)/i, b: /\bnever\s+use\s+\1\b/i, topic: 'contradictory always/never' },
+  { a: /\bprefer\s+(\w+)/i, b: /\bavoid\s+\1\b/i, topic: 'contradictory prefer/avoid' },
+  { a: /\brequire\s+(\w+)/i, b: /\bforbid\s+\1\b/i, topic: 'contradictory require/forbid' },
+  
+  // Negation detection - specific patterns
+  { a: /\balways\s+add\s+comments?\b/i, b: /\bavoid\s+comments?\b/i, topic: 'code comments' },
+  { a: /\balways\s+add\s+comments?\b/i, b: /\bno\s+comments?\b/i, topic: 'code comments' },
+  { a: /\buse\s+default\s+exports?\b/i, b: /\buse\s+named\s+exports?\b/i, topic: 'export style' },
+  { a: /\bprefer\s+default\s+exports?\b/i, b: /\bprefer\s+named\s+exports?\b/i, topic: 'export style' },
+  { a: /\bexport\s+default\b.*\bonly\b/i, b: /\bnamed\s+exports?\b.*\bonly\b/i, topic: 'export style' },
+  
+  // Additional contradictions - const vs let
+  { a: /\bprefer\s+const\b/i, b: /\bprefer\s+let\b/i, topic: 'variable declaration' },
+  { a: /\balways\s+use\s+const\b/i, b: /\bavoid\s+const\b/i, topic: 'variable declaration' },
+  
+  // Additional contradictions - arrow functions
+  { a: /\buse\s+arrow\s+functions?\b/i, b: /\buse\s+function\s+declarations?\b/i, topic: 'function syntax' },
+  { a: /\bprefer\s+arrow\s+functions?\b/i, b: /\bavoid\s+arrow\s+functions?\b/i, topic: 'function syntax' },
+  
+  // Additional contradictions - comments
+  { a: /\bdocument\s+everything\b/i, b: /\bself-documenting\s+code\b/i, topic: 'documentation approach' },
+  { a: /\brequire\s+JSDoc\b/i, b: /\bavoid\s+JSDoc\b/i, topic: 'documentation approach' },
+];
+
 function extractDirectives(content) {
   // Extract actionable instructions from rule body (after frontmatter)
   const body = content.replace(/^---[\s\S]*?---\n?/, '').toLowerCase();
@@ -1916,7 +1992,8 @@ function detectConflicts(dir) {
     const globs = fm.data ? parseGlobs(fm.data.globs) : [];
     const alwaysApply = fm.data && fm.data.alwaysApply;
     const directives = extractDirectives(conflictContent);
-    parsed.push({ file, filePath, globs, alwaysApply, directives, content: conflictContent });
+    const body = getBody(conflictContent);
+    parsed.push({ file, filePath, globs, alwaysApply, directives, content: conflictContent, body });
   }
 
   const issues = [];
@@ -1950,6 +2027,53 @@ function detectConflicts(dir) {
               severity: 'error',
               message: `Conflicting rules: ${a.file} says "${dA.type} ${dA.subject}" but ${b.file} says "${dB.type} ${dB.subject}"`,
               hint: 'Conflicting directives confuse the model. Remove or reconcile one of these rules.',
+            });
+          }
+        }
+      }
+
+      // NEW: Semantic conflict detection
+      // Check all semantic pairs for contradictions
+      for (const pair of SEMANTIC_PAIRS) {
+        const aMatches = pair.a.test(a.body);
+        const bMatches = pair.b.test(b.body);
+        
+        if (aMatches && bMatches) {
+          // Found semantic contradiction
+          const aMatch = a.body.match(pair.a);
+          const bMatch = b.body.match(pair.b);
+          const aText = aMatch ? aMatch[0] : pair.a.source;
+          const bText = bMatch ? bMatch[0] : pair.b.source;
+          
+          issues.push({
+            severity: 'error',
+            message: `Semantic conflict in ${pair.topic}: ${a.file} says "${aText}" but ${b.file} says "${bText}"`,
+            hint: `Conflicting ${pair.topic} directives confuse the AI model. Choose one approach and apply it consistently.`,
+          });
+        }
+        
+        // Also check reverse (b matches pattern a, a matches pattern b)
+        const aMatchesB = pair.b.test(a.body);
+        const bMatchesA = pair.a.test(b.body);
+        
+        if (aMatchesB && bMatchesA) {
+          const aMatch = a.body.match(pair.b);
+          const bMatch = b.body.match(pair.a);
+          const aText = aMatch ? aMatch[0] : pair.b.source;
+          const bText = bMatch ? bMatch[0] : pair.a.source;
+          
+          // Only report if we haven't already reported this pair
+          const alreadyReported = issues.some(issue => 
+            issue.message.includes(a.file) && 
+            issue.message.includes(b.file) && 
+            issue.message.includes(pair.topic)
+          );
+          
+          if (!alreadyReported) {
+            issues.push({
+              severity: 'error',
+              message: `Semantic conflict in ${pair.topic}: ${a.file} says "${aText}" but ${b.file} says "${bText}"`,
+              hint: `Conflicting ${pair.topic} directives confuse the AI model. Choose one approach and apply it consistently.`,
             });
           }
         }
