@@ -1501,9 +1501,25 @@ async function lintProject(dir) {
 
   const rulesDir = path.join(dir, '.cursor', 'rules');
   if (fs.existsSync(rulesDir) && fs.statSync(rulesDir).isDirectory()) {
-    for (const entry of fs.readdirSync(rulesDir)) {
-      if (entry.endsWith('.mdc')) {
-        results.push(await lintMdcFile(path.join(rulesDir, entry)));
+    try {
+      const entries = fs.readdirSync(rulesDir);
+      for (const entry of entries) {
+        if (entry.endsWith('.mdc')) {
+          results.push(await lintMdcFile(path.join(rulesDir, entry)));
+        }
+      }
+    } catch (e) {
+      if (e.code === 'EACCES') {
+        results.push({
+          file: rulesDir,
+          issues: [{
+            severity: 'error',
+            message: 'Permission denied: Cannot read .cursor/rules/ directory',
+            hint: 'Check file permissions with: ls -la .cursor/rules/',
+          }],
+        });
+      } else {
+        throw e;
       }
     }
   }
@@ -1534,7 +1550,17 @@ async function lintProject(dir) {
   // 9. Excessive rules count & 10. Duplicate rule content
   const rulesDirPath = path.join(dir, '.cursor', 'rules');
   if (fs.existsSync(rulesDirPath) && fs.statSync(rulesDirPath).isDirectory()) {
-    const mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    let mdcFiles;
+    try {
+      mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    } catch (e) {
+      if (e.code === 'EACCES') {
+        // Already reported above
+        mdcFiles = [];
+      } else {
+        throw e;
+      }
+    }
     
     if (mdcFiles.length > 20) {
       results.push({
@@ -1632,7 +1658,16 @@ async function lintProject(dir) {
 
   // 23. Multiple rules have identical globs (cross-file check)
   if (fs.existsSync(rulesDirPath) && fs.statSync(rulesDirPath).isDirectory()) {
-    const mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    let mdcFiles;
+    try {
+      mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    } catch (e) {
+      if (e.code === 'EACCES') {
+        mdcFiles = [];
+      } else {
+        throw e;
+      }
+    }
     if (mdcFiles.length > 1) {
       const globsByFile = [];
       for (const file of mdcFiles) {
@@ -1702,7 +1737,16 @@ async function lintProject(dir) {
 
   // 27. Glob doesn't match any files in project (info-level)
   if (fs.existsSync(rulesDirPath) && fs.statSync(rulesDirPath).isDirectory()) {
-    const mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    let mdcFiles;
+    try {
+      mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    } catch (e) {
+      if (e.code === 'EACCES') {
+        mdcFiles = [];
+      } else {
+        throw e;
+      }
+    }
     for (const file of mdcFiles) {
       const filePath = path.join(rulesDirPath, file);
       var fileContent;
@@ -1754,7 +1798,16 @@ async function lintProject(dir) {
 
   // 40. Excessive alwaysApply rules (project-level)
   if (fs.existsSync(rulesDirPath) && fs.statSync(rulesDirPath).isDirectory()) {
-    const mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    let mdcFiles;
+    try {
+      mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    } catch (e) {
+      if (e.code === 'EACCES') {
+        mdcFiles = [];
+      } else {
+        throw e;
+      }
+    }
     let alwaysApplyCount = 0;
     for (const file of mdcFiles) {
       const filePath = path.join(rulesDirPath, file);
@@ -1843,7 +1896,15 @@ function detectConflicts(dir) {
   const rulesDir = path.join(dir, '.cursor', 'rules');
   if (!fs.existsSync(rulesDir) || !fs.statSync(rulesDir).isDirectory()) return [];
 
-  const files = fs.readdirSync(rulesDir).filter(f => f.endsWith('.mdc'));
+  let files;
+  try {
+    files = fs.readdirSync(rulesDir).filter(f => f.endsWith('.mdc'));
+  } catch (e) {
+    if (e.code === 'EACCES') {
+      return [];
+    }
+    throw e;
+  }
   if (files.length < 2) return [];
 
   const parsed = [];

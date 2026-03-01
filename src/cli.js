@@ -17,7 +17,7 @@ const { exportRules, importRules, detectDrift, setBaseline } = require('./team-s
 const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
 const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
 
-const VERSION = '1.7.7';
+const VERSION = require('../package.json').version;
 
 var useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const RED = useColor ? '\x1b[31m' : '';
@@ -46,12 +46,6 @@ function showHelp() {
     '  npx cursor-doctor budget       # Smart token budget analysis',
     '  npx cursor-doctor agents       # Lint CLAUDE.md, AGENTS.md, .cursor/agents/',
     '  npx cursor-doctor mcp          # Validate MCP config files',
-    '  npx cursor-doctor doctor       # Quick health score (A-F grade)',
-    '  npx cursor-doctor order        # Show rule load order and priority',
-    '  npx cursor-doctor diff         # Show rule changes since last snapshot',
-    '  npx cursor-doctor init         # Generate starter rules for your project',
-    '  npx cursor-doctor generate     # Pull community rules by tech stack',
-    '  npx cursor-doctor verify       # Check codebase against rule patterns',
     '',
     YELLOW + 'Pro Commands ($9 one-time key):' + RESET,
     '  npx cursor-doctor audit        # Full diagnostic report',
@@ -105,9 +99,25 @@ async function main() {
     process.exit(0);
   }
 
-  var cwd = process.cwd();
   var asJson = args.includes('--json');
   var command = args.find(function(a) { return !a.startsWith('-'); }) || 'scan';
+  
+  // Parse path argument (first non-flag arg after command)
+  var pathArg = null;
+  var foundCommand = false;
+  for (var i = 0; i < args.length; i++) {
+    var arg = args[i];
+    if (arg.startsWith('-')) continue;
+    if (!foundCommand) {
+      if (arg === command) foundCommand = true;
+      continue;
+    }
+    // First non-flag arg after command is the path
+    pathArg = arg;
+    break;
+  }
+  
+  var cwd = pathArg ? path.resolve(pathArg) : process.cwd();
 
   // --- activate ---
   if (command === 'help') { showHelp(); process.exit(0); }
