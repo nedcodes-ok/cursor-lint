@@ -1,6 +1,6 @@
 {
   "name": "cursor-doctor",
-  "version": "1.10.8",
+  "version": "1.10.9",
   "description": "Cursor rules linter and auto-fixer. Find out why Cursor ignores your rules. Lint, diagnose, and fix your .mdc files. Treat rules like code, not config. 100+ checks, zero dependencies.",
   "main": "src/index.js",
   "bin": {
