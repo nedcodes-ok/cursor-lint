@@ -68,6 +68,7 @@ function showHelp() {
     '',
     '  ' + BOLD + 'npx cursor-doctor scan' + RESET + '             Find what\'s wrong ' + DIM + '(default)' + RESET,
     '  ' + BOLD + 'npx cursor-doctor fix' + RESET + '              Auto-fix everything ' + DIM + '(Pro)' + RESET,
+    '  ' + DIM + 'npx cursor-doctor fix --preview    Preview fixes before buying' + RESET,
     '',
     YELLOW + 'Diagnose:' + RESET,
     '  npx cursor-doctor lint           Detailed rule-by-rule linting',
@@ -221,7 +222,13 @@ async function main() {
     console.log('  ' + GREEN + passes + ' passed' + RESET + '  ' + (fixable > 0 ? YELLOW + fixable + ' fixable' + RESET : ''));
     console.log();
 
-    if (fixable > 0) {
+    // Check if user has no rules at all (no-rules footer should push to init, not lint/fix)
+    var hasNoRules = report.checks.some(function(c) { return c.name === 'Rules exist' && c.status === 'fail'; });
+    if (hasNoRules) {
+      console.log('  ' + CYAN + 'Get started:' + RESET + '  npx cursor-doctor init');
+      console.log('  ' + DIM + 'Or generate rules from your codebase:' + RESET + '  npx rulegen-ai');
+      console.log();
+    } else if (fixable > 0) {
       console.log('  ' + DIM + 'See details:' + RESET + '  npx cursor-doctor lint');
       console.log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
       console.log();
@@ -284,13 +291,15 @@ async function main() {
     for (var i = 0; i < results.length; i++) {
       var result = results[i];
       var relPath = path.relative(cwd, result.file) || result.file;
-      if (result.issues.length === 0) {
-        totalPassed++;
+      // Filter out verboseOnly issues unless --verbose
+      var visibleIssues = verbose ? result.issues : result.issues.filter(function(iss) { return !iss.verboseOnly; });
+      if (visibleIssues.length === 0) {
+        if (result.issues.length === 0) totalPassed++;
         if (verbose) {
           console.log(DIM + relPath + ' — ok' + RESET);
         }
       } else {
-        var sorted = result.issues.slice().sort(function(a, b) {
+        var sorted = visibleIssues.slice().sort(function(a, b) {
           return (sevOrder[a.severity] || 2) - (sevOrder[b.severity] || 2);
         });
         var fileErrors = 0, fileWarnings = 0, fileInfo = 0;
@@ -326,9 +335,15 @@ async function main() {
     console.log(parts.join(', '));
     if (totalErrors > 0 || totalWarnings > 0) {
       console.log();
-      console.log('  ' + BOLD + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
-      console.log('  Most issues above can be fixed automatically (Pro, $9 one-time)');
-      console.log('  ' + DIM + 'https://nedcodes.gumroad.com/l/cursor-doctor-pro' + RESET);
+      if (totalWarnings <= 3 && totalErrors === 0) {
+        // Few cosmetic issues — emphasize deeper analysis
+        console.log('  ' + BOLD + 'Go deeper:' + RESET + ' npx cursor-doctor audit  ' + DIM + '(full diagnostic)' + RESET);
+        console.log('  ' + DIM + 'Also:' + RESET + ' conflicts, perf, fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
+      } else {
+        console.log('  ' + BOLD + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
+        console.log('  Most issues above can be fixed automatically (Pro, $9 one-time)');
+      }
+      console.log('  ' + DIM + PURCHASE_URL + RESET);
     }
     console.log();
     process.exit(totalErrors > 0 ? 1 : 0);
@@ -587,6 +602,11 @@ async function main() {
     
     if (!dryRun && result.backupCreated) {
       console.log(DIM + 'Original .cursorrules backed up to ' + result.backupCreated + RESET);
+      console.log();
+    }
+
+    if (!dryRun && result.created.length > 0) {
+      console.log('  ' + DIM + 'Next:' + RESET + '  npx cursor-doctor scan  ' + DIM + '(verify your new rules)' + RESET);
       console.log();
     }
     
@@ -1337,8 +1357,9 @@ async function main() {
 
   // --- fix (PRO) ---
   if (command === 'fix') {
-    if (!requirePro(cwd, 'fix')) process.exit(1);
-    var dryRun = args.includes('--dry-run');
+    var preview = args.includes('--preview');
+    if (!preview && !requirePro(cwd, 'fix')) process.exit(1);
+    var dryRun = args.includes('--dry-run') || preview;
     var results = await autoFix(cwd, { dryRun: dryRun });
 
     console.log();
@@ -1362,7 +1383,8 @@ async function main() {
     }
 
     for (var i = 0; i < results.fixed.length; i++) {
-      console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' ' + results.fixed[i].file + ': ' + results.fixed[i].change);
+      var changeText = results.fixed[i].change || (results.fixed[i].changes ? results.fixed[i].changes.join(', ') : 'fixed');
+      console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' ' + results.fixed[i].file + ': ' + changeText);
     }
     for (var i = 0; i < results.splits.length; i++) {
       console.log('  ' + BLUE + String.fromCharCode(9986) + RESET + ' Split ' + results.splits[i].file + ' -> ' + results.splits[i].parts.join(', '));
@@ -1379,7 +1401,12 @@ async function main() {
     for (var i = 0; i < results.deduped.length; i++) {
       console.log('  ' + YELLOW + '!' + RESET + ' ' + results.deduped[i].fileA + ' + ' + results.deduped[i].fileB + ': ' + results.deduped[i].overlapPct + '% overlap (manual review)');
     }
-    if (!dryRun && totalActions > 0) {
+    if (preview && totalActions > 0) {
+      console.log();
+      console.log('  ' + BOLD + totalActions + ' fix' + (totalActions > 1 ? 'es' : '') + ' available.' + RESET + '  Get Pro to apply them:');
+      console.log('  ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=fix-preview' + RESET);
+      console.log('  ' + DIM + 'Full refund if it doesn\'t find real issues.' + RESET);
+    } else if (!dryRun && totalActions > 0) {
       console.log();
       console.log('  ' + DIM + 'cursor-doctor helped? Star us on GitHub:' + RESET);
       console.log('  ' + CYAN + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);

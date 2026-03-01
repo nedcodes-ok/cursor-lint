@@ -118,7 +118,7 @@ async function lintMdcFile(filePath) {
       issues.push({ severity: 'error', message: 'Rule will never load: alwaysApply is false and no globs are set', hint: 'Set alwaysApply: true for global rules, or add globs to scope to specific files' });
     }
     if (fm.data.globs && typeof fm.data.globs === 'string' && fm.data.globs.includes(',') && !fm.data.globs.trim().startsWith('[')) {
-      issues.push({ severity: 'warning', message: 'Globs as comma-separated string — consider using YAML array format', hint: 'Use globs:\\n  - "*.ts"\\n  - "*.tsx"' });
+      issues.push({ severity: 'warning', message: 'Globs as comma-separated string — use YAML array format', hint: 'Comma-separated globs can fail to match in some Cursor versions. Use:\\n  globs:\\n    - "*.ts"\\n    - "*.tsx"' });
     }
 
     // NEW: Frontmatter has unknown keys
@@ -1530,7 +1530,8 @@ async function lintProject(dir) {
         parsed.push({ file, filePath, body, description: fm.data && fm.data.description ? fm.data.description : undefined });
       }
 
-      // Compare each pair
+      // Compare each pair — group duplicates instead of O(n²) individual warnings
+      const dupGroups = []; // Array of Sets of filenames
       for (let i = 0; i < parsed.length; i++) {
         for (let j = i + 1; j < parsed.length; j++) {
           const a = parsed[i];
@@ -1538,17 +1539,23 @@ async function lintProject(dir) {
           const sim = similarity(a.body, b.body);
           
           if (sim > 0.8) {
-            results.push({
-              file: rulesDirPath,
-              issues: [{
-                severity: 'warning',
-                message: `Possible duplicate rules: ${a.file} and ${b.file}`,
-                hint: 'These rules have very similar content. Consider merging them.',
-              }],
-            });
+            // Find existing group containing either file
+            let foundGroup = null;
+            for (const group of dupGroups) {
+              if (group.has(a.file) || group.has(b.file)) {
+                foundGroup = group;
+                break;
+              }
+            }
+            if (foundGroup) {
+              foundGroup.add(a.file);
+              foundGroup.add(b.file);
+            } else {
+              dupGroups.push(new Set([a.file, b.file]));
+            }
           }
           
-          // NEW: Check for duplicate descriptions
+          // Check for duplicate descriptions
           if (a.description && b.description && a.description === b.description) {
             results.push({
               file: rulesDirPath,
@@ -1560,6 +1567,18 @@ async function lintProject(dir) {
             });
           }
         }
+      }
+      // Emit one grouped warning per duplicate cluster
+      for (const group of dupGroups) {
+        const files = Array.from(group).sort();
+        results.push({
+          file: rulesDirPath,
+          issues: [{
+            severity: 'warning',
+            message: `Possible duplicate rules (${files.length} similar): ${files.join(', ')}`,
+            hint: 'These rules have very similar content. Differentiate them or merge into fewer rules.',
+          }],
+        });
       }
     } else if (mdcFiles.length > 50) {
       // For large rule sets, only check for duplicate descriptions (O(n) with hash)
@@ -1725,6 +1744,7 @@ async function lintProject(dir) {
             file: filePath,
             issues: [{
               severity: 'info',
+              verboseOnly: true,
               message: `No matching files for globs: ${unmatchedGlobs.join(', ')}`,
               hint: 'None of this rule\'s glob patterns match existing files. Verify the patterns or remove the rule if unused.',
             }],
@@ -1735,6 +1755,7 @@ async function lintProject(dir) {
             file: filePath,
             issues: [{
               severity: 'info',
+              verboseOnly: true,
               message: `Glob${unmatchedGlobs.length > 1 ? 's' : ''} match no files: ${unmatchedGlobs.join(', ')}`,
               hint: 'These glob patterns match zero existing files. Verify they\'re correct or remove them.',
             }],
@@ -1854,7 +1875,12 @@ const SEMANTIC_PAIRS = [
   // Pattern contradictions - TypeScript
   { a: /\buse\s+interfaces?\b/i, b: /\buse\s+types?\b/i, topic: 'TypeScript type definition' },
   { a: /\bprefer\s+interfaces?\b/i, b: /\bprefer\s+type\s+aliases?\b/i, topic: 'TypeScript type definition' },
+  { a: /\bprefer\s+interfaces?\s+over\s+types?\b/i, b: /\bprefer\s+types?\s+over\s+interfaces?\b/i, topic: 'TypeScript type definition' },
   { a: /\binterfaces?\b.*\bonly\b/i, b: /\btypes?\b.*\bonly\b/i, topic: 'TypeScript type definition' },
+  
+  // Pattern contradictions - barrel exports
+  { a: /\buse\s+barrel\s+exports?\b/i, b: /\bno\s+barrel\s+exports?\b/i, topic: 'barrel exports' },
+  { a: /\bbarrel\s+exports?\b.*\bclean\b/i, b: /\bbarrel\s+exports?\b.*\btree.shaking\b/i, topic: 'barrel exports' },
   
   // Pattern contradictions - OOP vs FP
   { a: /\bprefer\s+composition\b/i, b: /\bprefer\s+inheritance\b/i, topic: 'code organization pattern' },
