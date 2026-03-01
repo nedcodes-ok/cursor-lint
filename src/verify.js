@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { parseFrontmatter } = require("./frontmatter");
 const path = require('path');
 
 /**
@@ -152,19 +153,6 @@ function checkFile(filePath, content, verifyBlocks, ruleFile) {
 /**
  * Simple frontmatter parser that handles verify blocks
  */
-function parseFrontmatter(content) {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) {
-    return { data: null };
-  }
-  
-  try {
-    const data = parseSimpleYaml(match[1]);
-    return { data };
-  } catch (err) {
-    return { error: err.message };
-  }
-}
 
 /**
  * Minimal YAML parser for frontmatter with verify blocks
