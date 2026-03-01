@@ -4,7 +4,7 @@
 
 **Your Cursor rules have bugs. This finds them.**
 
-You wrote rules. Cursor still ignores them. cursor-doctor tells you exactly what's wrong: conflicting directives, broken globs, vague instructions the AI can't act on, token budget waste, and 100+ other issues. One command. Zero dependencies.
+You wrote rules. Cursor still ignores them. cursor-doctor tells you exactly what's wrong: conflicting directives, broken globs, vague instructions the AI can't act on, token budget waste, and 100+ other issues. Treat your rules like code, not config. One command. Zero dependencies.
 
 ![cursor-doctor scan demo](https://raw.githubusercontent.com/nedcodes-ok/cursor-doctor/main/images/demo.gif)
 
