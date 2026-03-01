@@ -70,6 +70,7 @@ function showHelp() {
     '',
     YELLOW + 'Other:' + RESET,
     '  npx cursor-doctor activate <key>  # Activate license',
+    '  npx cursor-doctor-mcp              # MCP server (for AI assistants)',
     '',
     DIM + 'Get a Pro key: ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=help' + RESET,
     '',

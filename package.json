@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "bin": {
     "cursor-doctor": "src/cli.js",
-    "cursor-doctor-lsp": "src/lsp.js"
+    "cursor-doctor-lsp": "src/lsp.js",
+    "cursor-doctor-mcp": "src/mcp-server.js"
   },
   "scripts": {
     "test": "node test/test.js"

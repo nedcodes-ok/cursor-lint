@@ -1722,6 +1722,79 @@ Body ${i}`);
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // MCP Server Tests
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  console.log('\n## MCP Server');
+
+  // Helper to call MCP server with JSON-RPC
+  function callMcpServer(request) {
+    const { execSync } = require('child_process');
+    const result = execSync(`echo '${JSON.stringify(request)}' | node src/mcp-server.js`, {
+      cwd: path.join(__dirname, '..'),
+      encoding: 'utf-8',
+    });
+    return JSON.parse(result.trim());
+  }
+
+  test('mcp-server: initialize returns server info', () => {
+    const response = callMcpServer({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {},
+    });
+    assert.strictEqual(response.jsonrpc, '2.0');
+    assert.strictEqual(response.id, 1);
+    assert(response.result.serverInfo);
+    assert.strictEqual(response.result.serverInfo.name, 'cursor-doctor');
+    assert.strictEqual(response.result.protocolVersion, '2024-11-05');
+  });
+
+  test('mcp-server: tools/list returns tools', () => {
+    const response = callMcpServer({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/list',
+    });
+    assert.strictEqual(response.jsonrpc, '2.0');
+    assert.strictEqual(response.id, 2);
+    assert(Array.isArray(response.result.tools));
+    assert(response.result.tools.length >= 4);
+    
+    const toolNames = response.result.tools.map(t => t.name);
+    assert(toolNames.includes('lint_rules'));
+    assert(toolNames.includes('lint_file'));
+    assert(toolNames.includes('doctor'));
+    assert(toolNames.includes('fix_rules'));
+  });
+
+  test('mcp-server: invalid method returns error', () => {
+    const response = callMcpServer({
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'invalid/method',
+    });
+    assert.strictEqual(response.jsonrpc, '2.0');
+    assert.strictEqual(response.id, 3);
+    assert(response.error);
+    assert.strictEqual(response.error.code, -32601);
+  });
+
+  test('mcp-server: tools/call with missing params returns error', () => {
+    const response = callMcpServer({
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: {},
+    });
+    assert.strictEqual(response.jsonrpc, '2.0');
+    assert.strictEqual(response.id, 4);
+    assert(response.error);
+    assert.strictEqual(response.error.code, -32602);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // Test Summary & Cleanup
   // ─────────────────────────────────────────────────────────────────────────────
 
