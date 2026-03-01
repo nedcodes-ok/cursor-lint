@@ -25,7 +25,7 @@ Search **"Cursor Doctor"** in the extensions panel, or install from:
 - [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor)
 - [OpenVSX](https://open-vsx.org/extension/nedcodes/cursor-doctor) (used by Cursor)
 
-Health grade in your status bar. Inline diagnostics on save. Same engine, zero config.
+Health grade in your status bar. Inline diagnostics on save with watch mode. Quick-fix code actions require a Pro license. Same engine, zero config.
 
 ## MCP Server
 
@@ -56,7 +56,7 @@ This exposes `lint_rules`, `lint_file`, `doctor`, and `fix_rules` as tools your 
 | **Token budget** | Estimates how many tokens your rules consume per request |
 | **Coverage** | Detects project file types with no matching rules |
 | **Skills** | Checks for agent skill definitions |
-| **Conflicts** | Finds contradictory instructions across rule files |
+| **Conflicts** | Finds contradictory instructions across rule files, including 48 semantic contradiction patterns |
 | **Redundancy** | Spots duplicate content between rules |
 | **Structure** | Validates project organization, file naming, and configuration |
 | **Context files** | Checks AGENTS.md, CLAUDE.md, and other context files for bloat |
@@ -80,8 +80,9 @@ cursor-doctor agents
 # Validate MCP config files
 cursor-doctor mcp
 
-# Convert .cursorrules to .cursor/rules/*.mdc
+# Convert .cursorrules to .cursor/rules/*.mdc (smart splitting, auto-detected globs)
 cursor-doctor migrate
+cursor-doctor migrate --dry-run
 
 # Token usage dashboard
 cursor-doctor stats
@@ -95,11 +96,12 @@ cursor-doctor doctor
 # Show rule load order and priority
 cursor-doctor order
 
-# Generate starter rules for your project
+# Generate starter rules based on your stack
 cursor-doctor init
 
-# Pull community rules by tech stack
-cursor-doctor generate
+# Install curated rule packs (react, typescript, python, go, etc.)
+cursor-doctor install react
+cursor-doctor install --list
 ```
 
 ### Pro ($9 one-time)
@@ -146,11 +148,11 @@ npx cursor-doctor fix          # Fix issues
 npx cursor-doctor fix --dry-run # Preview fixes
 ```
 
-Fixes 19 issue types: boolean strings, glob syntax, whitespace, frontmatter cleanup, and more.
+Fixes 34 issue types: missing frontmatter, boolean strings, glob syntax, whitespace, TODO comments, broken links, duplicate descriptions, heading normalization, and more.
 
 ## Built to Last
 
-- **165 automated tests** covering every feature, edge case, and regression
+- **242 automated tests** covering every feature, edge case, and regression
 - **Security hardened** with input sanitization, path traversal guards, and SSRF protection
 - **Cross-platform** with full Windows CRLF support, tested on macOS/Linux/Windows
 - **Zero dependencies** means no supply chain risk, fast installs, runs anywhere Node runs
