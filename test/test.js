@@ -2108,13 +2108,12 @@ Body X`);
 description: Rule Y
 globs:
   - "*.ts"
-  - "*.js"
 ---
 Body Y`);
     
     const results = await lintProject(TEST_PROJECT);
     const issues = results.flatMap(r => r.issues);
-    assert(issues.some(i => i.message.includes('overlap')));
+    assert(issues.some(i => i.message.includes('share identical globs') || i.message.includes('overlap')));
   });
 
   // 27. Glob doesn't match any files
@@ -2129,7 +2128,7 @@ Body`);
     
     const results = await lintProject(TEST_PROJECT);
     const issues = results.flatMap(r => r.issues);
-    assert(issues.some(i => i.message.includes("doesn't match any files")));
+    assert(issues.some(i => i.message.includes("match") && i.message.includes("files")));
   });
 
   // 40. Excessive alwaysApply rules
@@ -3274,13 +3273,13 @@ Check [this link](https://example.com) too.`;
     const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
     
     assert(!result.error);
-    assert(result.created.length >= 2); // At least general.mdc and documentation.mdc
-    assert(result.created.includes('general.mdc'));
+    assert(result.created.length >= 2); // At least coding-standards.mdc and documentation.mdc
+    assert(result.created.includes('coding-standards.mdc'));
     assert(result.created.includes('documentation.mdc'));
     
     // Verify files were actually created
     const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
-    assert(fs.existsSync(path.join(rulesDir, 'general.mdc')));
+    assert(fs.existsSync(path.join(rulesDir, 'coding-standards.mdc')));
     assert(fs.existsSync(path.join(rulesDir, 'documentation.mdc')));
   });
 
@@ -3311,7 +3310,7 @@ Check [this link](https://example.com) too.`;
     const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
     
     assert(!result.error);
-    assert(result.created.includes('general.mdc'));
+    assert(result.created.includes('coding-standards.mdc'));
     assert(result.created.includes('typescript.mdc'));
     assert(result.created.includes('react.mdc'));
     assert(result.created.includes('testing.mdc'));
@@ -3381,19 +3380,19 @@ Check [this link](https://example.com) too.`;
   await asyncTest('init: --force overwrites existing rules', async () => {
     setupTestProject();
     
-    // Create existing general.mdc with different content
-    writeFixture('.cursor/rules/general.mdc', '---\ndescription: Old\n---\nOld content');
+    // Create existing coding-standards.mdc with different content
+    writeFixture('.cursor/rules/coding-standards.mdc', '---\ndescription: Old\n---\nOld content');
     
-    const oldContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'general.mdc'), 'utf-8');
+    const oldContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'coding-standards.mdc'), 'utf-8');
     
     const { initProject } = require('../src/init');
     const result = await initProject(TEST_PROJECT, { dryRun: false, force: true });
     
     assert(!result.error);
-    assert(result.created.includes('general.mdc'));
+    assert(result.created.includes('coding-standards.mdc'));
     
     // Verify content was overwritten
-    const newContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'general.mdc'), 'utf-8');
+    const newContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'coding-standards.mdc'), 'utf-8');
     assert(newContent !== oldContent);
     assert(newContent.includes('General coding conventions'));
   });

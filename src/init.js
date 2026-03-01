@@ -34,8 +34,8 @@ async function initProject(projectPath, options = {}) {
     fs.mkdirSync(rulesDir, { recursive: true });
   }
 
-  // Always generate general.mdc
-  const generalResult = writeRule(rulesDir, 'general.mdc', generateGeneral(), { dryRun, force });
+  // Always generate coding-standards.mdc
+  const generalResult = writeRule(rulesDir, 'coding-standards.mdc', generateGeneral(), { dryRun, force });
   if (generalResult.created) created.push(generalResult.file);
   else if (generalResult.skipped) skipped.push(generalResult.file);
 

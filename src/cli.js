@@ -221,7 +221,8 @@ async function main() {
       console.log(icon + ' ' + issue.name + ': ' + issue.detail);
     }
     console.log('\nGrade: ' + report.grade + ' (' + report.percentage + '%)');
-    process.exit(1);
+    // Exit 1 only for D/F grades (real problems), not for warnings on A/B/C grades
+    process.exit(report.grade === 'F' || report.grade === 'D' ? 1 : 0);
   }
 
   // --- lint (free) ---

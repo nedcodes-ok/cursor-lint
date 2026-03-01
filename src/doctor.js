@@ -50,6 +50,8 @@ async function doctor(dir) {
   let errors = 0, warnings = 0;
   for (const r of lintResults) {
     for (const i of r.issues) {
+      // Skip "no rules found" — doctor already has a separate "Rules exist" check
+      if (i.message && i.message.includes('No Cursor rules')) continue;
       if (i.severity === 'error') errors++;
       else if (i.severity === 'warning') warnings++;
     }

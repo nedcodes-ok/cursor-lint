@@ -182,14 +182,20 @@ function showStats(dir) {
   // Coverage analysis
   stats.projectExtensions = getProjectFileExtensions(dir);
   
+  // Check if any alwaysApply rules exist (they cover all file types)
+  const hasAlwaysApply = stats.mdcFiles.some(f => f.tier === 'always');
+  
   // Find gaps: project has files of type X but no rule covers them
+  // If alwaysApply rules exist, all file types have baseline coverage
   const ruleNames = stats.mdcFiles.map(f => f.file.replace('.mdc', '').toLowerCase());
-  for (const ext of stats.projectExtensions) {
-    const categories = EXT_TO_CATEGORY[ext];
-    if (!categories || categories.length === 0) continue;
-    const covered = categories.some(cat => ruleNames.some(r => r.includes(cat)));
-    if (!covered && !stats.coveredExtensions.has(ext)) {
-      stats.coverageGaps.push({ ext, suggestedRules: categories });
+  if (!hasAlwaysApply) {
+    for (const ext of stats.projectExtensions) {
+      const categories = EXT_TO_CATEGORY[ext];
+      if (!categories || categories.length === 0) continue;
+      const covered = categories.some(cat => ruleNames.some(r => r.includes(cat)));
+      if (!covered && !stats.coveredExtensions.has(ext)) {
+        stats.coverageGaps.push({ ext, suggestedRules: categories });
+      }
     }
   }
 
