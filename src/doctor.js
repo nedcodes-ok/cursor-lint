@@ -138,8 +138,11 @@ async function doctor(dir) {
     report.checks.push({ name: 'File sizes', status: 'warn', detail: `Large files: ${detail}. Big files can overwhelm the AI.` });
   } else {
     report.score += 2;
-    const detail = bigFiles.map(f => `${f.name} (${(f.size/1024).toFixed(1)}KB)`).join(', ');
-    report.checks.push({ name: 'File sizes', status: 'fail', detail: `${bigFiles.length} oversized files: ${detail}` });
+    // Cap the display to avoid a wall of text
+    const top5 = bigFiles.sort((a, b) => b.size - a.size).slice(0, 5);
+    const detail = top5.map(f => `${f.name} (${(f.size/1024).toFixed(1)}KB)`).join(', ');
+    const suffix = bigFiles.length > 5 ? ` and ${bigFiles.length - 5} more` : '';
+    report.checks.push({ name: 'File sizes', status: 'fail', detail: `${bigFiles.length} oversized files: ${detail}${suffix}` });
   }
 
   // 7. alwaysApply overuse check (NEW)

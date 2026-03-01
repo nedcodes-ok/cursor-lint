@@ -1579,8 +1579,8 @@ async function lintProject(dir) {
       });
     }
 
-    // 10. Duplicate rule content
-    if (mdcFiles.length > 1) {
+    // 10. Duplicate rule content (skip pairwise similarity for large rule sets to avoid O(n²) hang)
+    if (mdcFiles.length > 1 && mdcFiles.length <= 50) {
       const parsed = [];
       for (const file of mdcFiles) {
         const filePath = path.join(rulesDirPath, file);
@@ -1620,6 +1620,28 @@ async function lintProject(dir) {
               }],
             });
           }
+        }
+      }
+    } else if (mdcFiles.length > 50) {
+      // For large rule sets, only check for duplicate descriptions (O(n) with hash)
+      const descMap = {};
+      for (const file of mdcFiles) {
+        const filePath = path.join(rulesDirPath, file);
+        var dupContent;
+        try { dupContent = fs.readFileSync(filePath, 'utf-8'); } catch (e) { continue; }
+        const fm = parseFrontmatter(dupContent);
+        const desc = fm.data && fm.data.description ? fm.data.description.trim() : '';
+        if (desc && descMap[desc]) {
+          results.push({
+            file: rulesDirPath,
+            issues: [{
+              severity: 'warning',
+              message: `Duplicate descriptions: ${descMap[desc]} and ${file}`,
+              hint: 'Each rule should have a unique description so Cursor can differentiate them.',
+            }],
+          });
+        } else if (desc) {
+          descMap[desc] = file;
         }
       }
     }
@@ -1674,7 +1696,7 @@ async function lintProject(dir) {
         throw e;
       }
     }
-    if (mdcFiles.length > 1) {
+    if (mdcFiles.length > 1 && mdcFiles.length <= 100) {
       const globsByFile = [];
       for (const file of mdcFiles) {
         const filePath = path.join(rulesDirPath, file);
@@ -1969,6 +1991,8 @@ function detectConflicts(dir) {
     throw e;
   }
   if (files.length < 2) return [];
+  // Skip pairwise conflict detection for very large rule sets (O(n²) with regex)
+  if (files.length > 50) return [];
 
   const parsed = [];
   for (const file of files) {
