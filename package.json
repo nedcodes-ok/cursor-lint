@@ -41,9 +41,6 @@
   "files": [
     "src/"
   ],
-  "devDependencies": {
-    "playwright": "^1.58.2"
-  },
   "bugs": {
     "url": "https://github.com/nedcodes-ok/cursor-doctor/issues"
   }
