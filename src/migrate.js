@@ -235,6 +235,9 @@ function splitByDashes(content) {
       title = firstLine ? inferTitleFromLine(firstLine) : `Section ${i + 1}`;
     }
     
+    // Clean trailing dash delimiters from body
+    body = body.replace(/\n---+\s*$/, '').trim();
+    
     sections.push({ title, body });
   }
   
@@ -266,8 +269,8 @@ function splitByHeuristic(content) {
       continue;
     }
     
-    // Detect topic change: after 2+ blank lines and chunk is >20 lines
-    if (blankLineCount >= 2 && currentChunk.length > 20) {
+    // Detect topic change: after 2+ blank lines and chunk has meaningful content
+    if (blankLineCount >= 2 && currentChunk.length > 5) {
       const topic = currentTopic || inferTopic(currentChunk);
       const body = currentChunk.join('\n').trim();
       if (body.length > 50) {
@@ -291,7 +294,7 @@ function splitByHeuristic(content) {
   }
   
   // Push last chunk
-  if (currentChunk.length > 20) {
+  if (currentChunk.length > 5) {
     const topic = currentTopic || inferTopic(currentChunk);
     const body = currentChunk.join('\n').trim();
     if (body.length > 50) {
@@ -306,6 +309,9 @@ function splitByHeuristic(content) {
  * Enhance section with intelligent frontmatter
  */
 function enhanceSection(section) {
+  // Clean trailing dash delimiters from body (may come from any splitter)
+  section.body = section.body.replace(/\n---+\s*$/, '').trim();
+  
   const filename = slugify(section.title) + '.mdc';
   const description = deriveDescription(section.title, section.body);
   const globs = detectGlobs(section.body);
@@ -382,8 +388,8 @@ function detectGlobs(content) {
     globs.push('**/*.test.*', '**/*.spec.*');
   }
   
-  // CSS/Style detection
-  if (lower.includes('css') || lower.includes('style') || lower.includes('scss') || lower.includes('sass')) {
+  // CSS/Style detection (require actual CSS keywords, not just "style")
+  if (lower.includes('css') || lower.includes('scss') || lower.includes('sass') || lower.includes('stylesheet')) {
     globs.push('**/*.css', '**/*.scss', '**/*.sass');
   }
   
