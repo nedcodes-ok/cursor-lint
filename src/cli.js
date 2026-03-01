@@ -270,6 +270,12 @@ async function main() {
     if (totalWarnings > 0) parts.push(YELLOW + totalWarnings + ' warning(s)' + RESET);
     if (totalPassed > 0) parts.push(GREEN + totalPassed + ' passed' + RESET);
     console.log(parts.join(', '));
+    if (totalErrors > 0 || totalWarnings > 0) {
+      console.log();
+      console.log('  ' + BOLD + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
+      console.log('  Most issues above can be fixed automatically (Pro, $9 one-time)');
+      console.log('  ' + DIM + 'https://nedcodes.gumroad.com/l/cursor-doctor-pro' + RESET);
+    }
     console.log();
     process.exit(totalErrors > 0 ? 1 : 0);
   }
@@ -323,6 +329,7 @@ async function main() {
       console.log('  1. Review the generated rules in .cursor/rules/');
       console.log('  2. Customize them for your project');
       console.log('  3. Run ' + CYAN + 'cursor-doctor scan' + RESET + ' to verify');
+      console.log('  4. Run ' + CYAN + 'cursor-doctor fix' + RESET + ' to auto-fix any issues (Pro)');
       console.log();
     }
     
@@ -462,7 +469,8 @@ async function main() {
       console.log();
       
       if (!dryRun && totalCreated.length > 0) {
-        console.log(DIM + 'Next:' + RESET + ' npx cursor-doctor lint' + DIM + ' to verify rules' + RESET);
+        console.log(DIM + 'Next:' + RESET + ' npx cursor-doctor scan' + DIM + ' to check your setup' + RESET);
+        console.log(DIM + '      npx cursor-doctor fix ' + RESET + DIM + ' to auto-fix any issues (Pro)' + RESET);
         console.log();
       }
     }
