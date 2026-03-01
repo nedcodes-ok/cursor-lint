@@ -8,30 +8,68 @@ You wrote rules. Cursor still ignores them. cursor-doctor tells you exactly what
 
 ![cursor-doctor scan demo](https://raw.githubusercontent.com/nedcodes-ok/cursor-doctor/main/images/demo.gif)
 
-## Install
+## Quick Start
 
 ```bash
 npx cursor-doctor scan
 ```
 
-No install needed. Runs directly with npx. Zero dependencies.
+No install needed. Runs directly with npx.
 
-### VS Code / Cursor Extension
+## What It Checks
+
+100+ lint rules across these categories:
+
+| Check | Examples |
+|-------|---------|
+| **Syntax** | Broken YAML, missing frontmatter, boolean strings, unclosed code blocks |
+| **Conflicts** | Contradictory instructions across files (48 semantic patterns) |
+| **Token budget** | Rules burning context window, dead rules, excessive alwaysApply |
+| **Globs** | Patterns that don't match files, regex in globs, overlapping coverage |
+| **Prompt quality** | Vague instructions, first person, politeness tokens, negation-only rules |
+| **Structure** | File naming, duplicate content, missing descriptions, legacy .cursorrules |
+
+## Commands
+
+```bash
+npx cursor-doctor scan             # Find what's wrong (default)
+npx cursor-doctor fix              # Auto-fix everything (Pro)
+npx cursor-doctor fix --dry-run    # Preview fixes first
+npx cursor-doctor lint             # Detailed rule-by-rule output
+npx cursor-doctor check            # CI pass/fail (exit 0 or 1)
+npx cursor-doctor init             # Generate rules for your stack
+npx cursor-doctor install react    # Install community rule packs
+npx cursor-doctor audit            # Full diagnostic report (Pro)
+npx cursor-doctor conflicts        # Cross-format conflicts (Pro)
+npx cursor-doctor test <file>      # AI rule adherence testing (Pro)
+npx cursor-doctor team drift       # Detect config drift (Pro)
+```
+
+Run `cursor-doctor help` for the full list.
+
+## Auto-Fix (Pro)
+
+34 auto-fixers: frontmatter repair, glob syntax, boolean strings, whitespace, TODO removal, duplicate descriptions, heading normalization, and more.
+
+```bash
+npx cursor-doctor fix --dry-run    # See what would change
+npx cursor-doctor fix              # Apply all fixes
+```
+
+**Get a Pro key ($9 one-time):** [nedcodes.gumroad.com/l/cursor-doctor-pro](https://nedcodes.gumroad.com/l/cursor-doctor-pro)
+
+If Pro doesn't find real, fixable issues, email hello@nedcodes.dev for a full refund.
+
+## VS Code / Cursor Extension
 
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/nedcodes.cursor-doctor?label=VS%20Code%20Marketplace&color=blue)](https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor)
 [![OpenVSX](https://img.shields.io/open-vsx/v/nedcodes/cursor-doctor?label=OpenVSX&color=purple)](https://open-vsx.org/extension/nedcodes/cursor-doctor)
 
-Search **"Cursor Doctor"** in the extensions panel, or install from:
-- [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor)
-- [OpenVSX](https://open-vsx.org/extension/nedcodes/cursor-doctor) (used by Cursor)
-
-Health grade in your status bar. Inline diagnostics on save with watch mode. Quick-fix code actions require a Pro license. Same engine, zero config.
+Search **"Cursor Doctor"** in the extensions panel. Health grade in your status bar. Inline diagnostics on save. Quick-fix code actions with Pro.
 
 ## MCP Server
 
-Use cursor-doctor as an MCP tool in your AI coding assistant:
-
-Add to `.cursor/mcp.json`:
+Use cursor-doctor as an MCP tool in your AI coding assistant. Add to `.cursor/mcp.json`:
 
 ```json
 {
@@ -44,232 +82,32 @@ Add to `.cursor/mcp.json`:
 }
 ```
 
-This exposes `lint_rules`, `lint_file`, `doctor`, and `fix_rules` as tools your AI assistant can call.
-
-## What It Checks
-
-| Check | What it does |
-|-------|-------------|
-| **Rules exist** | Verifies you have `.cursor/rules/*.mdc` files |
-| **Legacy files** | Flags `.cursorrules` that should be migrated to `.mdc` |
-| **Lint** | 100+ checks: broken YAML, missing frontmatter, vague rules, conflicts, prompt engineering anti-patterns |
-| **Token budget** | Estimates how many tokens your rules consume per request |
-| **Coverage** | Detects project file types with no matching rules |
-| **Skills** | Checks for agent skill definitions |
-| **Conflicts** | Finds contradictory instructions across rule files, including 48 semantic contradiction patterns |
-| **Redundancy** | Spots duplicate content between rules |
-| **Structure** | Validates project organization, file naming, and configuration |
-| **Context files** | Checks AGENTS.md, CLAUDE.md, and other context files for bloat |
-| **Agent configs** | Validates CLAUDE.md, AGENTS.md, and .cursor/agents/ structure and content |
-| **MCP config** | Validates .cursor/mcp.json syntax, missing fields, hardcoded secrets |
-
-## Commands
-
-### Free
-
-```bash
-# Health score + issue list
-cursor-doctor scan
-
-# CI-friendly: one line per issue, exit code 0/1
-cursor-doctor check
-
-# Validate CLAUDE.md, AGENTS.md, .cursor/agents/
-cursor-doctor agents
-
-# Validate MCP config files
-cursor-doctor mcp
-
-# Convert .cursorrules to .cursor/rules/*.mdc (smart splitting, auto-detected globs)
-cursor-doctor migrate
-cursor-doctor migrate --dry-run
-
-# Token usage dashboard
-cursor-doctor stats
-
-# Smart token budget analysis
-cursor-doctor budget
-
-# Quick health score (A-F grade)
-cursor-doctor doctor
-
-# Show rule load order and priority
-cursor-doctor order
-
-# Generate starter rules based on your stack
-cursor-doctor init
-
-# Install curated rule packs (react, typescript, python, go, etc.)
-cursor-doctor install react
-cursor-doctor install --list
-```
-
-### Pro ($9 one-time)
-
-```bash
-# Full diagnostic report: conflicts, redundancy, token budget, stack detection
-cursor-doctor audit
-
-# Export as markdown
-cursor-doctor audit --md > report.md
-
-# Auto-fix: repair frontmatter, split oversized files, resolve issues
-cursor-doctor fix
-
-# Preview fixes without writing
-cursor-doctor fix --dry-run
-
-# Cross-format conflict detection
-cursor-doctor conflicts
-
-# Rule performance tracking (token usage trends, dead rules)
-cursor-doctor perf
-
-# Test rule adherence with AI (Gemini/OpenAI/Anthropic)
-cursor-doctor test <file>
-
-# Team sync: export/import/baseline/drift detection
-cursor-doctor team export
-cursor-doctor team import <source>
-cursor-doctor team drift
-
-# Activate your license
-cursor-doctor activate <key>
-```
-
-**Get a Pro key:** [nedcodes.gumroad.com/l/cursor-doctor-pro](https://nedcodes.gumroad.com/l/cursor-doctor-pro)
-
-**Guarantee:** If cursor-doctor Pro doesn't find real, fixable issues in your Cursor setup, email hello@nedcodes.dev for a full refund. No questions asked.
-
-## Auto-fix
-
-Automatically fix common issues:
-
-```bash
-npx cursor-doctor fix          # Fix issues
-npx cursor-doctor fix --dry-run # Preview fixes
-```
-
-Fixes 34 issue types: missing frontmatter, boolean strings, glob syntax, whitespace, TODO comments, broken links, duplicate descriptions, heading normalization, and more.
-
-## Built to Last
-
-- **247 automated tests** covering every feature, edge case, and regression
-- **Security hardened** with input sanitization, path traversal guards, and SSRF protection
-- **Cross-platform** with full Windows CRLF support, tested on macOS/Linux/Windows
-- **Zero dependencies** means no supply chain risk, fast installs, runs anywhere Node runs
-- **Context-aware linting** that understands qualified phrases, detects dead rules, and skips binary files
-
-## Why?
-
-Cursor's AI reads your `.cursor/rules/` directory to understand how you want code written. But most setups have problems:
-
-- Rules with broken YAML frontmatter that Cursor silently ignores
-- `alwaysApply: true` on everything, burning tokens on irrelevant rules
-- Conflicting instructions across files ("use semicolons" in one, "no semicolons" in another)
-- Legacy `.cursorrules` files that conflict with `.mdc` rules
-- 5,000+ tokens of rules eating into your context window every request
-
-cursor-doctor finds these problems and fixes them.
-
-## Part of the nedcodes toolkit
-
-cursor-doctor is the flagship tool at [nedcodes.dev](https://nedcodes.dev). Previously known as cursor-lint (2,000+ downloads), now with full diagnostics, conflict detection, and automated repair.
-
-## GitHub Action
-
-Run cursor-doctor in your CI pipeline:
+## CI / GitHub Action
 
 ```yaml
-name: Cursor Rules Check
-on: [push, pull_request]
-
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: nedcodes-ok/cursor-doctor@v1
-        with:
-          path: '.'
-          fail-on-warning: false
 ```
 
-Outputs: `issue-count`, `health-grade`, `percentage`
+## LSP Server
 
-## LSP Server (Editor Integration)
-
-Get real-time diagnostics in Neovim, Zed, or any LSP-compatible editor.
-
-### Installation
+Real-time diagnostics in Neovim, Zed, or any LSP-compatible editor:
 
 ```bash
 npm install -g cursor-doctor
+# Then configure your editor to use cursor-doctor-lsp
+# See docs at nedcodes.dev for Neovim/Zed setup
 ```
-
-### Neovim (nvim-lspconfig)
-
-Add to your `init.lua`:
-
-```lua
-local lspconfig = require('lspconfig')
-local configs = require('lspconfig.configs')
-
--- Register cursor-doctor LSP
-if not configs.cursor_doctor then
-  configs.cursor_doctor = {
-    default_config = {
-      cmd = { 'cursor-doctor-lsp' },
-      filetypes = { 'mdc' },
-      root_dir = lspconfig.util.root_pattern('.cursor', '.git'),
-      settings = {},
-    },
-  }
-end
-
--- Enable for .mdc files
-lspconfig.cursor_doctor.setup{}
-```
-
-Set filetype for `.mdc` files in `~/.config/nvim/ftdetect/mdc.vim`:
-
-```vim
-au BufRead,BufNewFile *.mdc set filetype=mdc
-```
-
-### Zed
-
-Add to your `settings.json`:
-
-```json
-{
-  "lsp": {
-    "cursor-doctor": {
-      "binary": {
-        "path": "cursor-doctor-lsp"
-      },
-      "language_servers": ["cursor-doctor"]
-    }
-  },
-  "languages": {
-    "MDC": {
-      "language_servers": ["cursor-doctor"],
-      "file_types": ["mdc"]
-    }
-  }
-}
-```
-
-### VS Code
-
-The [Cursor Doctor extension](https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor) already includes LSP support. No additional setup needed.
 
 ## Related
 
-Part of the [nedcodes](https://nedcodes.dev) toolkit for Cursor AI developers.
-
-- **[rule-gen](https://github.com/nedcodes-ok/rule-gen)** — Generate rules from your codebase using Google Gemini. `npx rulegen-ai`
-- **[rule-porter](https://github.com/nedcodes-ok/rule-porter)** — Convert your Cursor rules to CLAUDE.md, AGENTS.md, Copilot, or Windsurf (and back). `npx rule-porter --to agents-md`
+- **[rule-gen](https://github.com/nedcodes-ok/rule-gen)** — Generate rules from your codebase with AI. `npx rulegen-ai`
+- **[rule-porter](https://github.com/nedcodes-ok/rule-porter)** — Convert rules between Cursor, Claude, Copilot, and Windsurf. `npx rule-porter`
+- **[nedcodes.dev](https://nedcodes.dev)** — Guides, playground, and tools for Cursor AI developers.
 
 ## License
 
