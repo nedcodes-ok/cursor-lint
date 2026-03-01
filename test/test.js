@@ -1747,6 +1747,21 @@ Body ${i}`);
     fixGlobTrailingSlash,
     fixGlobDotSlash,
     fixGlobRegexSyntax,
+    fixMissingFrontmatter,
+    fixMissingDescription,
+    fixMissingAlwaysApply,
+    fixDescriptionSentence,
+    fixOldCursorrules,
+    fixTodoComments,
+    fixNumberedLists,
+    fixInconsistentHeadings,
+    fixDeeplyNestedHeadings,
+    fixDescriptionIdenticalToFilename,
+    fixAlwaysApplyWithSpecificGlobs,
+    fixWillNeverLoad,
+    fixBodyStartsWithDescription,
+    fixRepeatedInstruction,
+    fixBrokenMarkdownLinks,
   } = require('../src/autofix');
 
   // 1. Boolean strings
@@ -2315,6 +2330,436 @@ Body`;
     assert.strictEqual(content, original);
   });
 
+  // 20. Missing frontmatter
+  test('autofix: missing frontmatter added', () => {
+    const input = 'Just body content with no frontmatter';
+    const result = fixMissingFrontmatter(input, 'typescript-rules.mdc');
+    assert(result.content.includes('---'));
+    assert(result.content.includes('description: Typescript Rules'));
+    assert(result.content.includes('alwaysApply: true'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: missing frontmatter idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Body`;
+    const result = fixMissingFrontmatter(input, 'test.mdc');
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 21. Missing description
+  test('autofix: missing description added', () => {
+    const input = `---
+alwaysApply: true
+---
+Body`;
+    const result = fixMissingDescription(input, 'typescript-best-practices.mdc');
+    assert(result.content.includes('description: Typescript Best Practices'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: missing description idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Body`;
+    const result = fixMissingDescription(input, 'test.mdc');
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 22. Missing alwaysApply
+  test('autofix: missing alwaysApply added', () => {
+    const input = `---
+description: Test
+---
+Body`;
+    const result = fixMissingAlwaysApply(input);
+    assert(result.content.includes('alwaysApply: true'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: missing alwaysApply with globs - no change', () => {
+    const input = `---
+description: Test
+globs:
+  - "*.ts"
+---
+Body`;
+    const result = fixMissingAlwaysApply(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  test('autofix: missing alwaysApply idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Body`;
+    const result = fixMissingAlwaysApply(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 23. Description sentence
+  test('autofix: description trailing period removed', () => {
+    const input = `---
+description: TypeScript best practices.
+alwaysApply: true
+---
+Body`;
+    const result = fixDescriptionSentence(input);
+    assert(result.content.includes('description: TypeScript best practices'));
+    assert(!result.content.includes('practices.'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: description sentence idempotent', () => {
+    const input = `---
+description: TypeScript best practices
+alwaysApply: true
+---
+Body`;
+    const result = fixDescriptionSentence(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 24. Old .cursorrules reference
+  test('autofix: old .cursorrules replaced', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Refer to .cursorrules for more details.
+The .cursorrules file is deprecated.`;
+    const result = fixOldCursorrules(input);
+    assert(result.content.includes('.cursor/rules/'));
+    assert(!result.content.includes('.cursorrules'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: old .cursorrules idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Refer to .cursor/rules/ for more details.`;
+    const result = fixOldCursorrules(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 25. TODO comments
+  test('autofix: TODO comments removed', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Use strict mode.
+TODO: Add more examples
+Another rule.
+FIXME: This needs work
+HACK: Temporary solution`;
+    const result = fixTodoComments(input);
+    assert(!result.content.includes('TODO'));
+    assert(!result.content.includes('FIXME'));
+    assert(!result.content.includes('HACK'));
+    assert(result.content.includes('Use strict mode.'));
+    assert(result.content.includes('Another rule.'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: TODO comments idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Use strict mode.
+Another rule.`;
+    const result = fixTodoComments(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 26. Numbered lists
+  test('autofix: numbered lists converted', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Rules:
+1. Use TypeScript
+2. Use strict mode
+3. Validate inputs`;
+    const result = fixNumberedLists(input);
+    assert(result.content.includes('- Use TypeScript'));
+    assert(result.content.includes('- Use strict mode'));
+    assert(result.content.includes('- Validate inputs'));
+    assert(!result.content.includes('1. '));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: numbered lists idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+- Use TypeScript
+- Use strict mode`;
+    const result = fixNumberedLists(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 27. Inconsistent headings
+  test('autofix: inconsistent headings normalized', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+# Main Title
+### Subsection (skip level 2)
+## Proper Level 2`;
+    const result = fixInconsistentHeadings(input);
+    assert(result.content.includes('# Main Title'));
+    assert(result.content.includes('## Subsection'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: inconsistent headings idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+# Main Title
+## Level 2
+### Level 3`;
+    const result = fixInconsistentHeadings(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 28. Deeply nested headings
+  test('autofix: deeply nested headings flattened', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+# Main
+## Sub
+#### Deep (too deep)
+##### Very Deep`;
+    const result = fixDeeplyNestedHeadings(input);
+    assert(result.content.includes('### Deep (too deep)'));
+    assert(result.content.includes('### Very Deep'));
+    assert(!result.content.includes('####'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: deeply nested headings idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+# Main
+## Sub
+### Level 3`;
+    const result = fixDeeplyNestedHeadings(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 29. Description identical to filename
+  test('autofix: description identical to filename improved', () => {
+    const input = `---
+description: typescript-rules
+alwaysApply: true
+---
+Body`;
+    const result = fixDescriptionIdenticalToFilename(input, 'typescript-rules.mdc');
+    assert(result.content.includes('description: Typescript Rules'));
+    assert(!result.content.includes('description: typescript-rules'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: description identical to filename idempotent', () => {
+    const input = `---
+description: TypeScript Best Practices
+alwaysApply: true
+---
+Body`;
+    const result = fixDescriptionIdenticalToFilename(input, 'typescript-rules.mdc');
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 30. alwaysApply true with specific globs
+  test('autofix: alwaysApply removed when specific globs exist', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+globs:
+  - "src/components/Button.tsx"
+---
+Body`;
+    const result = fixAlwaysApplyWithSpecificGlobs(input);
+    assert(!result.content.includes('alwaysApply'));
+    assert(result.content.includes('globs:'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: alwaysApply kept with broad globs', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+globs:
+  - "*.ts"
+---
+Body`;
+    const result = fixAlwaysApplyWithSpecificGlobs(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  test('autofix: alwaysApply with specific globs idempotent', () => {
+    const input = `---
+description: Test
+globs:
+  - "*.ts"
+---
+Body`;
+    const result = fixAlwaysApplyWithSpecificGlobs(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 31. Will never load
+  test('autofix: will-never-load fixed', () => {
+    const input = `---
+description: Test
+alwaysApply: false
+---
+Body`;
+    const result = fixWillNeverLoad(input);
+    assert(result.content.includes('alwaysApply: true'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: will-never-load with globs - no change', () => {
+    const input = `---
+description: Test
+alwaysApply: false
+globs:
+  - "*.ts"
+---
+Body`;
+    const result = fixWillNeverLoad(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  test('autofix: will-never-load idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Body`;
+    const result = fixWillNeverLoad(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 32. Body starts with description
+  test('autofix: body starts with description - duplicate removed', () => {
+    const input = `---
+description: TypeScript best practices
+alwaysApply: true
+---
+TypeScript best practices
+Use strict mode.
+Another rule.`;
+    const result = fixBodyStartsWithDescription(input);
+    assert(!result.content.split('---\n')[2].trim().startsWith('TypeScript best practices\n'));
+    assert(result.content.includes('Use strict mode.'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: body starts with description idempotent', () => {
+    const input = `---
+description: TypeScript best practices
+alwaysApply: true
+---
+Use strict mode.
+Another rule.`;
+    const result = fixBodyStartsWithDescription(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 33. Repeated instruction
+  test('autofix: repeated instruction removed', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Always use TypeScript for new files.
+Use strict mode validation.
+Always use TypeScript for new files.`;
+    const result = fixRepeatedInstruction(input);
+    const body = result.content.split('---\n')[2];
+    const lines = body.split('\n').filter(l => l.trim().length > 0);
+    const uniqueLines = new Set(lines.map(l => l.trim().toLowerCase()));
+    assert.strictEqual(lines.length, uniqueLines.size);
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: repeated instruction idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Always use TypeScript.
+Use strict mode.
+Validate all inputs.`;
+    const result = fixRepeatedInstruction(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 34. Broken markdown links
+  test('autofix: broken markdown links fixed', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+See [documentation]() for more.
+Check [this link](https://example.com) too.`;
+    const result = fixBrokenMarkdownLinks(input);
+    assert(result.content.includes('See documentation for more.'));
+    assert(result.content.includes('Check [this link](https://example.com)'));
+    assert(!result.content.includes('[documentation]()'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: broken markdown links idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+See documentation for more.
+Check [this link](https://example.com) too.`;
+    const result = fixBrokenMarkdownLinks(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
   // MCP Server Tests
   // ─────────────────────────────────────────────────────────────────────────────
@@ -2386,6 +2831,220 @@ Body`;
     assert.strictEqual(response.id, 4);
     assert(response.error);
     assert.strictEqual(response.error.code, -32602);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Init Command Tests
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  console.log('\n## Init Command');
+
+  await asyncTest('init: empty project generates only general.mdc and documentation.mdc', async () => {
+    setupTestProject();
+    // Create completely empty project (no package.json, no files)
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
+    
+    assert(!result.error);
+    assert(result.created.length >= 2); // At least general.mdc and documentation.mdc
+    assert(result.created.includes('general.mdc'));
+    assert(result.created.includes('documentation.mdc'));
+    
+    // Verify files were actually created
+    const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
+    assert(fs.existsSync(path.join(rulesDir, 'general.mdc')));
+    assert(fs.existsSync(path.join(rulesDir, 'documentation.mdc')));
+  });
+
+  await asyncTest('init: Node.js + React project generates appropriate rules', async () => {
+    setupTestProject();
+    
+    // Create package.json with React dependencies
+    writeFixture('package.json', JSON.stringify({
+      name: 'test-app',
+      dependencies: {
+        react: '^18.0.0',
+        'react-dom': '^18.0.0',
+      },
+      devDependencies: {
+        typescript: '^5.0.0',
+        jest: '^29.0.0',
+      }
+    }));
+    
+    // Create tsconfig.json
+    writeFixture('tsconfig.json', '{"compilerOptions": {"strict": true}}');
+    
+    // Create some TypeScript files
+    writeFixture('src/App.tsx', 'export const App = () => <div>Hello</div>;');
+    writeFixture('src/index.ts', 'console.log("hi");');
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
+    
+    assert(!result.error);
+    assert(result.created.includes('general.mdc'));
+    assert(result.created.includes('typescript.mdc'));
+    assert(result.created.includes('react.mdc'));
+    assert(result.created.includes('testing.mdc'));
+    assert(result.created.includes('documentation.mdc'));
+    
+    // Should NOT generate nextjs.mdc since it's not a Next.js project
+    assert(!result.created.includes('nextjs.mdc'));
+  });
+
+  await asyncTest('init: Python project generates python.mdc', async () => {
+    setupTestProject();
+    
+    // Create Python project markers
+    writeFixture('requirements.txt', 'flask==2.0.0\npytest==7.0.0');
+    writeFixture('main.py', 'print("hello")');
+    writeFixture('test_main.py', 'def test_main(): pass');
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
+    
+    assert(!result.error);
+    assert(result.created.includes('python.mdc'));
+    assert(result.created.includes('flask.mdc'));
+    assert(result.created.includes('testing.mdc'));
+    
+    // Verify python.mdc has proper frontmatter and content
+    const pythonRule = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'python.mdc'), 'utf-8');
+    assert(pythonRule.includes('globs:'));
+    assert(pythonRule.includes('**/*.py'));
+    assert(pythonRule.includes('PEP 8'));
+  });
+
+  await asyncTest('init: --dry-run does not write files', async () => {
+    setupTestProject();
+    
+    writeFixture('package.json', JSON.stringify({
+      name: 'test',
+      dependencies: { react: '^18.0.0' }
+    }));
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: true, force: false });
+    
+    assert(!result.error);
+    assert(result.created.length > 0); // Should report what would be created
+    
+    // But files should NOT exist
+    const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
+    const files = fs.existsSync(rulesDir) ? fs.readdirSync(rulesDir) : [];
+    assert.strictEqual(files.length, 0); // No files created in dry-run mode
+  });
+
+  await asyncTest('init: existing rules directory without --force returns error', async () => {
+    setupTestProject();
+    
+    // Create existing rule
+    writeFixture('.cursor/rules/existing.mdc', '---\ndescription: Existing\n---\nContent');
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
+    
+    assert(result.error);
+    assert(result.error.includes('already exists'));
+    assert(result.error.includes('--force'));
+  });
+
+  await asyncTest('init: --force overwrites existing rules', async () => {
+    setupTestProject();
+    
+    // Create existing general.mdc with different content
+    writeFixture('.cursor/rules/general.mdc', '---\ndescription: Old\n---\nOld content');
+    
+    const oldContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'general.mdc'), 'utf-8');
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: false, force: true });
+    
+    assert(!result.error);
+    assert(result.created.includes('general.mdc'));
+    
+    // Verify content was overwritten
+    const newContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'general.mdc'), 'utf-8');
+    assert(newContent !== oldContent);
+    assert(newContent.includes('General coding conventions'));
+  });
+
+  await asyncTest('init: Next.js project generates nextjs.mdc instead of react.mdc', async () => {
+    setupTestProject();
+    
+    writeFixture('package.json', JSON.stringify({
+      name: 'next-app',
+      dependencies: {
+        next: '^14.0.0',
+        react: '^18.0.0',
+      }
+    }));
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
+    
+    assert(!result.error);
+    assert(result.created.includes('nextjs.mdc'));
+    // Should NOT generate separate react.mdc when Next.js is detected
+    assert(!result.created.includes('react.mdc'));
+  });
+
+  await asyncTest('init: detects multiple languages (polyglot project)', async () => {
+    setupTestProject();
+    
+    // Create a polyglot project
+    writeFixture('package.json', JSON.stringify({ name: 'polyglot' }));
+    writeFixture('main.py', 'print("python")');
+    writeFixture('main.go', 'package main');
+    writeFixture('src/app.ts', 'console.log("ts")');
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
+    
+    assert(!result.error);
+    assert(result.created.includes('python.mdc'));
+    assert(result.created.includes('go.mdc'));
+    assert(result.created.includes('typescript.mdc'));
+  });
+
+  await asyncTest('init: detects testing frameworks from package.json', async () => {
+    setupTestProject();
+    
+    writeFixture('package.json', JSON.stringify({
+      name: 'test-app',
+      devDependencies: {
+        vitest: '^1.0.0',
+        '@testing-library/react': '^14.0.0'
+      }
+    }));
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
+    
+    assert(!result.error);
+    assert(result.created.includes('testing.mdc'));
+    
+    const testingRule = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'testing.mdc'), 'utf-8');
+    assert(testingRule.includes('Vitest'));
+  });
+
+  await asyncTest('init: detects git and generates git.mdc', async () => {
+    setupTestProject();
+    
+    // Create .git directory
+    fs.mkdirSync(path.join(TEST_PROJECT, '.git'));
+    
+    const { initProject } = require('../src/init');
+    const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
+    
+    assert(!result.error);
+    assert(result.created.includes('git.mdc'));
+    
+    const gitRule = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'git.mdc'), 'utf-8');
+    assert(gitRule.includes('commit'));
+    assert(gitRule.includes('conventional commits'));
   });
 
   // ─────────────────────────────────────────────────────────────────────────────

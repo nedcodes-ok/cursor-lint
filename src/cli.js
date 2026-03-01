@@ -16,6 +16,7 @@ const { testRule, testAllRules, getProvider } = require('./rule-test');
 const { exportRules, importRules, detectDrift, setBaseline } = require('./team-sync');
 const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
 const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
+const { initProject } = require('./init');
 
 const VERSION = require('../package.json').version;
 
@@ -40,6 +41,7 @@ function showHelp() {
     '  npx cursor-doctor              # Run health check (default)',
     '  npx cursor-doctor scan         # Same as above',
     '  npx cursor-doctor check        # Quick pass/fail for CI',
+    '  npx cursor-doctor init         # Generate rules based on your stack',
     '  npx cursor-doctor lint         # Detailed rule linting',
     '  npx cursor-doctor migrate      # Convert .cursorrules to .mdc',
     '  npx cursor-doctor stats        # Token usage dashboard',
@@ -265,6 +267,61 @@ async function main() {
     console.log(parts.join(', '));
     console.log();
     process.exit(totalErrors > 0 ? 1 : 0);
+  }
+
+  // --- init (free) ---
+  if (command === 'init') {
+    var dryRun = args.includes('--dry-run');
+    var force = args.includes('--force');
+    
+    console.log();
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- init' + (dryRun ? ' ' + DIM + '(dry run)' + RESET : ''));
+    console.log();
+    
+    var result = await initProject(cwd, { dryRun: dryRun, force: force });
+    
+    if (result.error) {
+      console.log(RED + String.fromCharCode(10007) + RESET + ' ' + result.error);
+      console.log();
+      console.log('  ' + CYAN + 'Use --force to overwrite existing rules' + RESET);
+      console.log();
+      process.exit(1);
+    }
+    
+    if (result.created.length === 0 && result.skipped.length === 0) {
+      console.log(YELLOW + 'No rules generated. Is this an empty project?' + RESET);
+      console.log();
+      process.exit(0);
+    }
+    
+    if (result.created.length > 0) {
+      console.log(GREEN + (dryRun ? 'Would create:' : 'Created:') + RESET);
+      for (var i = 0; i < result.created.length; i++) {
+        console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' .cursor/rules/' + result.created[i]);
+      }
+      console.log();
+    }
+    
+    if (result.skipped.length > 0) {
+      console.log(YELLOW + 'Skipped (already exist):' + RESET);
+      for (var i = 0; i < result.skipped.length; i++) {
+        console.log('  ' + YELLOW + String.fromCharCode(9888) + RESET + ' .cursor/rules/' + result.skipped[i]);
+      }
+      console.log();
+    }
+    
+    console.log(CYAN + BOLD + result.summary + RESET);
+    console.log();
+    
+    if (!dryRun) {
+      console.log(DIM + 'Next steps:' + RESET);
+      console.log('  1. Review the generated rules in .cursor/rules/');
+      console.log('  2. Customize them for your project');
+      console.log('  3. Run ' + CYAN + 'cursor-doctor scan' + RESET + ' to verify');
+      console.log();
+    }
+    
+    process.exit(0);
   }
 
   // --- migrate (free) ---
