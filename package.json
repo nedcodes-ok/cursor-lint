@@ -1,6 +1,6 @@
 {
   "name": "cursor-doctor",
-  "version": "1.10.6",
+  "version": "1.10.7",
   "description": "Find out why Cursor ignores your rules. Lint, diagnose, and auto-fix your .cursor/ setup. 100+ checks, zero dependencies.",
   "main": "src/index.js",
   "bin": {
