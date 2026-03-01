@@ -5,6 +5,528 @@ const { loadRules, findRedundancy, findConflicts } = require('./audit');
 const { getTemplate } = require('./templates');
 const { showStats } = require('./stats');
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FRONTMATTER FIXES (7)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 1. Fix boolean strings: "true" → true, "false" → false
+function fixBooleanStrings(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  let modified = false;
+  
+  // Fix alwaysApply: "true" or "false"
+  if (fm.data.alwaysApply && typeof fm.data.alwaysApply === 'string') {
+    if (fm.data.alwaysApply === 'true' || fm.data.alwaysApply === 'false') {
+      yaml = yaml.replace(/^alwaysApply:\s*["']?(true|false)["']?$/m, 'alwaysApply: $1');
+      changes.push('Fixed boolean string in alwaysApply');
+      modified = true;
+    }
+  }
+  
+  if (modified) {
+    content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  }
+  
+  return { content, changes };
+}
+
+// 2. Fix frontmatter tabs: replace tabs with 2 spaces
+function fixFrontmatterTabs(content) {
+  const changes = [];
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  
+  if (!match) return { content, changes };
+  
+  const yaml = match[1];
+  if (yaml.includes('\t')) {
+    const fixed = yaml.replace(/\t/g, '  ');
+    content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${fixed}\n---`);
+    changes.push('Replaced tabs with spaces in frontmatter');
+  }
+  
+  return { content, changes };
+}
+
+// 3. Fix comma-separated globs: convert to YAML array
+function fixCommaSeparatedGlobs(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  
+  // Match globs: "*.ts, *.tsx" pattern (comma-separated string)
+  const globMatch = yaml.match(/^globs:\s*["']([^"']*,\s*[^"']*)["']\s*$/m);
+  if (globMatch) {
+    const globString = globMatch[1];
+    const globs = globString.split(',').map(g => g.trim()).filter(g => g.length > 0);
+    
+    const yamlArray = globs.map(g => `  - "${g}"`).join('\n');
+    yaml = yaml.replace(/^globs:.*$/m, `globs:\n${yamlArray}`);
+    content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+    changes.push('Converted comma-separated globs to YAML array');
+  }
+  
+  return { content, changes };
+}
+
+// 4. Fix empty globs array: remove the globs line
+function fixEmptyGlobsArray(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  
+  // Match globs: [] pattern
+  if (/^globs:\s*\[\s*\]\s*$/m.test(yaml)) {
+    yaml = yaml.replace(/^globs:\s*\[\s*\]\s*\n?/m, '');
+    content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+    changes.push('Removed empty globs array');
+  }
+  
+  return { content, changes };
+}
+
+// 5. Fix description with markdown: strip *, _, `, #, [, ]
+function fixDescriptionMarkdown(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.description) return { content, changes };
+  
+  const desc = fm.data.description;
+  if (/[*_`#\[\]]/.test(desc)) {
+    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!match) return { content, changes };
+    
+    let yaml = match[1];
+    const cleanDesc = desc.replace(/[*_`#\[\]]/g, '');
+    
+    // Replace the description line
+    yaml = yaml.replace(/^description:.*$/m, `description: ${cleanDesc}`);
+    content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+    changes.push('Removed markdown formatting from description');
+  }
+  
+  return { content, changes };
+}
+
+// 6. Fix unknown frontmatter keys: remove unknown keys
+function fixUnknownFrontmatterKeys(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data) return { content, changes };
+  
+  const validKeys = ['description', 'globs', 'alwaysApply'];
+  const unknownKeys = Object.keys(fm.data).filter(k => !validKeys.includes(k));
+  
+  if (unknownKeys.length === 0) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  const lines = yaml.split('\n');
+  const filteredLines = [];
+  
+  for (const line of lines) {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) {
+      filteredLines.push(line);
+      continue;
+    }
+    
+    const key = line.slice(0, colonIdx).trim();
+    if (validKeys.includes(key) || !key) {
+      filteredLines.push(line);
+    } else {
+      changes.push(`Removed unknown frontmatter key: ${key}`);
+    }
+  }
+  
+  yaml = filteredLines.join('\n');
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  
+  return { content, changes };
+}
+
+// 7. Fix description contains "rule": strip "Rule for " or "Rules for "
+function fixDescriptionRule(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.description) return { content, changes };
+  
+  const desc = fm.data.description;
+  const patterns = [/^Rules?\s+for\s+/i, /^Rules?:\s*/i];
+  
+  for (const pattern of patterns) {
+    if (pattern.test(desc)) {
+      const match = content.match(/^---\n([\s\S]*?)\n---/);
+      if (!match) return { content, changes };
+      
+      let yaml = match[1];
+      const cleanDesc = desc.replace(pattern, '');
+      
+      yaml = yaml.replace(/^description:.*$/m, `description: ${cleanDesc}`);
+      content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+      changes.push('Removed redundant "Rule for" from description');
+      break;
+    }
+  }
+  
+  return { content, changes };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BODY FIXES (7)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 8. Fix excessive blank lines: collapse 3+ to 2
+function fixExcessiveBlankLines(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  if (/\n\n\n\n/.test(body)) {
+    body = body.replace(/\n\n\n+/g, '\n\n');
+    content = frontmatter + body;
+    changes.push('Collapsed excessive blank lines');
+  }
+  
+  return { content, changes };
+}
+
+// 9. Fix trailing whitespace: trim trailing spaces/tabs from each line
+function fixTrailingWhitespace(content) {
+  const changes = [];
+  const lines = content.split('\n');
+  let modified = false;
+  
+  const fixedLines = lines.map(line => {
+    if (line !== line.trimEnd()) {
+      modified = true;
+      return line.trimEnd();
+    }
+    return line;
+  });
+  
+  if (modified) {
+    content = fixedLines.join('\n');
+    changes.push('Removed trailing whitespace');
+  }
+  
+  return { content, changes };
+}
+
+// 10. Fix please/thank you: remove polite language
+function fixPleaseThankYou(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  let modified = false;
+  
+  // Remove lines that are just "Please..." or "Thank you..."
+  const lines = body.split('\n');
+  const filteredLines = lines.filter(line => {
+    const trimmed = line.trim();
+    if (/^please[\s.,!]|^thank\s+you[\s.,!]/i.test(trimmed)) {
+      modified = true;
+      return false;
+    }
+    return true;
+  });
+  
+  if (modified) {
+    body = filteredLines.join('\n');
+  }
+  
+  // Strip "please" from mid-sentence (case-insensitive)
+  if (/\bplease\b/i.test(body)) {
+    body = body.replace(/,?\s*please\b/gi, '');
+    modified = true;
+  }
+  
+  if (modified) {
+    content = frontmatter + body;
+    changes.push('Removed please/thank you');
+  }
+  
+  return { content, changes };
+}
+
+// 11. Fix first person: "I want you to" → direct command
+function fixFirstPerson(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  let modified = false;
+  
+  const patterns = [
+    { from: /I want you to\s+/gi, to: '' },
+    { from: /I need you to\s+/gi, to: '' },
+    { from: /I'd like you to\s+/gi, to: '' },
+    { from: /My preference is\s+/gi, to: '' },
+  ];
+  
+  for (const { from, to } of patterns) {
+    if (from.test(body)) {
+      body = body.replace(from, to);
+      modified = true;
+    }
+  }
+  
+  if (modified) {
+    content = frontmatter + body;
+    changes.push('Removed first person language');
+  }
+  
+  return { content, changes };
+}
+
+// 12. Fix commented-out HTML: remove <!-- --> blocks
+function fixCommentedHTML(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  if (/<!--[\s\S]*?-->/.test(body)) {
+    body = body.replace(/<!--[\s\S]*?-->/g, '');
+    content = frontmatter + body;
+    changes.push('Removed commented-out HTML sections');
+  }
+  
+  return { content, changes };
+}
+
+// 13. Fix unclosed code blocks: add closing ``` if odd count
+function fixUnclosedCodeBlocks(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  const markers = body.match(/```/g);
+  if (markers && markers.length % 2 !== 0) {
+    body += '\n```';
+    content = frontmatter + body;
+    changes.push('Added closing code block marker');
+  }
+  
+  return { content, changes };
+}
+
+// 14. Fix inconsistent list markers: normalize to -
+function fixInconsistentListMarkers(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  let modified = false;
+  
+  // Check if mixing -, *, +
+  const hasDash = /^\s*-\s+/m.test(body);
+  const hasStar = /^\s*\*\s+/m.test(body);
+  const hasPlus = /^\s*\+\s+/m.test(body);
+  
+  const markerCount = [hasDash, hasStar, hasPlus].filter(Boolean).length;
+  
+  if (markerCount > 1) {
+    // Normalize all to -
+    body = body.replace(/^(\s*)\*(\s+)/gm, '$1-$2');
+    body = body.replace(/^(\s*)\+(\s+)/gm, '$1-$2');
+    content = frontmatter + body;
+    changes.push('Normalized list markers to -');
+  }
+  
+  return { content, changes };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GLOB FIXES (4)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 15. Fix backslashes in globs: replace \ with /
+function fixGlobBackslashes(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.globs) return { content, changes };
+  
+  const globs = Array.isArray(fm.data.globs) ? fm.data.globs : [fm.data.globs];
+  const hasBackslash = globs.some(g => typeof g === 'string' && g.includes('\\'));
+  
+  if (!hasBackslash) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  
+  // Replace all backslashes in glob patterns with forward slashes
+  const lines = yaml.split('\n');
+  const fixedLines = lines.map(line => {
+    if (line.trim().startsWith('-') && line.includes('\\')) {
+      return line.replace(/\\/g, '/');
+    }
+    return line;
+  });
+  
+  yaml = fixedLines.join('\n');
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  changes.push('Replaced backslashes with forward slashes in globs');
+  
+  return { content, changes };
+}
+
+// 16. Fix trailing slash in globs: remove trailing /
+function fixGlobTrailingSlash(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.globs) return { content, changes };
+  
+  const globs = Array.isArray(fm.data.globs) ? fm.data.globs : [fm.data.globs];
+  const hasTrailing = globs.some(g => typeof g === 'string' && g.endsWith('/'));
+  
+  if (!hasTrailing) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  yaml = yaml.replace(/(globs:\s*-\s*"[^"]*)(\/")$/gm, '$1"');
+  yaml = yaml.replace(/("[^"]*)(\/")(\s*[,\]])/g, '$1"$3');
+  
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  changes.push('Removed trailing slashes from globs');
+  
+  return { content, changes };
+}
+
+// 17. Fix ./ prefix in globs: remove leading ./
+function fixGlobDotSlash(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.globs) return { content, changes };
+  
+  const globs = Array.isArray(fm.data.globs) ? fm.data.globs : [fm.data.globs];
+  const hasDotSlash = globs.some(g => typeof g === 'string' && g.startsWith('./'));
+  
+  if (!hasDotSlash) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  yaml = yaml.replace(/(globs:\s*-\s*")(\.\/)([^"]*")/gm, '$1$3');
+  yaml = yaml.replace(/(")(\.\/)/g, '$1');
+  
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  changes.push('Removed ./ prefix from globs');
+  
+  return { content, changes };
+}
+
+// 18. Fix regex syntax in globs: \.ts$ → *.ts
+function fixGlobRegexSyntax(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.globs) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  let modified = false;
+  
+  // Common patterns: \.ts$ → *.ts, \.jsx?$ → *.js
+  const patterns = [
+    { from: /\\"\.ts\$\\"/g, to: '"*.ts"' },
+    { from: /\\"\.tsx\$\\"/g, to: '"*.tsx"' },
+    { from: /\\"\.jsx?\$\\"/g, to: '"*.js"' },
+    { from: /\\"\.js\$\\"/g, to: '"*.js"' },
+    { from: /"\\\.ts\$"/g, to: '"*.ts"' },
+    { from: /"\\\.tsx\$"/g, to: '"*.tsx"' },
+    { from: /"\\\.jsx?\$"/g, to: '"*.js"' },
+  ];
+  
+  for (const { from, to } of patterns) {
+    if (from.test(yaml)) {
+      yaml = yaml.replace(from, to);
+      modified = true;
+    }
+  }
+  
+  if (modified) {
+    content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+    changes.push('Converted regex syntax to glob syntax');
+  }
+  
+  return { content, changes };
+}
+
+// Legacy fixFrontmatter (kept for backward compatibility)
 function fixFrontmatter(content) {
   const fm = parseFrontmatter(content);
   
@@ -96,18 +618,85 @@ async function autoFix(dir, options = {}) {
     return results;
   }
   
-  // 1. Fix broken frontmatter
-  for (const entry of fs.readdirSync(rulesDir)) {
+  // All fixers in order
+  const fixers = [
+    fixBooleanStrings,
+    fixFrontmatterTabs,
+    fixCommaSeparatedGlobs,
+    fixEmptyGlobsArray,
+    fixDescriptionMarkdown,
+    fixUnknownFrontmatterKeys,
+    fixDescriptionRule,
+    fixExcessiveBlankLines,
+    fixTrailingWhitespace,
+    fixPleaseThankYou,
+    fixFirstPerson,
+    fixCommentedHTML,
+    fixUnclosedCodeBlocks,
+    fixInconsistentListMarkers,
+    fixGlobBackslashes,
+    fixGlobTrailingSlash,
+    fixGlobDotSlash,
+    fixGlobRegexSyntax,
+  ];
+  
+  // 1. Apply all fixers to each .mdc file
+  const entries = fs.readdirSync(rulesDir);
+  
+  for (const entry of entries) {
     if (!entry.endsWith('.mdc')) continue;
-    const filePath = path.join(rulesDir, entry);
-    const original = fs.readFileSync(filePath, 'utf-8');
-    const fixed = fixFrontmatter(original);
     
-    if (fixed !== original) {
+    const filePath = path.join(rulesDir, entry);
+    let content = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const original = content;
+    const allChanges = [];
+    
+    // Apply each fixer in sequence
+    for (const fixer of fixers) {
+      const result = fixer(content);
+      content = result.content;
+      allChanges.push(...result.changes);
+    }
+    
+    // Legacy frontmatter fixer (for cases not covered by new fixers)
+    const legacyFixed = fixFrontmatter(content);
+    if (legacyFixed !== content) {
+      content = legacyFixed;
+      allChanges.push('frontmatter repaired');
+    }
+    
+    if (content !== original) {
       if (!options.dryRun) {
-        fs.writeFileSync(filePath, fixed, 'utf-8');
+        fs.writeFileSync(filePath, content, 'utf-8');
       }
-      results.fixed.push({ file: entry, change: 'frontmatter repaired' });
+      results.fixed.push({ file: entry, changes: allChanges });
+    }
+  }
+  
+  // 1b. Fix non-kebab filenames (rename files)
+  for (const entry of entries) {
+    if (!entry.endsWith('.mdc')) continue;
+    
+    const basename = entry.replace(/\.mdc$/, '');
+    
+    // Check if filename is not kebab-case
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(basename)) {
+      // Convert to kebab-case
+      let kebab = basename
+        .replace(/([A-Z])/g, '-$1')  // CamelCase → -camel-case
+        .replace(/_/g, '-')           // snake_case → snake-case
+        .toLowerCase()
+        .replace(/^-/, '')            // Remove leading dash
+        .replace(/-+/g, '-');         // Collapse multiple dashes
+      
+      const newName = kebab + '.mdc';
+      
+      if (newName !== entry && !fs.existsSync(path.join(rulesDir, newName))) {
+        if (!options.dryRun) {
+          fs.renameSync(path.join(rulesDir, entry), path.join(rulesDir, newName));
+        }
+        results.fixed.push({ file: entry, changes: [`Renamed to ${newName} (kebab-case)`] });
+      }
     }
   }
   
@@ -330,4 +919,27 @@ function addConflictAnnotation(content, conflictFile, reason) {
   return annotation + content;
 }
 
-module.exports = { autoFix, fixFrontmatter, splitOversizedFile };
+module.exports = {
+  autoFix,
+  fixFrontmatter,
+  splitOversizedFile,
+  // New fixers (v1.8.0+)
+  fixBooleanStrings,
+  fixFrontmatterTabs,
+  fixCommaSeparatedGlobs,
+  fixEmptyGlobsArray,
+  fixDescriptionMarkdown,
+  fixUnknownFrontmatterKeys,
+  fixDescriptionRule,
+  fixExcessiveBlankLines,
+  fixTrailingWhitespace,
+  fixPleaseThankYou,
+  fixFirstPerson,
+  fixCommentedHTML,
+  fixUnclosedCodeBlocks,
+  fixInconsistentListMarkers,
+  fixGlobBackslashes,
+  fixGlobTrailingSlash,
+  fixGlobDotSlash,
+  fixGlobRegexSyntax,
+};

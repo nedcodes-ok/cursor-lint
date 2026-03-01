@@ -1721,6 +1721,600 @@ Body ${i}`);
     assert(issues.some(i => i.message.includes('alwaysApply:true')));
   });
 
+  // ═════════════════════════════════════════════════════════════════════════════
+  // AUTO-FIX TESTS (19 new fixers)
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  console.log('\n## Auto-fix tests');
+
+  // Import autofix functions
+  const {
+    fixBooleanStrings,
+    fixFrontmatterTabs,
+    fixCommaSeparatedGlobs,
+    fixEmptyGlobsArray,
+    fixDescriptionMarkdown,
+    fixUnknownFrontmatterKeys,
+    fixDescriptionRule,
+    fixExcessiveBlankLines,
+    fixTrailingWhitespace,
+    fixPleaseThankYou,
+    fixFirstPerson,
+    fixCommentedHTML,
+    fixUnclosedCodeBlocks,
+    fixInconsistentListMarkers,
+    fixGlobBackslashes,
+    fixGlobTrailingSlash,
+    fixGlobDotSlash,
+    fixGlobRegexSyntax,
+  } = require('../src/autofix');
+
+  // 1. Boolean strings
+  test('autofix: boolean strings "true" → true', () => {
+    const input = `---
+description: Test
+alwaysApply: "true"
+---
+Body`;
+    const result = fixBooleanStrings(input);
+    assert(result.content.includes('alwaysApply: true'));
+    assert(!result.content.includes('"true"'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: boolean strings idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Body`;
+    const result = fixBooleanStrings(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 2. Frontmatter tabs
+  test('autofix: frontmatter tabs → spaces', () => {
+    const input = `---
+description:\tTest
+alwaysApply:\ttrue
+---
+Body`;
+    const result = fixFrontmatterTabs(input);
+    assert(!result.content.includes('\t'));
+    assert(result.content.includes('description:  Test'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: frontmatter tabs idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Body`;
+    const result = fixFrontmatterTabs(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 3. Comma-separated globs
+  test('autofix: comma-separated globs → YAML array', () => {
+    const input = `---
+description: Test
+globs: "*.ts, *.tsx"
+---
+Body`;
+    const result = fixCommaSeparatedGlobs(input);
+    assert(result.content.includes('globs:\n  - "*.ts"'));
+    assert(result.content.includes('  - "*.tsx"'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: comma-separated globs idempotent', () => {
+    const input = `---
+description: Test
+globs:
+  - "*.ts"
+  - "*.tsx"
+---
+Body`;
+    const result = fixCommaSeparatedGlobs(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 4. Empty globs array
+  test('autofix: empty globs array removed', () => {
+    const input = `---
+description: Test
+globs: []
+alwaysApply: true
+---
+Body`;
+    const result = fixEmptyGlobsArray(input);
+    assert(!result.content.includes('globs:'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: empty globs array idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Body`;
+    const result = fixEmptyGlobsArray(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 5. Description with markdown
+  test('autofix: description markdown stripped', () => {
+    const input = `---
+description: Use **strict** mode with \`types\`
+alwaysApply: true
+---
+Body`;
+    const result = fixDescriptionMarkdown(input);
+    assert(result.content.includes('description: Use strict mode with types'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: description markdown idempotent', () => {
+    const input = `---
+description: Use strict mode
+alwaysApply: true
+---
+Body`;
+    const result = fixDescriptionMarkdown(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 6. Unknown frontmatter keys
+  test('autofix: unknown frontmatter keys removed', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+unknownKey: value
+anotherBad: test
+---
+Body`;
+    const result = fixUnknownFrontmatterKeys(input);
+    assert(!result.content.includes('unknownKey'));
+    assert(!result.content.includes('anotherBad'));
+    assert(result.content.includes('description: Test'));
+    assert.strictEqual(result.changes.length, 2);
+  });
+
+  test('autofix: unknown frontmatter keys idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Body`;
+    const result = fixUnknownFrontmatterKeys(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 7. Description contains "rule"
+  test('autofix: "Rule for" stripped from description', () => {
+    const input = `---
+description: Rule for TypeScript files
+alwaysApply: true
+---
+Body`;
+    const result = fixDescriptionRule(input);
+    assert(result.content.includes('description: TypeScript files'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: description rule idempotent', () => {
+    const input = `---
+description: TypeScript conventions
+alwaysApply: true
+---
+Body`;
+    const result = fixDescriptionRule(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 8. Excessive blank lines
+  test('autofix: excessive blank lines collapsed', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Line 1
+
+
+Line 2
+
+
+
+
+Line 3`;
+    const result = fixExcessiveBlankLines(input);
+    assert(!result.content.includes('\n\n\n\n'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: excessive blank lines idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Line 1
+
+Line 2`;
+    const result = fixExcessiveBlankLines(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 9. Trailing whitespace
+  test('autofix: trailing whitespace removed', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Line 1   
+Line 2\t
+Line 3`;
+    const result = fixTrailingWhitespace(input);
+    const lines = result.content.split('\n');
+    for (const line of lines) {
+      assert.strictEqual(line, line.trimEnd());
+    }
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: trailing whitespace idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Line 1
+Line 2`;
+    const result = fixTrailingWhitespace(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 10. Please/thank you
+  test('autofix: please removed', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Please use strict mode.
+Thank you for following these rules.
+Use TypeScript, please.`;
+    const result = fixPleaseThankYou(input);
+    assert(!result.content.includes('Please use'));
+    assert(!result.content.includes('Thank you'));
+    assert(!result.content.includes(', please'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: please/thank you idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Use strict mode.
+Follow these rules.`;
+    const result = fixPleaseThankYou(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 11. First person
+  test('autofix: first person removed', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+I want you to use strict mode.
+I need you to validate inputs.
+My preference is TypeScript.`;
+    const result = fixFirstPerson(input);
+    assert(!result.content.includes('I want you to'));
+    assert(!result.content.includes('I need you to'));
+    assert(!result.content.includes('My preference is'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: first person idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Use strict mode.
+Validate inputs.`;
+    const result = fixFirstPerson(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 12. Commented-out HTML
+  test('autofix: HTML comments removed', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Use TypeScript.
+<!-- Old rule: Use JavaScript -->
+More content.`;
+    const result = fixCommentedHTML(input);
+    assert(!result.content.includes('<!-- Old rule'));
+    assert(result.content.includes('Use TypeScript.'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: HTML comments idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Use TypeScript.
+More content.`;
+    const result = fixCommentedHTML(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 13. Unclosed code blocks
+  test('autofix: unclosed code blocks fixed', () => {
+    const input = '---\ndescription: Test\nalwaysApply: true\n---\nExample:\n```\ncode here\n';
+    const result = fixUnclosedCodeBlocks(input);
+    const markers = result.content.match(/```/g);
+    assert.strictEqual(markers.length % 2, 0);
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: unclosed code blocks idempotent', () => {
+    const input = '---\ndescription: Test\nalwaysApply: true\n---\nExample:\n```\ncode here\n```';
+    const result = fixUnclosedCodeBlocks(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 14. Inconsistent list markers
+  test('autofix: inconsistent list markers normalized', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+Rules:
+- Item 1
+* Item 2
++ Item 3`;
+    const result = fixInconsistentListMarkers(input);
+    assert(result.content.includes('- Item 1'));
+    assert(result.content.includes('- Item 2'));
+    assert(result.content.includes('- Item 3'));
+    assert(!result.content.includes('* Item'));
+    assert(!result.content.includes('+ Item'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: inconsistent list markers idempotent', () => {
+    const input = `---
+description: Test
+alwaysApply: true
+---
+- Item 1
+- Item 2
+- Item 3`;
+    const result = fixInconsistentListMarkers(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 15. Glob backslashes
+  test('autofix: glob backslashes → forward slashes', () => {
+    const input = `---
+description: Test
+globs:
+  - "src\\components\\*.tsx"
+---
+Body`;
+    const result = fixGlobBackslashes(input);
+    assert(result.content.includes('src/components/*.tsx'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: glob backslashes idempotent', () => {
+    const input = `---
+description: Test
+globs:
+  - "src/components/*.tsx"
+---
+Body`;
+    const result = fixGlobBackslashes(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 16. Glob trailing slash
+  test('autofix: glob trailing slash removed', () => {
+    const input = `---
+description: Test
+globs:
+  - "src/"
+---
+Body`;
+    const result = fixGlobTrailingSlash(input);
+    assert(result.content.includes('"src"'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: glob trailing slash idempotent', () => {
+    const input = `---
+description: Test
+globs:
+  - "src"
+---
+Body`;
+    const result = fixGlobTrailingSlash(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 17. Glob ./ prefix
+  test('autofix: glob ./ prefix removed', () => {
+    const input = `---
+description: Test
+globs:
+  - "./src/*.ts"
+---
+Body`;
+    const result = fixGlobDotSlash(input);
+    assert(result.content.includes('"src/*.ts"'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: glob ./ prefix idempotent', () => {
+    const input = `---
+description: Test
+globs:
+  - "src/*.ts"
+---
+Body`;
+    const result = fixGlobDotSlash(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 18. Glob regex syntax
+  test('autofix: glob regex syntax → glob syntax', () => {
+    const input = `---
+description: Test
+globs:
+  - "\\.ts$"
+---
+Body`;
+    const result = fixGlobRegexSyntax(input);
+    assert(result.content.includes('"*.ts"'));
+    assert.strictEqual(result.changes.length, 1);
+  });
+
+  test('autofix: glob regex syntax idempotent', () => {
+    const input = `---
+description: Test
+globs:
+  - "*.ts"
+---
+Body`;
+    const result = fixGlobRegexSyntax(input);
+    assert.strictEqual(result.content, input);
+    assert.strictEqual(result.changes.length, 0);
+  });
+
+  // 19. Non-kebab filename (tested in integration test below)
+
+  // Integration test: apply all fixes in sequence
+  await asyncTest('autofix: integration test - all fixes applied', async () => {
+    setupTestProject();
+    const messyInput = '---\n' +
+      'description: Rule for **TypeScript** files\n' +
+      'alwaysApply: "true"\n' +
+      'unknownKey: bad\n' +
+      'globs: "*.ts, *.tsx"\n' +
+      '---\n' +
+      'I want you to use strict mode.\n\n\n\n' +
+      'Please follow these guidelines.\n' +
+      '<!-- Old comment -->\n' +
+      'Example:\n' +
+      '```\n' +
+      'code\n' +
+      'Rules:\n' +
+      '- Item 1\n' +
+      '* Item 2\n' +
+      '+ Item 3   ';
+    
+    const filePath = writeFixture('.cursor/rules/test.mdc', messyInput);
+    
+    const { autoFix } = require('../src/autofix');
+    const results = await autoFix(TEST_PROJECT, { dryRun: false });
+    
+    const content = fs.readFileSync(filePath, 'utf-8');
+    
+    // Verify all fixes were applied
+    assert(!content.includes('"true"'));  // Boolean fixed
+    assert(!content.includes('unknownKey'));  // Unknown key removed
+    assert(!content.includes('Rule for'));  // "Rule for" removed
+    assert(content.includes('globs:\n  - "*.ts"'));  // Globs converted
+    assert(!content.includes('I want you to'));  // First person removed
+    assert(!content.includes('Please'));  // Please removed
+    assert(!content.includes('<!-- Old'));  // HTML comment removed
+    assert(!content.includes('\n\n\n\n'));  // Excessive blanks collapsed
+    assert(!content.includes('* Item'));  // List markers normalized
+    
+    assert(results.fixed.length > 0);
+  });
+
+  // Test non-kebab filename renaming
+  await asyncTest('autofix: non-kebab filename renamed', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/MyRule.mdc', `---
+description: Test
+alwaysApply: true
+---
+Body`);
+    
+    const { autoFix } = require('../src/autofix');
+    const results = await autoFix(TEST_PROJECT, { dryRun: false });
+    
+    // Check that file was renamed
+    const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
+    const files = fs.readdirSync(rulesDir);
+    
+    assert(!files.includes('MyRule.mdc'));
+    assert(files.includes('my-rule.mdc'));
+    
+    const renamed = results.fixed.find(f => f.file === 'MyRule.mdc');
+    assert(renamed);
+    assert(renamed.changes.some(c => c.includes('my-rule.mdc')));
+  });
+
+  await asyncTest('autofix: snake_case filename renamed', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/my_test_rule.mdc', `---
+description: Test
+alwaysApply: true
+---
+Body`);
+    
+    const { autoFix } = require('../src/autofix');
+    await autoFix(TEST_PROJECT, { dryRun: false });
+    
+    const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
+    const files = fs.readdirSync(rulesDir);
+    
+    assert(!files.includes('my_test_rule.mdc'));
+    assert(files.includes('my-test-rule.mdc'));
+  });
+
+  // Dry-run test
+  await asyncTest('autofix: dry-run does not modify files', async () => {
+    setupTestProject();
+    const original = `---
+description: Test
+alwaysApply: "true"
+---
+Body`;
+    const filePath = writeFixture('.cursor/rules/test.mdc', original);
+    
+    const { autoFix } = require('../src/autofix');
+    await autoFix(TEST_PROJECT, { dryRun: true });
+    
+    const content = fs.readFileSync(filePath, 'utf-8');
+    assert.strictEqual(content, original);
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
   // MCP Server Tests
   // ─────────────────────────────────────────────────────────────────────────────
