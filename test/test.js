@@ -1130,6 +1130,597 @@ ${largeBody}`);
     assert(errors.some(e => e.message.includes('exceeds')));
   });
 
+  // ═════════════════════════════════════════════════════════════════════════════
+  // NEW CURSOR-SPECIFIC DEPTH RULES TESTS (40+)
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  console.log('\n## New Cursor-specific rules (async)');
+
+  // 1. Rule body contains absolute paths
+  await asyncTest('new-rule: absolute paths → error', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/abs-path.mdc', `---
+description: Test
+alwaysApply: true
+---
+Use /Users/john/my-project/config.js for settings.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('absolute paths')));
+  });
+
+  await asyncTest('new-rule: no absolute paths → pass', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/rel-path.mdc', `---
+description: Test
+alwaysApply: true
+---
+Use ./config.js for settings.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(!result.issues.some(i => i.message.includes('absolute paths')));
+  });
+
+  // 2. Environment variables
+  await asyncTest('new-rule: environment variables → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/env-var.mdc', `---
+description: Test
+alwaysApply: true
+---
+Check $HOME/.config for settings.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('environment variables')));
+  });
+
+  // 3. Glob negation pattern
+  await asyncTest('new-rule: glob negation → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/negation.mdc', `---
+description: Test
+globs:
+  - "!*.test.ts"
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('negation pattern')));
+  });
+
+  // 4. Glob with no wildcard
+  await asyncTest('new-rule: glob no wildcard → info', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/no-wildcard.mdc', `---
+description: Test
+globs:
+  - "package.json"
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('no wildcard')));
+  });
+
+  // 5. Description identical to filename
+  await asyncTest('new-rule: description matches filename → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/typescript-rules.mdc', `---
+description: typescript rules
+alwaysApply: true
+---
+Use strict mode.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('identical to filename')));
+  });
+
+  // 6. Emoji overload
+  await asyncTest('new-rule: emoji overload → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/emoji.mdc', `---
+description: Test
+alwaysApply: true
+---
+Use 🚀 for speed 💪 for power ✨ for magic 🎯 for accuracy 🔥 for performance.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('emoji overload')));
+  });
+
+  // 7. Deeply nested markdown
+  await asyncTest('new-rule: deeply nested markdown → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/nested.mdc', `---
+description: Test
+alwaysApply: true
+---
+# Level 1
+## Level 2
+### Level 3
+#### Level 4`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('deeply nested')));
+  });
+
+  // 8. Base64 or data URIs
+  await asyncTest('new-rule: base64 data URI → error', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/base64.mdc', `---
+description: Test
+alwaysApply: true
+---
+data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('base64 or data URIs')));
+  });
+
+  // 9. Inconsistent list markers
+  await asyncTest('new-rule: inconsistent list markers → info', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/lists.mdc', `---
+description: Test
+alwaysApply: true
+---
+- Item 1
+* Item 2
++ Item 3`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('inconsistent list markers')));
+  });
+
+  // 10. Repeated instruction
+  await asyncTest('new-rule: repeated instruction → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/repeat.mdc', `---
+description: Testing duplicates
+alwaysApply: true
+---
+Always use strict mode in your code. This is a very important principle. Always use strict mode in your code.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('repeats')));
+  });
+
+  // 11. Cursor UI actions
+  await asyncTest('new-rule: UI actions reference → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/ui.mdc', `---
+description: Test
+alwaysApply: true
+---
+Click File > Preferences to configure settings.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('UI actions')));
+  });
+
+  // 12. Commented-out sections
+  await asyncTest('new-rule: commented sections → info', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/comment.mdc', `---
+description: Test
+alwaysApply: true
+---
+Use TypeScript.
+<!-- Old rule: Use JavaScript -->
+// Another old rule`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('commented-out')));
+  });
+
+  // 13. alwaysApply with specific globs
+  await asyncTest('new-rule: alwaysApply + specific globs → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/specific.mdc', `---
+description: Test
+alwaysApply: true
+globs:
+  - "src/components/Button.tsx"
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('contradictory')));
+  });
+
+  // 14. Unreachable glob pattern
+  await asyncTest('new-rule: unreachable glob (*.mdc) → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/unreachable.mdc', `---
+description: Test
+globs:
+  - "*.mdc"
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('unreachable')));
+  });
+
+  // 15. Trailing whitespace
+  await asyncTest('new-rule: trailing whitespace → info', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/whitespace.mdc', `---
+description: Test
+alwaysApply: true
+---
+Line 1   
+Line 2   
+Line 3   
+Line 4   `);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('trailing whitespace')));
+  });
+
+  // 16. Description contains "rule"
+  await asyncTest('new-rule: description contains "rule" → info', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/test.mdc', `---
+description: Rule for TypeScript
+alwaysApply: true
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('contains the word "rule"')));
+  });
+
+  // 17. Mostly code blocks
+  await asyncTest('new-rule: mostly code blocks → warning', async () => {
+    setupTestProject();
+    const code = '```\n' + 'x'.repeat(500) + '\n```';
+    const filePath = writeFixture('.cursor/rules/code.mdc', `---
+description: Test
+alwaysApply: true
+---
+Short intro.
+${code}`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('mostly code blocks')));
+  });
+
+  // 18. Boolean strings
+  await asyncTest('new-rule: boolean string → error', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/bool.mdc', `---
+description: Test
+alwaysApply: "true"
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('boolean strings')));
+  });
+
+  // 19. Regex syntax in glob
+  await asyncTest('new-rule: regex syntax in glob → error', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/regex.mdc', `---
+description: Test
+globs:
+  - "\\.ts$"
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('regex syntax')));
+  });
+
+  // 20. Very long lines
+  await asyncTest('new-rule: very long lines → info', async () => {
+    setupTestProject();
+    const longLine = 'x'.repeat(600);
+    const filePath = writeFixture('.cursor/rules/long.mdc', `---
+description: Test
+alwaysApply: true
+---
+${longLine}`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('very long line')));
+  });
+
+  // 21. Description is complete sentence
+  await asyncTest('new-rule: description complete sentence → info', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/sentence.mdc', `---
+description: This rule enforces TypeScript conventions.
+alwaysApply: true
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('complete sentence')));
+  });
+
+  // 22. Model names
+  await asyncTest('new-rule: specific model names → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/model.mdc', `---
+description: Test
+alwaysApply: true
+---
+Tell GPT-4 to use strict mode.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('model names')));
+  });
+
+  // 24. Credentials/secrets
+  await asyncTest('new-rule: credentials pattern → error', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/secret.mdc', `---
+description: Test
+alwaysApply: true
+---
+api_key: "sk-1234567890abcdefghijklmnopqrstuvwxyz"`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('credentials')));
+  });
+
+  // 25. Timestamps/dates
+  await asyncTest('new-rule: stale timestamps → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/date.mdc', `---
+description: Test
+alwaysApply: true
+---
+As of January 2024, use React 18.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('timestamps')));
+  });
+
+  // 26. alwaysApply on file-specific rule
+  await asyncTest('new-rule: alwaysApply on file-specific → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/specific2.mdc', `---
+description: For React components
+alwaysApply: true
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('file-specific')));
+  });
+
+  // 28. .cursorrules deprecated
+  await asyncTest('new-rule: .cursorrules reference → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/deprecated.mdc', `---
+description: Test
+alwaysApply: true
+---
+Move from .cursorrules to .cursor/rules/*.mdc`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('cursorrules')));
+  });
+
+  // 29. Empty globs array
+  await asyncTest('new-rule: empty globs array → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/empty-globs.mdc', `---
+description: Test
+globs: []
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('Empty globs')));
+  });
+
+  // 30. Excessive formatting
+  await asyncTest('new-rule: excessive formatting → info', async () => {
+    setupTestProject();
+    const formatted = '**bold** '.repeat(15);
+    const filePath = writeFixture('.cursor/rules/format.mdc', `---
+description: Test
+alwaysApply: true
+---
+${formatted}`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('excessive bold')));
+  });
+
+  // 31. Raw JSON without explanation
+  await asyncTest('new-rule: raw JSON no context → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/json.mdc', `---
+description: Test
+alwaysApply: true
+---
+\`\`\`json
+{
+  "key": "value"
+}
+\`\`\``);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('raw JSON')));
+  });
+
+  // 32. Frontmatter tabs
+  await asyncTest('new-rule: frontmatter tabs → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/tabs.mdc', `---
+description:\tTest
+alwaysApply:\ttrue
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('tabs')));
+  });
+
+  // 33. Language mismatch
+  await asyncTest('new-rule: language mismatch → info', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/lang.mdc', `---
+description: Test rule
+alwaysApply: true
+---
+这是一个中文规则，但描述是英文的。这里有更多的中文文本来触发检测。请确保代码质量符合标准。使用严格模式编写所有JavaScript代码。`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('language')));
+  });
+
+  // 35. Line numbers
+  await asyncTest('new-rule: line number references → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/linenum.mdc', `---
+description: Test
+alwaysApply: true
+---
+On line 42, add the import statement.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('line numbers')));
+  });
+
+  // 36. Only negative instructions
+  await asyncTest('new-rule: only negative instructions → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/negative.mdc', `---
+description: Negative rules only
+alwaysApply: true
+---
+Don't use var. Don't use any. Never use console.log. Avoid global variables. Don't mutate props. No nested ternaries. Don't modify function parameters.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('only contains negative')));
+  });
+
+  // 37. Unclosed code blocks
+  await asyncTest('new-rule: unclosed code blocks → error', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/unclosed.mdc', `---
+description: Test
+alwaysApply: true
+---
+Start code:
+\`\`\`
+Some code
+No closing marker`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('unclosed code blocks')));
+  });
+
+  // 38. Non-ASCII in description
+  await asyncTest('new-rule: non-ASCII description → info', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/ascii.mdc', `---
+description: Règles françaises
+alwaysApply: true
+---
+Body`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('non-ASCII')));
+  });
+
+  // 39. Shell commands without context
+  await asyncTest('new-rule: shell commands no context → warning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/shell.mdc', `---
+description: Test
+alwaysApply: true
+---
+Run npm install to setup the project.`);
+    
+    const result = await lintMdcFile(filePath);
+    assert(result.issues.some(i => i.message.includes('shell commands')));
+  });
+
+  // Project-level tests
+
+  // 23. Identical globs
+  await asyncTest('new-rule: identical globs cross-file → warning', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/rule-a.mdc', `---
+description: Rule A
+globs:
+  - "*.ts"
+  - "*.tsx"
+---
+Body A`);
+    writeFixture('.cursor/rules/rule-b.mdc', `---
+description: Rule B
+globs:
+  - "*.ts"
+  - "*.tsx"
+---
+Body B`);
+    
+    const results = await lintProject(TEST_PROJECT);
+    const issues = results.flatMap(r => r.issues);
+    assert(issues.some(i => i.message.includes('identical globs')));
+  });
+
+  // 34. Overlapping globs
+  await asyncTest('new-rule: overlapping globs → info', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/rule-x.mdc', `---
+description: Rule X
+globs:
+  - "*.ts"
+---
+Body X`);
+    writeFixture('.cursor/rules/rule-y.mdc', `---
+description: Rule Y
+globs:
+  - "*.ts"
+  - "*.js"
+---
+Body Y`);
+    
+    const results = await lintProject(TEST_PROJECT);
+    const issues = results.flatMap(r => r.issues);
+    assert(issues.some(i => i.message.includes('overlap')));
+  });
+
+  // 27. Glob doesn't match any files
+  await asyncTest('new-rule: glob no matches → info', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/nomatch.mdc', `---
+description: Test
+globs:
+  - "*.xyz"
+---
+Body`);
+    
+    const results = await lintProject(TEST_PROJECT);
+    const issues = results.flatMap(r => r.issues);
+    assert(issues.some(i => i.message.includes("doesn't match any files")));
+  });
+
+  // 40. Excessive alwaysApply rules
+  await asyncTest('new-rule: excessive alwaysApply → warning', async () => {
+    setupTestProject();
+    for (let i = 1; i <= 6; i++) {
+      writeFixture(`.cursor/rules/always-${i}.mdc`, `---
+description: Rule ${i}
+alwaysApply: true
+---
+Body ${i}`);
+    }
+    
+    const results = await lintProject(TEST_PROJECT);
+    const issues = results.flatMap(r => r.issues);
+    assert(issues.some(i => i.message.includes('alwaysApply:true')));
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Test Summary & Cleanup
   // ─────────────────────────────────────────────────────────────────────────────

@@ -586,6 +586,549 @@ async function lintMdcFile(filePath) {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW CURSOR-SPECIFIC DEPTH RULES (40+)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 1. Rule body contains absolute paths
+  if (body.length > 0 && body.length <= 10000) {
+    const absolutePathPatterns = [
+      /\/Users\/[^\s]+/g,
+      /\/home\/[^\s]+/g,
+      /C:\\[^\s]+/gi,
+      /D:\\[^\s]+/gi,
+    ];
+    for (const pattern of absolutePathPatterns) {
+      const matches = body.match(pattern);
+      if (matches && matches.length > 0) {
+        issues.push({
+          severity: 'error',
+          message: 'Rule body contains absolute paths',
+          hint: 'Absolute paths like /Users/... or C:\\ won\'t work on other machines. Use relative paths or project-relative references.',
+        });
+        break;
+      }
+    }
+  }
+
+  // 2. Rule body references environment variables
+  if (body.length > 0 && body.length <= 10000) {
+    const envVarPattern = /\$(?:HOME|USER|PATH|USERPROFILE|APPDATA|TEMP|TMP)\b|%(?:USERPROFILE|APPDATA|TEMP|TMP)%/g;
+    if (envVarPattern.test(body)) {
+      issues.push({
+        severity: 'warning',
+        message: 'Rule body references environment variables',
+        hint: 'Environment variables like $HOME or %USERPROFILE% are fragile and machine-specific. Use project-relative paths.',
+      });
+    }
+  }
+
+  // 3. Glob uses negation pattern
+  if (fm.data && fm.data.globs) {
+    const globs = parseGlobs(fm.data.globs);
+    for (const glob of globs) {
+      if (glob.startsWith('!')) {
+        issues.push({
+          severity: 'warning',
+          message: `Glob uses negation pattern: ${glob}`,
+          hint: 'Cursor may not support negation globs (patterns starting with !). Use positive patterns instead.',
+        });
+      }
+    }
+  }
+
+  // 4. Glob has no wildcard (literal filename)
+  if (fm.data && fm.data.globs) {
+    const globs = parseGlobs(fm.data.globs);
+    for (const glob of globs) {
+      if (!glob.includes('*') && !glob.includes('?') && !glob.includes('[')) {
+        issues.push({
+          severity: 'info',
+          message: `Glob has no wildcard: ${glob}`,
+          hint: 'Literal filenames as globs may not match as expected. Consider "**/filename" or use a wildcard pattern.',
+        });
+      }
+    }
+  }
+
+  // 5. Description is identical to filename
+  if (fm.data && fm.data.description && filePath) {
+    const filename = path.basename(filePath, '.mdc');
+    const descNorm = fm.data.description.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const filenameNorm = filename.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (descNorm === filenameNorm) {
+      issues.push({
+        severity: 'warning',
+        message: 'Description is identical to filename',
+        hint: 'Lazy descriptions aren\'t helpful. Describe what the rule does, not just repeat the filename.',
+      });
+    }
+  }
+
+  // 6. Rule body contains emoji overload
+  if (body.length > 0) {
+    const emojiPattern = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
+    const emojiMatches = body.match(emojiPattern);
+    if (emojiMatches && emojiMatches.length >= 5) {
+      issues.push({
+        severity: 'warning',
+        message: `Rule body contains emoji overload (${emojiMatches.length} emoji)`,
+        hint: 'Excessive emoji wastes tokens and doesn\'t improve AI comprehension. Use sparingly or remove.',
+      });
+    }
+  }
+
+  // 7. Rule has deeply nested markdown
+  if (body.length > 0) {
+    const deepHeadings = body.match(/^#{4,}\s+.+/gm);
+    if (deepHeadings && deepHeadings.length > 0) {
+      issues.push({
+        severity: 'warning',
+        message: 'Rule has deeply nested markdown (4+ heading levels)',
+        hint: 'Deeply nested headings make rules too complex. Flatten the structure or split into multiple rules.',
+      });
+    }
+  }
+
+  // 8. Rule body contains base64 or data URIs
+  if (body.length > 0 && body.length <= 10000) {
+    const base64Pattern = /(?:data:image\/[^;]+;base64,|^[A-Za-z0-9+/]{50,}={0,2}$)/m;
+    if (base64Pattern.test(body)) {
+      issues.push({
+        severity: 'error',
+        message: 'Rule body contains base64 or data URIs',
+        hint: 'Base64 and data URIs waste massive amounts of tokens. Link to external resources instead.',
+      });
+    }
+  }
+
+  // 9. Rule body has inconsistent list markers
+  if (body.length > 0) {
+    const bulletTypes = [];
+    if (/^\s*-\s+/m.test(body)) bulletTypes.push('-');
+    if (/^\s*\*\s+/m.test(body)) bulletTypes.push('*');
+    if (/^\s*\+\s+/m.test(body)) bulletTypes.push('+');
+    if (bulletTypes.length > 1) {
+      issues.push({
+        severity: 'info',
+        message: `Rule body has inconsistent list markers: ${bulletTypes.join(', ')}`,
+        hint: 'Mixing -, *, and + for lists is inconsistent. Pick one marker and use it throughout.',
+      });
+    }
+  }
+
+  // 10. Rule repeats the same instruction
+  if (body.length > 0 && body.length <= 10000) {
+    // Split by sentence endings and filter short fragments
+    const sentences = body.split(/[.!?]+\s+/).map(s => s.trim()).filter(s => s.length > 15);
+    const seen = new Map();
+    for (const sentence of sentences) {
+      // Normalize: lowercase, normalize whitespace, remove trailing punctuation
+      const normalized = sentence.toLowerCase().replace(/\s+/g, ' ').replace(/[.!?]+$/, '').trim();
+      if (normalized.length > 0 && seen.has(normalized)) {
+        issues.push({
+          severity: 'warning',
+          message: 'Rule repeats the same instruction',
+          hint: 'Repeated instructions waste tokens. Remove duplicates.',
+        });
+        break;
+      }
+      if (normalized.length > 0) {
+        seen.set(normalized, true);
+      }
+    }
+  }
+
+  // 11. Rule body references Cursor UI actions
+  if (body.length > 0) {
+    const uiActionPatterns = [
+      /\b(?:click|press|select|open|navigate to)\s+(?:file|edit|view|preferences|settings|menu)/i,
+      /\bctrl\+[a-z]/i,
+      /\bcmd\+[a-z]/i,
+      /\b(?:right-click|left-click)\b/i,
+    ];
+    for (const pattern of uiActionPatterns) {
+      if (pattern.test(body)) {
+        issues.push({
+          severity: 'warning',
+          message: 'Rule body references Cursor UI actions',
+          hint: 'Rules are for the AI, not the user. Remove UI instructions like "click File > Preferences".',
+        });
+        break;
+      }
+    }
+  }
+
+  // 12. Rule body contains commented-out sections
+  if (body.length > 0) {
+    const commentPatterns = [
+      /<!--[\s\S]*?-->/,
+      /^\/\/.+$/m,
+    ];
+    let hasComments = false;
+    for (const pattern of commentPatterns) {
+      if (pattern.test(body)) {
+        hasComments = true;
+        break;
+      }
+    }
+    if (hasComments) {
+      issues.push({
+        severity: 'info',
+        message: 'Rule body contains commented-out sections',
+        hint: 'Commented sections waste tokens. Remove them or uncomment if needed.',
+      });
+    }
+  }
+
+  // 13. alwaysApply with very specific globs
+  if (fm.data && fm.data.alwaysApply === true && fm.data.globs) {
+    const globs = parseGlobs(fm.data.globs);
+    const verySpecific = globs.filter(g => 
+      !g.includes('*') || 
+      g.split('/').length > 3 ||
+      /\w+\.\w+/.test(g.replace(/\*/g, ''))
+    );
+    if (verySpecific.length > 0) {
+      issues.push({
+        severity: 'warning',
+        message: 'alwaysApply with very specific globs is contradictory',
+        hint: `alwaysApply:true means always load. Very specific globs like "${verySpecific[0]}" suggest you want file-specific behavior. Choose one approach.`,
+      });
+    }
+  }
+
+  // 14. Glob pattern is unreachable
+  if (fm.data && fm.data.globs && filePath) {
+    const globs = parseGlobs(fm.data.globs);
+    for (const glob of globs) {
+      // Check if glob would match .mdc files (which it shouldn't)
+      if (glob.includes('.mdc') || glob === '*.mdc') {
+        issues.push({
+          severity: 'warning',
+          message: `Glob pattern may be unreachable: ${glob}`,
+          hint: 'Rules don\'t apply to themselves. Globs like "*.mdc" inside .cursor/rules won\'t work as expected.',
+        });
+      }
+    }
+  }
+
+  // 15. Rule body has trailing whitespace lines
+  if (body.length > 0) {
+    const lines = body.split('\n');
+    let trailingWhitespace = 0;
+    for (const line of lines) {
+      if (line !== line.trimEnd()) {
+        trailingWhitespace++;
+      }
+    }
+    if (trailingWhitespace > 3) {
+      issues.push({
+        severity: 'info',
+        message: `Rule body has trailing whitespace on ${trailingWhitespace} lines`,
+        hint: 'Trailing whitespace wastes tokens. Remove it.',
+      });
+    }
+  }
+
+  // 16. Description contains the word 'rule'
+  if (fm.data && fm.data.description && /\brule\b/i.test(fm.data.description)) {
+    issues.push({
+      severity: 'info',
+      message: 'Description contains the word "rule"',
+      hint: 'Redundant. "Rule for TypeScript" → "TypeScript conventions". The context is already a rule.',
+    });
+  }
+
+  // 17. Rule body is mostly code blocks
+  if (body.length > 100 && hasCodeBlocks) {
+    const codeBlockMatches = body.match(/```[\s\S]*?```/g);
+    if (codeBlockMatches) {
+      const codeLength = codeBlockMatches.join('').length;
+      const ratio = codeLength / body.length;
+      if (ratio > 0.7) {
+        issues.push({
+          severity: 'warning',
+          message: 'Rule body is mostly code blocks (>70%)',
+          hint: 'Rules need instruction text, not just code examples. Add context and explanations.',
+        });
+      }
+    }
+  }
+
+  // 18. Frontmatter uses boolean strings
+  if (fm.data && fm.data.alwaysApply && typeof fm.data.alwaysApply === 'string') {
+    if (fm.data.alwaysApply === 'true' || fm.data.alwaysApply === 'false') {
+      issues.push({
+        severity: 'error',
+        message: 'Frontmatter uses boolean strings',
+        hint: `alwaysApply should be a boolean (true or false), not a string ("${fm.data.alwaysApply}"). Remove quotes.`,
+      });
+    }
+  }
+
+  // 19. Glob uses regex syntax instead of glob syntax
+  if (fm.data && fm.data.globs) {
+    const globs = parseGlobs(fm.data.globs);
+    for (const glob of globs) {
+      if (/\\\.|[\[\]()]|\$/.test(glob) && !glob.includes('[a-z]')) {
+        issues.push({
+          severity: 'error',
+          message: `Glob uses regex syntax instead of glob syntax: ${glob}`,
+          hint: 'Globs use *, ?, and {}, not regex. Use "*.ts" not "\\.ts$".',
+        });
+      }
+    }
+  }
+
+  // 20. Rule body has very long lines
+  if (body.length > 0) {
+    const lines = body.split('\n');
+    const longLines = lines.filter(line => line.length > 500);
+    if (longLines.length > 0) {
+      issues.push({
+        severity: 'info',
+        message: `Rule body has ${longLines.length} very long line(s) (>500 chars)`,
+        hint: 'Long lines are hard to read and waste tokens. Break them up.',
+      });
+    }
+  }
+
+  // 21. Description is a complete sentence
+  if (fm.data && fm.data.description && typeof fm.data.description === 'string') {
+    if (/^[A-Z].*[.!?]$/.test(fm.data.description.trim())) {
+      issues.push({
+        severity: 'info',
+        message: 'Description is a complete sentence',
+        hint: 'Descriptions work better as noun phrases. "TypeScript conventions" not "This rule enforces TypeScript conventions."',
+      });
+    }
+  }
+
+  // 22. Rule body references specific model names
+  if (body.length > 0) {
+    const modelNames = ['GPT-4', 'GPT-3', 'Claude', 'ChatGPT', 'Copilot', 'o1', 'o3'];
+    for (const model of modelNames) {
+      if (body.includes(model)) {
+        issues.push({
+          severity: 'warning',
+          message: `Rule body references specific model names: ${model}`,
+          hint: 'Rules should be model-agnostic. Remove model-specific instructions.',
+        });
+        break;
+      }
+    }
+  }
+
+  // 24. Rule body contains credentials/secrets pattern
+  if (body.length > 0 && body.length <= 10000) {
+    const secretPatterns = [
+      /(?:api[_-]?key|apikey|access[_-]?token|auth[_-]?token|password|secret)[:\s]*["\']?[A-Za-z0-9_\-]{20,}["\']?/i,
+      /sk-[A-Za-z0-9]{20,}/,
+      /ghp_[A-Za-z0-9]{20,}/,
+    ];
+    for (const pattern of secretPatterns) {
+      if (pattern.test(body)) {
+        issues.push({
+          severity: 'error',
+          message: 'Rule body contains credentials/secrets pattern',
+          hint: 'Never include API keys, tokens, or passwords in rules. Use environment variables.',
+        });
+        break;
+      }
+    }
+  }
+
+  // 25. Rule body contains timestamps/dates that will go stale
+  if (body.length > 0) {
+    const datePatterns = [
+      /\bAs of (?:January|February|March|April|May|June|July|August|September|October|November|December) \d{4}\b/,
+      /\bUpdated:? \d{4}-\d{2}-\d{2}\b/i,
+      /\bCurrent as of\b/i,
+    ];
+    for (const pattern of datePatterns) {
+      if (pattern.test(body)) {
+        issues.push({
+          severity: 'warning',
+          message: 'Rule body contains timestamps/dates that will go stale',
+          hint: 'Date-specific statements like "As of January 2024" become outdated. Make rules timeless.',
+        });
+        break;
+      }
+    }
+  }
+
+  // 26. alwaysApply: true on file-specific rule
+  if (fm.data && fm.data.alwaysApply === true && fm.data.description) {
+    const fileSpecificKeywords = [
+      /\bfor (React|Vue|Angular|TypeScript|JavaScript|Python|Go) (components?|files?)\b/i,
+      /\bin \.tsx?\b files/i,
+      /\bwhen editing \.[\w]+\b/i,
+    ];
+    for (const pattern of fileSpecificKeywords) {
+      if (pattern.test(fm.data.description)) {
+        issues.push({
+          severity: 'warning',
+          message: 'alwaysApply: true on file-specific rule',
+          hint: 'Description suggests file-specific behavior but alwaysApply:true means always load. Use globs instead.',
+        });
+        break;
+      }
+    }
+  }
+
+  // 28. Rule body uses Cursor-specific deprecated features
+  if (body.length > 0) {
+    if (/\.cursorrules\b/.test(body) || /cursor\.rules\b/.test(body)) {
+      issues.push({
+        severity: 'warning',
+        message: 'Rule body references old .cursorrules behavior',
+        hint: 'Cursor moved from .cursorrules to .cursor/rules/*.mdc. Update references.',
+      });
+    }
+  }
+
+  // 29. Empty globs array
+  if (fm.data && fm.data.globs !== undefined) {
+    const globs = parseGlobs(fm.data.globs);
+    if (globs.length === 0) {
+      issues.push({
+        severity: 'warning',
+        message: 'Empty globs array',
+        hint: 'globs: [] is set but empty. Remove globs or add patterns.',
+      });
+    }
+  }
+
+  // 30. Rule has excessive bold/italic formatting
+  if (body.length > 0) {
+    const boldMatches = body.match(/\*\*[^*]+\*\*/g);
+    const italicMatches = body.match(/\*[^*]+\*/g);
+    const totalFormatting = (boldMatches ? boldMatches.length : 0) + (italicMatches ? italicMatches.length : 0);
+    if (totalFormatting > 10) {
+      issues.push({
+        severity: 'info',
+        message: `Rule has excessive bold/italic formatting (${totalFormatting} instances)`,
+        hint: 'Excessive formatting wastes tokens and doesn\'t help AI comprehension. Use sparingly.',
+      });
+    }
+  }
+
+  // 31. Rule body contains raw JSON without explanation
+  if (body.length > 0 && hasCodeBlocks) {
+    const jsonBlockPattern = /```(?:json)?\s*\n\{[\s\S]*?\}\s*```/g;
+    const jsonBlocks = body.match(jsonBlockPattern);
+    if (jsonBlocks && jsonBlocks.length > 0) {
+      // Check if there's explanatory text near the JSON
+      for (const block of jsonBlocks) {
+        const blockIndex = body.indexOf(block);
+        const before = body.slice(Math.max(0, blockIndex - 100), blockIndex);
+        const after = body.slice(blockIndex + block.length, blockIndex + block.length + 100);
+        if (!before.trim() && !after.trim()) {
+          issues.push({
+            severity: 'warning',
+            message: 'Rule body contains raw JSON without explanation',
+            hint: 'JSON blobs without context confuse the AI. Add instructions explaining what to do with the JSON.',
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  // 32. Frontmatter indentation uses tabs
+  if (content.length > 0) {
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch && fmMatch[1].includes('\t')) {
+      issues.push({
+        severity: 'warning',
+        message: 'Frontmatter indentation uses tabs',
+        hint: 'YAML prefers spaces over tabs for indentation. Use 2 spaces.',
+      });
+    }
+  }
+
+  // 33. Rule body language mismatch (basic check)
+  if (body.length > 50 && fm.data && fm.data.description) {
+    // Simple heuristic: check for significant non-English content in body but English description
+    const nonAsciiChars = body.match(/[^\x00-\x7F]/g);
+    const hasNonEnglish = nonAsciiChars && nonAsciiChars.length >= 10;
+    const descIsEnglish = /^[A-Za-z\s0-9.,!?-]+$/.test(fm.data.description);
+    if (hasNonEnglish && descIsEnglish) {
+      issues.push({
+        severity: 'info',
+        message: 'Rule body language may not match description',
+        hint: 'Description appears to be in English but body contains non-English text. Ensure consistency.',
+      });
+    }
+  }
+
+  // 35. Rule body references line numbers
+  if (body.length > 0) {
+    if (/\bon line \d+\b/i.test(body) || /\bline \d+:/i.test(body)) {
+      issues.push({
+        severity: 'warning',
+        message: 'Rule body references specific line numbers',
+        hint: 'Line number references like "on line 42" are fragile and will break when code changes. Use structural references.',
+      });
+    }
+  }
+
+  // 36. Rule only contains negative instructions
+  if (body.length > 100) {
+    const negativeWords = body.match(/\b(?:don't|do not|never|avoid|not|no)\b/gi);
+    // Exclude "do" that's part of "don't" or "do not" and "use" after negative words
+    const bodyWithoutNegatives = body.replace(/\b(?:don't|do not)\b/gi, 'NEGATIVE')
+                                      .replace(/\bnever\s+use\b/gi, 'NEGATIVE')
+                                      .replace(/\bavoid\s+\w+/gi, 'NEGATIVE');
+    const positiveWords = bodyWithoutNegatives.match(/\b(?:always|must|should|ensure|prefer|instead)\b/gi);
+    if (negativeWords && negativeWords.length >= 6 && (!positiveWords || positiveWords.length === 0)) {
+      issues.push({
+        severity: 'warning',
+        message: 'Rule only contains negative instructions',
+        hint: 'Rules with only "don\'t do X" are less effective. Add positive guidance: "do Y instead".',
+      });
+    }
+  }
+
+  // 37. Rule body has unclosed code blocks
+  if (body.length > 0) {
+    const codeBlockMarkers = body.match(/```/g);
+    if (codeBlockMarkers && codeBlockMarkers.length % 2 !== 0) {
+      issues.push({
+        severity: 'error',
+        message: 'Rule body has unclosed code blocks',
+        hint: 'Every ``` must have a closing ```. Fix the code block syntax.',
+      });
+    }
+  }
+
+  // 38. Description contains special characters
+  if (fm.data && fm.data.description && typeof fm.data.description === 'string') {
+    if (/[^\x00-\x7F]/.test(fm.data.description)) {
+      issues.push({
+        severity: 'info',
+        message: 'Description contains non-ASCII characters',
+        hint: 'Special characters in descriptions may cause matching issues. Stick to ASCII.',
+      });
+    }
+  }
+
+  // 39. Rule body contains shell commands without context
+  if (body.length > 0 && !hasCodeBlocks) {
+    const shellCommands = ['npm install', 'yarn add', 'git commit', 'docker run', 'pip install'];
+    for (const cmd of shellCommands) {
+      if (body.includes(cmd)) {
+        issues.push({
+          severity: 'warning',
+          message: `Rule body contains shell commands without context: "${cmd}"`,
+          hint: 'Rules are for AI coding instructions, not terminal commands. Wrap in code blocks or remove.',
+        });
+        break;
+      }
+    }
+  }
+
   return { file: filePath, issues };
 }
 
@@ -1082,6 +1625,157 @@ async function lintProject(dir) {
       });
     }
   } catch (e) { /* config lint failed gracefully */ }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW PROJECT-LEVEL CURSOR-SPECIFIC RULES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 23. Multiple rules have identical globs (cross-file check)
+  if (fs.existsSync(rulesDirPath) && fs.statSync(rulesDirPath).isDirectory()) {
+    const mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    if (mdcFiles.length > 1) {
+      const globsByFile = [];
+      for (const file of mdcFiles) {
+        const filePath = path.join(rulesDirPath, file);
+        var fileContent;
+        try { fileContent = fs.readFileSync(filePath, 'utf-8'); } catch (e) { continue; }
+        const fm = parseFrontmatter(fileContent);
+        if (fm.data && fm.data.globs) {
+          const globs = parseGlobs(fm.data.globs);
+          globsByFile.push({ file, globs });
+        }
+      }
+
+      // Check for identical glob sets
+      for (let i = 0; i < globsByFile.length; i++) {
+        for (let j = i + 1; j < globsByFile.length; j++) {
+          const a = globsByFile[i];
+          const b = globsByFile[j];
+          const aSet = new Set(a.globs);
+          const bSet = new Set(b.globs);
+          if (aSet.size === bSet.size && [...aSet].every(g => bSet.has(g))) {
+            results.push({
+              file: rulesDirPath,
+              issues: [{
+                severity: 'warning',
+                message: `Rules have identical globs: ${a.file} and ${b.file}`,
+                hint: 'Both rules target the same files. Consider merging or using different globs.',
+              }],
+            });
+          }
+        }
+      }
+
+      // 34. Globs overlap between rules
+      for (let i = 0; i < globsByFile.length; i++) {
+        for (let j = i + 1; j < globsByFile.length; j++) {
+          const a = globsByFile[i];
+          const b = globsByFile[j];
+          // Check if globs overlap significantly
+          let overlaps = 0;
+          for (const aGlob of a.globs) {
+            for (const bGlob of b.globs) {
+              // Check for common patterns
+              const aExt = aGlob.match(/\*\.(\w+)$/);
+              const bExt = bGlob.match(/\*\.(\w+)$/);
+              if (aExt && bExt && aExt[1] === bExt[1]) {
+                overlaps++;
+              } else if (aGlob === bGlob) {
+                overlaps++;
+              }
+            }
+          }
+          if (overlaps > 0 && overlaps >= Math.min(a.globs.length, b.globs.length) * 0.5) {
+            results.push({
+              file: rulesDirPath,
+              issues: [{
+                severity: 'info',
+                message: `Globs overlap between rules: ${a.file} and ${b.file}`,
+                hint: 'These rules target overlapping file patterns. Ensure they have distinct purposes or consolidate.',
+              }],
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 27. Glob doesn't match any files in project (info-level)
+  if (fs.existsSync(rulesDirPath) && fs.statSync(rulesDirPath).isDirectory()) {
+    const mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    for (const file of mdcFiles) {
+      const filePath = path.join(rulesDirPath, file);
+      var fileContent;
+      try { fileContent = fs.readFileSync(filePath, 'utf-8'); } catch (e) { continue; }
+      const fm = parseFrontmatter(fileContent);
+      if (fm.data && fm.data.globs) {
+        const globs = parseGlobs(fm.data.globs);
+        for (const glob of globs) {
+          // Simple check: look for files matching the extension
+          const extMatch = glob.match(/\*\.(\w+)$/);
+          if (extMatch) {
+            const ext = extMatch[1];
+            // Quick scan: check if any files with this extension exist
+            let foundMatch = false;
+            const checkDir = (dirPath, depth = 0) => {
+              if (depth > 5) return; // Limit recursion depth
+              try {
+                const entries = fs.readdirSync(dirPath);
+                for (const entry of entries) {
+                  if (entry.startsWith('.') && entry !== '.cursor') continue;
+                  const fullPath = path.join(dirPath, entry);
+                  const stat = fs.statSync(fullPath);
+                  if (stat.isDirectory() && entry !== 'node_modules') {
+                    checkDir(fullPath, depth + 1);
+                  } else if (stat.isFile() && entry.endsWith('.' + ext)) {
+                    foundMatch = true;
+                    return;
+                  }
+                }
+              } catch {}
+            };
+            checkDir(dir);
+            
+            if (!foundMatch) {
+              results.push({
+                file: filePath,
+                issues: [{
+                  severity: 'info',
+                  message: `Glob doesn't match any files in project: ${glob}`,
+                  hint: 'This glob pattern matches zero existing files. Verify it\'s correct or remove it.',
+                }],
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 40. Excessive alwaysApply rules (project-level)
+  if (fs.existsSync(rulesDirPath) && fs.statSync(rulesDirPath).isDirectory()) {
+    const mdcFiles = fs.readdirSync(rulesDirPath).filter(f => f.endsWith('.mdc'));
+    let alwaysApplyCount = 0;
+    for (const file of mdcFiles) {
+      const filePath = path.join(rulesDirPath, file);
+      var fileContent;
+      try { fileContent = fs.readFileSync(filePath, 'utf-8'); } catch (e) { continue; }
+      const fm = parseFrontmatter(fileContent);
+      if (fm.data && fm.data.alwaysApply === true) {
+        alwaysApplyCount++;
+      }
+    }
+    if (alwaysApplyCount > 5) {
+      results.push({
+        file: rulesDirPath,
+        issues: [{
+          severity: 'warning',
+          message: `Project has ${alwaysApplyCount} rules with alwaysApply:true`,
+          hint: 'Too many global rules waste context tokens on every request. Use globs to scope rules to specific files.',
+        }],
+      });
+    }
+  }
 
   return results;
 }
