@@ -66,39 +66,38 @@ function showHelp() {
     '',
     CYAN + BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- Fix your Cursor AI setup in seconds.',
     '',
-    YELLOW + 'Usage:' + RESET,
-    '  npx cursor-doctor              # Run health check (default)',
-    '  npx cursor-doctor scan         # Same as above',
-    '  npx cursor-doctor check        # Quick pass/fail for CI',
-    '  npx cursor-doctor init         # Generate rules based on your stack',
-    '  npx cursor-doctor install      # Install community rule packs',
-    '  npx cursor-doctor lint         # Detailed rule linting',
-    '  npx cursor-doctor migrate      # Convert .cursorrules to .mdc (--dry-run, --force)',
-    '  npx cursor-doctor stats        # Token usage dashboard',
-    '  npx cursor-doctor budget       # Smart token budget analysis',
-    '  npx cursor-doctor agents       # Lint CLAUDE.md, AGENTS.md, .cursor/agents/',
-    '  npx cursor-doctor mcp          # Validate MCP config files',
+    '  ' + BOLD + 'npx cursor-doctor scan' + RESET + '             Find what\'s wrong ' + DIM + '(default)' + RESET,
+    '  ' + BOLD + 'npx cursor-doctor fix' + RESET + '              Auto-fix everything ' + DIM + '(Pro)' + RESET,
     '',
-    YELLOW + 'Pro Commands ($9 one-time key):' + RESET,
-    '  npx cursor-doctor audit        # Full diagnostic report',
-    '  npx cursor-doctor audit --md   # Export audit as markdown',
-    '  npx cursor-doctor budget --pro # Per-file-type breakdown, waste detection, history',
-    '  npx cursor-doctor conflicts    # Cross-format conflict detection',
-    '  npx cursor-doctor perf         # Rule performance tracking',
-    '  npx cursor-doctor test <file>  # Test rule adherence with AI',
-    '  npx cursor-doctor test <rule> <code>  # Test single rule against code',
-    '  npx cursor-doctor team export  # Export rules as shareable config',
-    '  npx cursor-doctor team import <source>  # Import rules from file/URL',
-    '  npx cursor-doctor team drift   # Detect drift from team baseline',
-    '  npx cursor-doctor team baseline <source>  # Set team baseline',
-    '  npx cursor-doctor fix          # Auto-fix issues',
-    '  npx cursor-doctor fix --dry-run # Preview fixes',
+    YELLOW + 'Diagnose:' + RESET,
+    '  npx cursor-doctor lint           Detailed rule-by-rule linting',
+    '  npx cursor-doctor check          Pass/fail for CI',
+    '  npx cursor-doctor audit          Full diagnostic report ' + DIM + '(Pro)' + RESET,
+    '  npx cursor-doctor audit --md     Export as markdown ' + DIM + '(Pro)' + RESET,
     '',
-    YELLOW + 'Other:' + RESET,
-    '  npx cursor-doctor activate <key>  # Activate license',
-    '  npx cursor-doctor-mcp              # MCP server (for AI assistants)',
+    YELLOW + 'Analyze:' + RESET,
+    '  npx cursor-doctor stats          Token usage dashboard',
+    '  npx cursor-doctor budget         Token budget analysis',
+    '  npx cursor-doctor conflicts      Cross-format conflicts ' + DIM + '(Pro)' + RESET,
+    '  npx cursor-doctor perf           Rule performance tracking ' + DIM + '(Pro)' + RESET,
     '',
-    DIM + 'Get a Pro key: ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=help' + RESET,
+    YELLOW + 'Create & Manage:' + RESET,
+    '  npx cursor-doctor init           Generate rules for your stack',
+    '  npx cursor-doctor install <pack> Install community rule packs',
+    '  npx cursor-doctor migrate        Convert .cursorrules to .mdc',
+    '',
+    YELLOW + 'Test:' + RESET,
+    '  npx cursor-doctor test <file>    AI rule adherence testing ' + DIM + '(Pro)' + RESET,
+    '  npx cursor-doctor agents         Lint CLAUDE.md, AGENTS.md',
+    '  npx cursor-doctor mcp            Validate MCP config',
+    '',
+    YELLOW + 'Team ' + DIM + '(Pro)' + RESET + ':',
+    '  npx cursor-doctor team export|import|drift|baseline',
+    '',
+    DIM + '  npx cursor-doctor activate <key>  Activate license' + RESET,
+    DIM + '  npx cursor-doctor-mcp             MCP server (for AI assistants)' + RESET,
+    '',
+    'Pro: $9 one-time — ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=help',
     '',
   ];
   console.log(lines.join('\n'));
@@ -273,32 +272,51 @@ async function main() {
     console.log();
     var totalErrors = 0;
     var totalWarnings = 0;
+    var totalInfo = 0;
     var totalPassed = 0;
+    var sevOrder = { error: 0, warning: 1, info: 2 };
+    var verbose = args.includes('--verbose') || args.includes('-v');
     for (var i = 0; i < results.length; i++) {
       var result = results[i];
       var relPath = path.relative(cwd, result.file) || result.file;
-      console.log(relPath);
       if (result.issues.length === 0) {
-        console.log('  ' + GREEN + String.fromCharCode(10003) + ' All checks passed' + RESET);
         totalPassed++;
+        if (verbose) {
+          console.log(DIM + relPath + ' — ok' + RESET);
+        }
       } else {
-        for (var j = 0; j < result.issues.length; j++) {
-          var issue = result.issues[j];
+        var sorted = result.issues.slice().sort(function(a, b) {
+          return (sevOrder[a.severity] || 2) - (sevOrder[b.severity] || 2);
+        });
+        var fileErrors = 0, fileWarnings = 0, fileInfo = 0;
+        for (var j = 0; j < sorted.length; j++) {
+          if (sorted[j].severity === 'error') fileErrors++;
+          else if (sorted[j].severity === 'warning') fileWarnings++;
+          else fileInfo++;
+        }
+        var fileSummaryParts = [];
+        if (fileErrors > 0) fileSummaryParts.push(RED + fileErrors + ' error' + (fileErrors > 1 ? 's' : '') + RESET);
+        if (fileWarnings > 0) fileSummaryParts.push(YELLOW + fileWarnings + ' warning' + (fileWarnings > 1 ? 's' : '') + RESET);
+        if (fileInfo > 0) fileSummaryParts.push(BLUE + fileInfo + ' info' + RESET);
+        console.log(BOLD + relPath + RESET + '  ' + DIM + '(' + RESET + fileSummaryParts.join(DIM + ', ' + RESET) + DIM + ')' + RESET);
+        for (var j = 0; j < sorted.length; j++) {
+          var issue = sorted[j];
           var icon;
           if (issue.severity === 'error') { icon = RED + String.fromCharCode(10007) + RESET; totalErrors++; }
           else if (issue.severity === 'warning') { icon = YELLOW + String.fromCharCode(9888) + RESET; totalWarnings++; }
-          else { icon = BLUE + String.fromCharCode(8505) + RESET; }
+          else { icon = BLUE + String.fromCharCode(8505) + RESET; totalInfo++; }
           var lineInfo = issue.line ? ' ' + DIM + '(line ' + issue.line + ')' + RESET : '';
           console.log('  ' + icon + ' ' + issue.message + lineInfo);
           if (issue.hint) console.log('    ' + DIM + String.fromCharCode(8594) + ' ' + issue.hint + RESET);
         }
+        console.log();
       }
-      console.log();
     }
     console.log(String.fromCharCode(9472).repeat(50));
     var parts = [];
-    if (totalErrors > 0) parts.push(RED + totalErrors + ' error(s)' + RESET);
-    if (totalWarnings > 0) parts.push(YELLOW + totalWarnings + ' warning(s)' + RESET);
+    if (totalErrors > 0) parts.push(RED + totalErrors + ' error' + (totalErrors > 1 ? 's' : '') + RESET);
+    if (totalWarnings > 0) parts.push(YELLOW + totalWarnings + ' warning' + (totalWarnings > 1 ? 's' : '') + RESET);
+    if (totalInfo > 0) parts.push(BLUE + totalInfo + ' info' + RESET);
     if (totalPassed > 0) parts.push(GREEN + totalPassed + ' passed' + RESET);
     console.log(parts.join(', '));
     if (totalErrors > 0 || totalWarnings > 0) {
