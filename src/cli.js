@@ -219,9 +219,8 @@ async function main() {
     console.log();
 
     if (fixable > 0) {
-      console.log('  ' + CYAN + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
-      console.log('  ' + CYAN + 'Full diagnostic:' + RESET + ' npx cursor-doctor audit');
-      console.log('  ' + DIM + 'Pro ($9 one-time) ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=scan' + RESET);
+      console.log('  ' + DIM + 'See details:' + RESET + '  npx cursor-doctor lint');
+      console.log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
       console.log();
     }
 
