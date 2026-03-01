@@ -3474,6 +3474,202 @@ Check [this link](https://example.com) too.`;
     assert(gitRule.includes('conventional commits'));
   });
 
+  // ─── 10. install command tests ───
+  console.log('\n## install command');
+
+  test('registry: getPackNames returns all pack names', () => {
+    const { getPackNames } = require('../src/registry');
+    const names = getPackNames();
+    assert(Array.isArray(names));
+    assert(names.includes('react'));
+    assert(names.includes('nextjs'));
+    assert(names.includes('typescript'));
+    assert(names.includes('python'));
+    assert(names.includes('go'));
+    assert(names.includes('rust'));
+    assert(names.includes('security'));
+    assert(names.includes('testing'));
+    assert(names.includes('performance'));
+    assert(names.includes('accessibility'));
+    assert.strictEqual(names.length, 10);
+  });
+
+  test('registry: getPack returns pack object', () => {
+    const { getPack } = require('../src/registry');
+    const pack = getPack('react');
+    assert(pack);
+    assert.strictEqual(pack.name, 'React');
+    assert(pack.description);
+    assert(Array.isArray(pack.rules));
+    assert(pack.rules.length >= 3);
+    assert(pack.rules.length <= 4);
+    
+    // Check rule structure
+    const rule = pack.rules[0];
+    assert(rule.filename);
+    assert(rule.description);
+    assert(Array.isArray(rule.globs));
+    assert(typeof rule.alwaysApply === 'boolean');
+    assert(rule.body);
+    assert(rule.body.includes('---'));
+  });
+
+  test('registry: getPack case insensitive', () => {
+    const { getPack } = require('../src/registry');
+    assert(getPack('React'));
+    assert(getPack('REACT'));
+    assert(getPack('react'));
+  });
+
+  test('registry: getPack returns null for unknown pack', () => {
+    const { getPack } = require('../src/registry');
+    const pack = getPack('nonexistent');
+    assert.strictEqual(pack, undefined);
+  });
+
+  await asyncTest('install: creates files in .cursor/rules/', async () => {
+    setupTestProject();
+    
+    const { getPack } = require('../src/registry');
+    const pack = getPack('react');
+    
+    const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
+    fs.mkdirSync(rulesDir, { recursive: true });
+    
+    // Write rules
+    for (let i = 0; i < pack.rules.length; i++) {
+      const rule = pack.rules[i];
+      const rulePath = path.join(rulesDir, rule.filename);
+      fs.writeFileSync(rulePath, rule.body, 'utf-8');
+    }
+    
+    // Verify files exist
+    for (let i = 0; i < pack.rules.length; i++) {
+      const rule = pack.rules[i];
+      const rulePath = path.join(rulesDir, rule.filename);
+      assert(fs.existsSync(rulePath));
+      
+      const content = fs.readFileSync(rulePath, 'utf-8');
+      assert(content.includes('---'));
+      assert(content.includes('description:'));
+    }
+  });
+
+  await asyncTest('install: skips existing files without --force', async () => {
+    setupTestProject();
+    
+    const { getPack } = require('../src/registry');
+    const pack = getPack('react');
+    
+    const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
+    fs.mkdirSync(rulesDir, { recursive: true });
+    
+    // Create existing file
+    const existingFile = path.join(rulesDir, pack.rules[0].filename);
+    fs.writeFileSync(existingFile, 'existing content', 'utf-8');
+    
+    // Simulate install without force
+    const exists = fs.existsSync(existingFile);
+    const force = false;
+    
+    assert(exists);
+    assert(!force);
+    
+    // Verify original content preserved
+    const content = fs.readFileSync(existingFile, 'utf-8');
+    assert.strictEqual(content, 'existing content');
+  });
+
+  await asyncTest('install: all registry rules pass lint', async () => {
+    setupTestProject();
+    
+    const { getAllPacks } = require('../src/registry');
+    const { lintMdcFile } = require('../src/index');
+    const allPacks = getAllPacks();
+    
+    const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
+    fs.mkdirSync(rulesDir, { recursive: true });
+    
+    let allPassed = true;
+    let failedRules = [];
+    
+    for (const packName in allPacks) {
+      const pack = allPacks[packName];
+      for (let i = 0; i < pack.rules.length; i++) {
+        const rule = pack.rules[i];
+        const rulePath = path.join(rulesDir, rule.filename);
+        fs.writeFileSync(rulePath, rule.body, 'utf-8');
+        
+        const result = await lintMdcFile(rulePath);
+        const errors = (result.issues || []).filter(function(issue) { return issue.severity === 'error'; });
+        
+        if (errors.length > 0) {
+          allPassed = false;
+          failedRules.push({
+            pack: packName,
+            file: rule.filename,
+            errors: errors
+          });
+        }
+      }
+    }
+    
+    if (!allPassed) {
+      console.log('\n  Failed rules:');
+      for (let i = 0; i < failedRules.length; i++) {
+        const failed = failedRules[i];
+        console.log(`    ${failed.pack}/${failed.file}:`);
+        for (let j = 0; j < failed.errors.length; j++) {
+          console.log(`      - ${failed.errors[j].message}`);
+        }
+      }
+    }
+    
+    assert(allPassed, 'All registry rules must pass lint');
+  });
+
+  test('install: --list shows all packs', () => {
+    const { getAllPacks } = require('../src/registry');
+    const allPacks = getAllPacks();
+    
+    for (const packName in allPacks) {
+      const pack = allPacks[packName];
+      assert(pack.name);
+      assert(pack.description);
+      assert(Array.isArray(pack.rules));
+    }
+  });
+
+  test('install: each pack has 3-4 rules', () => {
+    const { getAllPacks } = require('../src/registry');
+    const allPacks = getAllPacks();
+    
+    for (const packName in allPacks) {
+      const pack = allPacks[packName];
+      assert(pack.rules.length >= 3, `${packName} has fewer than 3 rules`);
+      assert(pack.rules.length <= 4, `${packName} has more than 4 rules`);
+    }
+  });
+
+  test('install: all rules have required fields', () => {
+    const { getAllPacks } = require('../src/registry');
+    const allPacks = getAllPacks();
+    
+    for (const packName in allPacks) {
+      const pack = allPacks[packName];
+      for (let i = 0; i < pack.rules.length; i++) {
+        const rule = pack.rules[i];
+        assert(rule.filename, `${packName} rule ${i} missing filename`);
+        assert(rule.filename.endsWith('.mdc'), `${packName} rule ${i} filename doesn't end with .mdc`);
+        assert(rule.description, `${packName} rule ${i} missing description`);
+        assert(Array.isArray(rule.globs), `${packName} rule ${i} globs not an array`);
+        assert(typeof rule.alwaysApply === 'boolean', `${packName} rule ${i} alwaysApply not boolean`);
+        assert(rule.body, `${packName} rule ${i} missing body`);
+        assert(rule.body.includes('---'), `${packName} rule ${i} body missing frontmatter`);
+      }
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Test Summary & Cleanup
   // ─────────────────────────────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ const { exportRules, importRules, detectDrift, setBaseline } = require('./team-s
 const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
 const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
 const { initProject } = require('./init');
+const { getPackNames, getPack, getAllPacks } = require('./registry');
 
 const VERSION = require('../package.json').version;
 
@@ -42,6 +43,7 @@ function showHelp() {
     '  npx cursor-doctor scan         # Same as above',
     '  npx cursor-doctor check        # Quick pass/fail for CI',
     '  npx cursor-doctor init         # Generate rules based on your stack',
+    '  npx cursor-doctor install      # Install community rule packs',
     '  npx cursor-doctor lint         # Detailed rule linting',
     '  npx cursor-doctor migrate      # Convert .cursorrules to .mdc (--dry-run, --force)',
     '  npx cursor-doctor stats        # Token usage dashboard',
@@ -105,18 +107,21 @@ async function main() {
   var command = args.find(function(a) { return !a.startsWith('-'); }) || 'scan';
   
   // Parse path argument (first non-flag arg after command)
+  // Exception: install command uses args for pack names, not paths
   var pathArg = null;
-  var foundCommand = false;
-  for (var i = 0; i < args.length; i++) {
-    var arg = args[i];
-    if (arg.startsWith('-')) continue;
-    if (!foundCommand) {
-      if (arg === command) foundCommand = true;
-      continue;
+  if (command !== 'install') {
+    var foundCommand = false;
+    for (var i = 0; i < args.length; i++) {
+      var arg = args[i];
+      if (arg.startsWith('-')) continue;
+      if (!foundCommand) {
+        if (arg === command) foundCommand = true;
+        continue;
+      }
+      // First non-flag arg after command is the path
+      pathArg = arg;
+      break;
     }
-    // First non-flag arg after command is the path
-    pathArg = arg;
-    break;
   }
   
   var cwd = pathArg ? path.resolve(pathArg) : process.cwd();
@@ -319,6 +324,147 @@ async function main() {
       console.log('  2. Customize them for your project');
       console.log('  3. Run ' + CYAN + 'cursor-doctor scan' + RESET + ' to verify');
       console.log();
+    }
+    
+    process.exit(0);
+  }
+
+  // --- install (free) ---
+  if (command === 'install') {
+    var dryRun = args.includes('--dry-run');
+    var force = args.includes('--force');
+    var list = args.includes('--list');
+    
+    // List available packs
+    if (list) {
+      console.log();
+      console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- available rule packs');
+      console.log();
+      var allPacks = getAllPacks();
+      var packNames = getPackNames();
+      for (var i = 0; i < packNames.length; i++) {
+        var packName = packNames[i];
+        var pack = allPacks[packName];
+        console.log('  ' + CYAN + BOLD + packName.padEnd(15) + RESET + DIM + pack.description + RESET);
+        console.log('    ' + DIM + pack.rules.length + ' rules' + RESET);
+      }
+      console.log();
+      console.log('  ' + DIM + 'Install: npx cursor-doctor install <pack-name>' + RESET);
+      console.log('  ' + DIM + 'Example: npx cursor-doctor install react typescript' + RESET);
+      console.log();
+      process.exit(0);
+    }
+    
+    // Get pack names from arguments
+    var packNamesToInstall = args.filter(function(a) { return !a.startsWith('-') && a !== 'install'; });
+    
+    if (packNamesToInstall.length === 0) {
+      console.log();
+      console.log(BOLD + 'cursor-doctor install' + RESET + ' -- community rule packs');
+      console.log();
+      console.log(YELLOW + 'Usage:' + RESET);
+      console.log('  npx cursor-doctor install <pack>         # Install a rule pack');
+      console.log('  npx cursor-doctor install --list         # List available packs');
+      console.log('  npx cursor-doctor install <pack> --dry-run   # Preview without writing');
+      console.log('  npx cursor-doctor install <pack> --force     # Overwrite existing files');
+      console.log();
+      console.log(CYAN + 'Examples:' + RESET);
+      console.log('  npx cursor-doctor install react');
+      console.log('  npx cursor-doctor install react typescript testing');
+      console.log();
+      console.log(DIM + 'Run with --list to see all available packs' + RESET);
+      console.log();
+      process.exit(0);
+    }
+    
+    console.log();
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- install' + (dryRun ? ' ' + DIM + '(dry run)' + RESET : ''));
+    console.log();
+    
+    var rulesDir = path.join(cwd, '.cursor', 'rules');
+    
+    // Create rules directory if it doesn't exist
+    if (!dryRun && !fs.existsSync(rulesDir)) {
+      fs.mkdirSync(rulesDir, { recursive: true });
+    }
+    
+    var totalCreated = [];
+    var totalSkipped = [];
+    var errors = [];
+    
+    for (var i = 0; i < packNamesToInstall.length; i++) {
+      var packName = packNamesToInstall[i];
+      var pack = getPack(packName);
+      
+      if (!pack) {
+        errors.push('Unknown pack: ' + packName);
+        continue;
+      }
+      
+      for (var j = 0; j < pack.rules.length; j++) {
+        var rule = pack.rules[j];
+        var rulePath = path.join(rulesDir, rule.filename);
+        var exists = fs.existsSync(rulePath);
+        
+        if (exists && !force) {
+          totalSkipped.push({ pack: packName, file: rule.filename });
+        } else {
+          if (!dryRun) {
+            fs.writeFileSync(rulePath, rule.body, 'utf-8');
+          }
+          totalCreated.push({ pack: packName, file: rule.filename });
+        }
+      }
+    }
+    
+    // Display errors
+    if (errors.length > 0) {
+      for (var i = 0; i < errors.length; i++) {
+        console.log('  ' + RED + String.fromCharCode(10007) + RESET + ' ' + errors[i]);
+      }
+      console.log();
+      console.log('  ' + DIM + 'Run --list to see available packs' + RESET);
+      console.log();
+      process.exit(1);
+    }
+    
+    // Display created
+    if (totalCreated.length > 0) {
+      console.log(GREEN + (dryRun ? 'Would install:' : 'Installed:') + RESET);
+      for (var i = 0; i < totalCreated.length; i++) {
+        console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' ' + totalCreated[i].file + ' ' + DIM + '(' + totalCreated[i].pack + ')' + RESET);
+      }
+      console.log();
+    }
+    
+    // Display skipped
+    if (totalSkipped.length > 0) {
+      console.log(YELLOW + 'Skipped (already exist):' + RESET);
+      for (var i = 0; i < totalSkipped.length; i++) {
+        console.log('  ' + YELLOW + String.fromCharCode(9888) + RESET + ' ' + totalSkipped[i].file + ' ' + DIM + '(' + totalSkipped[i].pack + ')' + RESET);
+      }
+      console.log();
+      if (!force) {
+        console.log('  ' + DIM + 'Use --force to overwrite existing files' + RESET);
+        console.log();
+      }
+    }
+    
+    // Summary
+    if (totalCreated.length > 0 || totalSkipped.length > 0) {
+      var packCount = packNamesToInstall.filter(function(p) { return getPack(p); }).length;
+      var summary = 'Installed ' + totalCreated.length + ' rule' + (totalCreated.length === 1 ? '' : 's') + 
+                    ' from ' + packCount + ' pack' + (packCount === 1 ? '' : 's');
+      if (dryRun) {
+        summary = 'Would install ' + totalCreated.length + ' rule' + (totalCreated.length === 1 ? '' : 's');
+      }
+      console.log(CYAN + BOLD + summary + RESET);
+      console.log();
+      
+      if (!dryRun && totalCreated.length > 0) {
+        console.log(DIM + 'Next:' + RESET + ' npx cursor-doctor lint' + DIM + ' to verify rules' + RESET);
+        console.log();
+      }
     }
     
     process.exit(0);
