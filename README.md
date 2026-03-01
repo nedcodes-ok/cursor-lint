@@ -27,13 +27,32 @@ Search **"Cursor Doctor"** in the extensions panel, or install from:
 
 Health grade in your status bar. Inline diagnostics on save. Same engine, zero config.
 
+## MCP Server
+
+Use cursor-doctor as an MCP tool in your AI coding assistant:
+
+Add to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "cursor-doctor": {
+      "command": "npx",
+      "args": ["-y", "cursor-doctor-mcp"]
+    }
+  }
+}
+```
+
+This exposes `lint_rules`, `lint_file`, `doctor`, and `fix_rules` as tools your AI assistant can call.
+
 ## What It Checks
 
 | Check | What it does |
 |-------|-------------|
 | **Rules exist** | Verifies you have `.cursor/rules/*.mdc` files |
 | **Legacy files** | Flags `.cursorrules` that should be migrated to `.mdc` |
-| **Lint** | 60+ checks: broken YAML, missing frontmatter, vague rules, conflicts, prompt engineering anti-patterns |
+| **Lint** | 100+ checks: broken YAML, missing frontmatter, vague rules, conflicts, prompt engineering anti-patterns |
 | **Token budget** | Estimates how many tokens your rules consume per request |
 | **Coverage** | Detects project file types with no matching rules |
 | **Skills** | Checks for agent skill definitions |
@@ -118,9 +137,20 @@ cursor-doctor activate <key>
 
 **Get a Pro key:** [nedcodes.gumroad.com/l/cursor-doctor-pro](https://nedcodes.gumroad.com/l/cursor-doctor-pro)
 
+## Auto-fix
+
+Automatically fix common issues:
+
+```bash
+npx cursor-doctor fix          # Fix issues
+npx cursor-doctor fix --dry-run # Preview fixes
+```
+
+Fixes 19 issue types: boolean strings, glob syntax, whitespace, frontmatter cleanup, and more.
+
 ## Built to Last
 
-- **80+ automated tests** covering every feature, edge case, and regression
+- **165 automated tests** covering every feature, edge case, and regression
 - **Security hardened** with input sanitization, path traversal guards, and SSRF protection
 - **Cross-platform** with full Windows CRLF support, tested on macOS/Linux/Windows
 - **Zero dependencies** means no supply chain risk, fast installs, runs anywhere Node runs
