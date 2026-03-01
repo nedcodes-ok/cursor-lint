@@ -1356,6 +1356,11 @@ async function main() {
     for (var i = 0; i < results.deduped.length; i++) {
       console.log('  ' + YELLOW + '!' + RESET + ' ' + results.deduped[i].fileA + ' + ' + results.deduped[i].fileB + ': ' + results.deduped[i].overlapPct + '% overlap (manual review)');
     }
+    if (!dryRun && totalActions > 0) {
+      console.log();
+      console.log('  ' + DIM + 'cursor-doctor helped? Star us on GitHub:' + RESET);
+      console.log('  ' + CYAN + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+    }
     console.log();
     await exitClean(0);
   }
