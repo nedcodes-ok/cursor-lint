@@ -21,6 +21,34 @@ const { getPackNames, getPack, getAllPacks } = require('./registry');
 
 const VERSION = require('../package.json').version;
 
+// Non-blocking update check — fires early, awaited before exit
+var _updateCheck = (function() {
+  if (process.env.CURSOR_DOCTOR_NO_UPDATE_CHECK) return Promise.resolve(null);
+  try {
+    var https = require('https');
+    return new Promise(function(resolve) {
+      var timer = setTimeout(function() { resolve(null); }, 3000);
+      var req = https.get('https://registry.npmjs.org/cursor-doctor/latest', { timeout: 2500 }, function(res) {
+        var data = '';
+        res.on('data', function(chunk) { data += chunk; });
+        res.on('end', function() {
+          clearTimeout(timer);
+          try {
+            var latest = JSON.parse(data).version;
+            if (latest && latest !== VERSION) {
+              resolve(latest);
+            } else {
+              resolve(null);
+            }
+          } catch (e) { resolve(null); }
+        });
+      });
+      req.on('error', function() { clearTimeout(timer); resolve(null); });
+      req.on('timeout', function() { req.destroy(); });
+    });
+  } catch (e) { return Promise.resolve(null); }
+})();
+
 var useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const RED = useColor ? '\x1b[31m' : '';
 const YELLOW = useColor ? '\x1b[33m' : '';
@@ -87,6 +115,8 @@ function requirePro(dir) {
   console.log('  ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=paywall' + RESET);
   console.log('  Then: ' + DIM + 'cursor-doctor activate <your-key>' + RESET);
   console.log();
+  console.log('  ' + DIM + 'Full refund if it doesn\'t find real issues. No questions asked.' + RESET);
+  console.log();
   return false;
 }
 
@@ -144,7 +174,7 @@ async function main() {
       console.log(RED + 'Activation failed: ' + RESET + result.error);
       process.exit(1);
     }
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- scan (free, default) ---
@@ -212,7 +242,7 @@ async function main() {
 
     if (issues.length === 0) {
       console.log(GREEN + String.fromCharCode(10003) + RESET + ' Cursor setup healthy (' + report.grade + ', ' + report.percentage + '%)');
-      process.exit(0);
+      await exitClean(0);
     }
 
     for (var i = 0; i < issues.length; i++) {
@@ -303,7 +333,7 @@ async function main() {
     if (result.created.length === 0 && result.skipped.length === 0) {
       console.log(YELLOW + 'No rules generated. Is this an empty project?' + RESET);
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
     
     if (result.created.length > 0) {
@@ -334,7 +364,7 @@ async function main() {
       console.log();
     }
     
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- install (free) ---
@@ -360,7 +390,7 @@ async function main() {
       console.log('  ' + DIM + 'Install: npx cursor-doctor install <pack-name>' + RESET);
       console.log('  ' + DIM + 'Example: npx cursor-doctor install react typescript' + RESET);
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
     
     // Get pack names from arguments
@@ -382,7 +412,7 @@ async function main() {
       console.log();
       console.log(DIM + 'Run with --list to see all available packs' + RESET);
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
     
     console.log();
@@ -476,7 +506,7 @@ async function main() {
       }
     }
     
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- migrate (free) ---
@@ -542,7 +572,7 @@ async function main() {
       console.log();
     }
     
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- stats (free) ---
@@ -551,7 +581,7 @@ async function main() {
 
     if (asJson) {
       console.log(JSON.stringify(stats, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -570,7 +600,7 @@ async function main() {
       }
     }
     console.log();
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- budget (free basic, pro detailed) ---
@@ -582,7 +612,7 @@ async function main() {
 
     if (asJson) {
       console.log(JSON.stringify(analysis, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -691,7 +721,7 @@ async function main() {
       console.log();
     }
 
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- perf (PRO) ---
@@ -718,7 +748,7 @@ async function main() {
 
     if (asJson) {
       console.log(JSON.stringify(analysis, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -783,7 +813,7 @@ async function main() {
       console.log();
     }
 
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- test (PRO) ---
@@ -837,7 +867,7 @@ async function main() {
 
       if (asJson) {
         console.log(JSON.stringify(results, null, 2));
-        process.exit(0);
+        await exitClean(0);
       }
 
       for (var i = 0; i < results.results.length; i++) {
@@ -907,7 +937,7 @@ async function main() {
 
       if (asJson) {
         console.log(JSON.stringify(result, null, 2));
-        process.exit(0);
+        await exitClean(0);
       }
 
       if (result.error) {
@@ -965,7 +995,7 @@ async function main() {
         console.log();
       }
     }
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- team (PRO) ---
@@ -990,7 +1020,7 @@ async function main() {
       console.log('  --name="Config Name"     Name the exported config');
       console.log('  --out=<file>             Output file for export (default: stdout)');
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
 
     // --- team export ---
@@ -1017,7 +1047,7 @@ async function main() {
       } else {
         process.stdout.write(jsonOutput + '\n');
       }
-      process.exit(0);
+      await exitClean(0);
     }
 
     // --- team import ---
@@ -1087,7 +1117,7 @@ async function main() {
         console.log('  ' + YELLOW + String.fromCharCode(9888) + RESET + ' Skipped: ' + result.skipped[i].file + ' (' + result.skipped[i].reason + ')');
       }
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
 
     // --- team baseline ---
@@ -1105,7 +1135,7 @@ async function main() {
       console.log('  ' + DIM + 'Saved to ' + result.path + RESET);
       console.log('  ' + DIM + 'Run "cursor-doctor team drift" to check for divergence.' + RESET);
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
 
     // --- team drift ---
@@ -1121,7 +1151,7 @@ async function main() {
 
       if (asJson) {
         console.log(JSON.stringify(result, null, 2));
-        process.exit(0);
+        await exitClean(0);
       }
 
       console.log();
@@ -1167,7 +1197,7 @@ async function main() {
 
     if (asJson) {
       console.log(JSON.stringify(results, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -1192,7 +1222,7 @@ async function main() {
 
     if (asJson) {
       console.log(JSON.stringify(report, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -1213,7 +1243,7 @@ async function main() {
 
     if (asJson) {
       console.log(JSON.stringify(report, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -1279,7 +1309,7 @@ async function main() {
         console.log();
       }
     }
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- fix (PRO) ---
@@ -1305,7 +1335,7 @@ async function main() {
     if (totalActions === 0) {
       console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' Nothing to fix. Setup looks clean.');
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
 
     for (var i = 0; i < results.fixed.length; i++) {
@@ -1327,13 +1357,32 @@ async function main() {
       console.log('  ' + YELLOW + '!' + RESET + ' ' + results.deduped[i].fileA + ' + ' + results.deduped[i].fileB + ': ' + results.deduped[i].overlapPct + '% overlap (manual review)');
     }
     console.log();
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- unknown ---
   console.log('Unknown command: ' + command);
   console.log('Run ' + DIM + 'cursor-doctor help' + RESET + ' for usage.');
   process.exit(1);
+}
+
+async function exitClean(code) {
+  if (code === 0) {
+    try {
+      var latest = await _updateCheck;
+      if (latest) {
+        console.log();
+        if (useColor) {
+          console.log('  ' + YELLOW + 'Update available: ' + RESET + VERSION + ' \u2192 ' + GREEN + latest + RESET);
+          console.log('  Run: ' + CYAN + 'npx cursor-doctor@latest' + RESET);
+        } else {
+          console.log('  Update available: ' + VERSION + ' \u2192 ' + latest);
+          console.log('  Run: npx cursor-doctor@latest');
+        }
+      }
+    } catch (e) {}
+  }
+  process.exit(code);
 }
 
 main().catch(function(err) {

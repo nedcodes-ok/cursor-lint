@@ -139,6 +139,8 @@ cursor-doctor activate <key>
 
 **Get a Pro key:** [nedcodes.gumroad.com/l/cursor-doctor-pro](https://nedcodes.gumroad.com/l/cursor-doctor-pro)
 
+**Guarantee:** If cursor-doctor Pro doesn't find real, fixable issues in your Cursor setup, email hello@nedcodes.dev for a full refund. No questions asked.
+
 ## Auto-fix
 
 Automatically fix common issues:
