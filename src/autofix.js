@@ -22,10 +22,12 @@ function fixBooleanStrings(content) {
   let yaml = match[1];
   let modified = false;
   
-  // Fix alwaysApply: "true" or "false"
+  // Fix alwaysApply: "true" or "false" (case-insensitive)
   if (fm.data.alwaysApply && typeof fm.data.alwaysApply === 'string') {
-    if (fm.data.alwaysApply === 'true' || fm.data.alwaysApply === 'false') {
-      yaml = yaml.replace(/^alwaysApply:\s*["']?(true|false)["']?$/m, 'alwaysApply: $1');
+    const lowerValue = fm.data.alwaysApply.toLowerCase();
+    if (lowerValue === 'true' || lowerValue === 'false') {
+      const properValue = lowerValue === 'true' ? 'true' : 'false';
+      yaml = yaml.replace(/^alwaysApply:\s*["']?(true|false|True|TRUE|False|FALSE)["']?$/im, `alwaysApply: ${properValue}`);
       changes.push('Fixed boolean string in alwaysApply');
       modified = true;
     }
@@ -441,11 +443,15 @@ function fixGlobBackslashes(content) {
   
   let yaml = match[1];
   
-  // Replace all backslashes in glob patterns with forward slashes
+  // Replace backslashes in glob patterns with forward slashes
   const lines = yaml.split('\n');
   const fixedLines = lines.map(line => {
     if (line.trim().startsWith('-') && line.includes('\\')) {
-      return line.replace(/\\/g, '/');
+      // Replace all backslashes with forward slashes
+      let fixed = line.replace(/\\/g, '/');
+      // Clean up any double slashes that might result (but preserve :// for URLs)
+      fixed = fixed.replace(/([^:])\/{2,}/g, '$1/');
+      return fixed;
     }
     return line;
   });
@@ -655,7 +661,7 @@ async function autoFix(dir, options = {}) {
     return results;
   }
   
-  // All fixers in order
+  // All fixers in order (simple fixers that don't need filename)
   const fixers = [
     fixBooleanStrings,
     fixFrontmatterTabs,
@@ -664,6 +670,7 @@ async function autoFix(dir, options = {}) {
     fixDescriptionMarkdown,
     fixUnknownFrontmatterKeys,
     fixDescriptionRule,
+    fixDescriptionSentence,
     fixExcessiveBlankLines,
     fixTrailingWhitespace,
     fixPleaseThankYou,
@@ -675,6 +682,24 @@ async function autoFix(dir, options = {}) {
     fixGlobBackslashes,
     fixGlobTrailingSlash,
     fixGlobDotSlash,
+    fixOldCursorrules,
+    fixTodoComments,
+    fixNumberedLists,
+    fixInconsistentHeadings,
+    fixDeeplyNestedHeadings,
+    fixMissingAlwaysApply,
+    fixAlwaysApplyWithSpecificGlobs,
+    fixWillNeverLoad,
+    fixBodyStartsWithDescription,
+    fixRepeatedInstruction,
+    fixBrokenMarkdownLinks,
+  ];
+  
+  // Fixers that need filename
+  const filenameFixers = [
+    fixMissingFrontmatter,
+    fixMissingDescription,
+    fixDescriptionIdenticalToFilename,
   ];
   
   // 1. Apply all fixers to each .mdc file
@@ -688,9 +713,16 @@ async function autoFix(dir, options = {}) {
     const original = content;
     const allChanges = [];
     
-    // Apply each fixer in sequence
+    // Apply each simple fixer in sequence
     for (const fixer of fixers) {
       const result = fixer(content);
+      content = result.content;
+      allChanges.push(...result.changes);
+    }
+    
+    // Apply filename-aware fixers
+    for (const fixer of filenameFixers) {
+      const result = fixer(content, entry);
       content = result.content;
       allChanges.push(...result.changes);
     }
@@ -956,6 +988,493 @@ function addConflictAnnotation(content, conflictFile, reason) {
   return annotation + content;
 }
 
+// Helper: kebab-case to Title Case
+function kebabToTitleCase(str) {
+  return str.split('-').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
+}
+
+// Helper: get filename without extension
+function getFilenameFromContent(content, filename) {
+  if (filename) {
+    return filename.replace(/\.mdc$/, '');
+  }
+  return 'rule';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW FIXERS (v1.10.0+)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 19. Fix missing frontmatter: add default frontmatter if none exists
+function fixMissingFrontmatter(content, filename) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (fm.found) return { content, changes };
+  
+  // No frontmatter - add default
+  const basename = filename ? filename.replace(/\.mdc$/, '') : 'rule';
+  const description = kebabToTitleCase(basename);
+  
+  content = `---\ndescription: ${description}\nalwaysApply: true\n---\n${content}`;
+  changes.push('Added missing frontmatter with default values');
+  
+  return { content, changes };
+}
+
+// 20. Fix missing description: add description based on filename
+function fixMissingDescription(content, filename) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data) return { content, changes };
+  if (fm.data.description && fm.data.description.trim().length > 0) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  const basename = filename ? filename.replace(/\.mdc$/, '') : 'rule';
+  const description = kebabToTitleCase(basename);
+  
+  // Add or replace description
+  if (/^description:/m.test(yaml)) {
+    yaml = yaml.replace(/^description:.*$/m, `description: ${description}`);
+  } else {
+    // Add description as first line
+    yaml = `description: ${description}\n${yaml}`;
+  }
+  
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  changes.push('Added missing description from filename');
+  
+  return { content, changes };
+}
+
+// 21. Fix missing alwaysApply: add alwaysApply: true if no globs
+function fixMissingAlwaysApply(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data) return { content, changes };
+  if (fm.data.alwaysApply !== undefined) return { content, changes };
+  
+  // Check if globs exist
+  const hasGlobs = fm.data.globs && (
+    Array.isArray(fm.data.globs) ? fm.data.globs.length > 0 : fm.data.globs.trim().length > 0
+  );
+  
+  if (hasGlobs) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  yaml = yaml + '\nalwaysApply: true';
+  
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  changes.push('Added alwaysApply: true (no globs specified)');
+  
+  return { content, changes };
+}
+
+// 22. Fix description sentence: remove trailing period
+function fixDescriptionSentence(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.description) return { content, changes };
+  
+  const desc = fm.data.description;
+  if (typeof desc !== 'string' || !desc.endsWith('.')) return { content, changes };
+  
+  // Don't remove period if it's part of an ellipsis
+  if (desc.endsWith('...')) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  const cleanDesc = desc.slice(0, -1);
+  
+  yaml = yaml.replace(/^description:.*$/m, `description: ${cleanDesc}`);
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  changes.push('Removed trailing period from description');
+  
+  return { content, changes };
+}
+
+// 23. Fix old .cursorrules reference: replace with .cursor/rules/
+function fixOldCursorrules(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  if (!/\.cursorrules\b/.test(body)) return { content, changes };
+  
+  // Track whether we're inside a code block
+  const lines = body.split('\n');
+  let inCodeBlock = false;
+  let modified = false;
+  
+  const fixedLines = lines.map(line => {
+    // Check for code block delimiters
+    if (line.trim().startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      return line;
+    }
+    
+    // Skip replacement inside code blocks
+    if (inCodeBlock) {
+      return line;
+    }
+    
+    // Replace outside code blocks
+    if (/\.cursorrules\b/.test(line)) {
+      modified = true;
+      return line.replace(/\.cursorrules\b/g, '.cursor/rules/');
+    }
+    
+    return line;
+  });
+  
+  if (modified) {
+    body = fixedLines.join('\n');
+    content = frontmatter + body;
+    changes.push('Replaced .cursorrules with .cursor/rules/');
+  }
+  
+  return { content, changes };
+}
+
+// 24. Fix TODO comments: remove lines with TODO/FIXME/HACK
+function fixTodoComments(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  const lines = body.split('\n');
+  const filteredLines = lines.filter(line => {
+    const trimmed = line.trim();
+    // Match comment-style TODOs or bare TODO: lines
+    // But NOT list items (-, *, or numbered lists)
+    if (/^[-*]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
+      // This is a list item, keep it even if it contains TODO
+      return true;
+    }
+    // Remove comment-style TODOs and bare TODO: lines
+    return !(
+      /^\/\/\s*(TODO|FIXME|HACK)/i.test(trimmed) ||
+      /^#\s*(TODO|FIXME|HACK)/i.test(trimmed) ||
+      /^<!--\s*(TODO|FIXME|HACK)/i.test(trimmed) ||
+      /^(TODO|FIXME|HACK):/i.test(trimmed)
+    );
+  });
+  
+  if (filteredLines.length !== lines.length) {
+    body = filteredLines.join('\n');
+    content = frontmatter + body;
+    changes.push('Removed TODO/FIXME/HACK comments');
+  }
+  
+  return { content, changes };
+}
+
+// 25. Fix numbered lists: convert 1. 2. 3. to - - -
+function fixNumberedLists(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  if (/^\s*\d+\.\s+/m.test(body)) {
+    body = body.replace(/^(\s*)\d+\.\s+/gm, '$1- ');
+    content = frontmatter + body;
+    changes.push('Converted numbered lists to unordered lists');
+  }
+  
+  return { content, changes };
+}
+
+// 26. Fix inconsistent headings: normalize heading levels
+function fixInconsistentHeadings(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  const headings = body.match(/^#{1,6}\s+.+$/gm);
+  if (!headings || headings.length < 2) return { content, changes };
+  
+  const levels = headings.map(h => h.match(/^#+/)[0].length);
+  let hasSkip = false;
+  for (let i = 1; i < levels.length; i++) {
+    if (levels[i] > levels[i - 1] + 1) {
+      hasSkip = true;
+      break;
+    }
+  }
+  
+  if (!hasSkip) return { content, changes };
+  
+  // Normalize: ensure no skips (# followed by ### becomes # followed by ##)
+  let currentLevel = 1;
+  const levelMap = new Map();
+  
+  for (let i = 0; i < levels.length; i++) {
+    const actualLevel = levels[i];
+    if (i === 0) {
+      levelMap.set(i, actualLevel);
+      currentLevel = actualLevel;
+    } else {
+      const prevLevel = levelMap.get(i - 1);
+      if (actualLevel > prevLevel + 1) {
+        levelMap.set(i, prevLevel + 1);
+      } else {
+        levelMap.set(i, actualLevel);
+      }
+    }
+  }
+  
+  // Replace headings with normalized levels
+  let headingIndex = 0;
+  body = body.replace(/^#{1,6}\s+(.+)$/gm, (match, text) => {
+    const newLevel = levelMap.get(headingIndex);
+    headingIndex++;
+    return '#'.repeat(newLevel) + ' ' + text;
+  });
+  
+  content = frontmatter + body;
+  changes.push('Normalized inconsistent heading levels');
+  
+  return { content, changes };
+}
+
+// 27. Fix deeply nested headings: flatten headings deeper than ###
+function fixDeeplyNestedHeadings(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  if (/^#{4,}\s+/m.test(body)) {
+    body = body.replace(/^#{4,}\s+(.+)$/gm, '### $1');
+    content = frontmatter + body;
+    changes.push('Flattened deeply nested headings to ###');
+  }
+  
+  return { content, changes };
+}
+
+// 28. Fix description identical to filename: make it more descriptive
+function fixDescriptionIdenticalToFilename(content, filename) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.description || !filename) return { content, changes };
+  
+  const basename = filename.replace(/\.mdc$/, '');
+  const descNorm = fm.data.description.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const filenameNorm = basename.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  if (descNorm !== filenameNorm) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  const newDescription = kebabToTitleCase(basename);
+  
+  // Check if the new description would be identical to current (for idempotency)
+  if (newDescription === fm.data.description) return { content, changes };
+  
+  yaml = yaml.replace(/^description:.*$/m, `description: ${newDescription}`);
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  changes.push('Improved description (was identical to filename)');
+  
+  return { content, changes };
+}
+
+// 29. Fix alwaysApply true with specific globs: remove alwaysApply
+function fixAlwaysApplyWithSpecificGlobs(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data) return { content, changes };
+  if (fm.data.alwaysApply !== true || !fm.data.globs) return { content, changes };
+  
+  const globs = Array.isArray(fm.data.globs) ? fm.data.globs : [fm.data.globs];
+  const verySpecific = globs.filter(g => 
+    typeof g === 'string' && (
+      !g.includes('*') || 
+      g.split('/').length > 3 ||
+      /\w+\.\w+/.test(g.replace(/\*/g, ''))
+    )
+  );
+  
+  if (verySpecific.length === 0) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  yaml = yaml.replace(/^alwaysApply:.*$\n?/m, '');
+  
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  changes.push('Removed alwaysApply (contradicts specific globs)');
+  
+  return { content, changes };
+}
+
+// 30. Fix will-never-load: set alwaysApply to true if false with no globs
+function fixWillNeverLoad(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data) return { content, changes };
+  if (fm.data.alwaysApply !== false) return { content, changes };
+  
+  const hasGlobs = fm.data.globs && (
+    Array.isArray(fm.data.globs) ? fm.data.globs.length > 0 : fm.data.globs.trim().length > 0
+  );
+  
+  if (hasGlobs) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  let yaml = match[1];
+  yaml = yaml.replace(/^alwaysApply:\s*false\s*$/m, 'alwaysApply: true');
+  
+  content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+  changes.push('Changed alwaysApply to true (was false with no globs)');
+  
+  return { content, changes };
+}
+
+// 31. Fix body starts with description: remove duplicate first line
+function fixBodyStartsWithDescription(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.description) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  const firstLine = body.trim().split('\n')[0];
+  if (firstLine.trim() === fm.data.description.trim()) {
+    const lines = body.split('\n');
+    lines.shift(); // Remove first line
+    body = lines.join('\n');
+    // Also trim leading blank lines for idempotency
+    body = body.replace(/^\n+/, '');
+    content = frontmatter + body;
+    changes.push('Removed duplicate description from body');
+  }
+  
+  return { content, changes };
+}
+
+// 32. Fix repeated instruction: remove duplicate lines
+function fixRepeatedInstruction(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  const lines = body.split('\n');
+  const seen = new Set();
+  const uniqueLines = [];
+  let hasDuplicates = false;
+  
+  for (const line of lines) {
+    const normalized = line.trim().toLowerCase();
+    if (normalized.length > 15 && seen.has(normalized)) {
+      hasDuplicates = true;
+      continue; // Skip duplicate
+    }
+    uniqueLines.push(line);
+    if (normalized.length > 0) {
+      seen.add(normalized);
+    }
+  }
+  
+  if (hasDuplicates) {
+    body = uniqueLines.join('\n');
+    content = frontmatter + body;
+    changes.push('Removed repeated instructions');
+  }
+  
+  return { content, changes };
+}
+
+// 33. Fix broken markdown links: remove broken [text]() links
+function fixBrokenMarkdownLinks(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  // Match [text]() with empty href
+  if (/\[[^\]]+\]\(\s*\)/.test(body)) {
+    body = body.replace(/\[([^\]]+)\]\(\s*\)/g, '$1');
+    content = frontmatter + body;
+    changes.push('Removed broken markdown links (kept text)');
+  }
+  
+  return { content, changes };
+}
+
 module.exports = {
   autoFix,
   fixFrontmatter,
@@ -979,4 +1498,20 @@ module.exports = {
   fixGlobTrailingSlash,
   fixGlobDotSlash,
   fixGlobRegexSyntax,
+  // New fixers (v1.10.0+)
+  fixMissingFrontmatter,
+  fixMissingDescription,
+  fixMissingAlwaysApply,
+  fixDescriptionSentence,
+  fixOldCursorrules,
+  fixTodoComments,
+  fixNumberedLists,
+  fixInconsistentHeadings,
+  fixDeeplyNestedHeadings,
+  fixDescriptionIdenticalToFilename,
+  fixAlwaysApplyWithSpecificGlobs,
+  fixWillNeverLoad,
+  fixBodyStartsWithDescription,
+  fixRepeatedInstruction,
+  fixBrokenMarkdownLinks,
 };
