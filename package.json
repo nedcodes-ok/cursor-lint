@@ -1,7 +1,7 @@
 {
   "name": "cursor-doctor",
   "version": "1.10.6",
-  "description": "Fix your Cursor AI setup in seconds. 100+ lint rules, 34 auto-fixers, MCP server, smart init, semantic conflict detection. 242 tests. Zero dependencies.",
+  "description": "Find out why Cursor ignores your rules. Lint, diagnose, and auto-fix your .cursor/ setup. 100+ checks, zero dependencies.",
   "main": "src/index.js",
   "bin": {
     "cursor-doctor": "src/cli.js",
