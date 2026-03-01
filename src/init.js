@@ -493,9 +493,9 @@ description: General coding conventions
 alwaysApply: true
 ---
 - Write clear, self-documenting code
-- Keep functions focused — one responsibility per function
+- Keep functions focused. One responsibility per function
 - Add comments only for "why", not "what"
-- Handle errors explicitly — no silent catches
+- Handle errors explicitly. No silent catches
 - Write tests for new features and bug fixes
 `;
 }
@@ -508,7 +508,7 @@ globs: ["**/*.ts", "**/*.tsx"]
 - Use TypeScript strict mode patterns
 - Prefer \`interface\` over \`type\` for object shapes
 - Use explicit return types on exported functions
-- Avoid \`any\` — use \`unknown\` if type is truly unknown
+- Avoid \`any\`. Use \`unknown\` if type is truly unknown
 - Leverage type inference where appropriate
 - Use discriminated unions for complex state
 `;
@@ -533,26 +533,26 @@ description: React component patterns
 globs: ["**/*.tsx", "**/*.jsx"]
 ---
 - Use functional components with hooks
-- Keep components under 200 lines — extract sub-components
+- Keep components under 200 lines. Extract sub-components
 - Use named exports for components
 - Colocate styles, tests, and types with components
 - Before writing a useEffect, ask: can this be computed during render?
 - Use proper key props in lists (never use array index for dynamic data)
-- Avoid prop drilling — use context or state management for deep trees
+- Avoid prop drilling. Use context or state management for deep trees
 `;
 }
 
 function generateNextJs() {
   return `---
 description: Next.js App Router patterns
-globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: true
 ---
 - Use App Router (app directory) over Pages Router
-- Default to Server Components — mark 'use client' only when needed
+- Default to Server Components. Mark 'use client' only when needed
 - Use Server Actions for mutations instead of API routes
 - Leverage Next.js caching strategies (revalidate, cache)
 - Use the @/ path alias for imports
-- Keep client components minimal — extract interactive pieces only
+- Keep client components minimal. Extract interactive pieces only
 `;
 }
 
@@ -606,7 +606,7 @@ globs: ["**/*.py"]
 - Use type hints on all function signatures
 - Use pathlib over os.path for file operations
 - Prefer f-strings over .format() or % formatting
-- Avoid bare except — catch specific exceptions
+- Avoid bare except. Catch specific exceptions
 - Use dataclasses or Pydantic models for structured data
 - Use logging module, not print statements
 `;
@@ -618,7 +618,7 @@ description: Go conventions
 globs: ["**/*.go"]
 ---
 - Follow Go conventions: gofmt, golint
-- Handle errors explicitly — never ignore error returns
+- Handle errors explicitly. Never ignore error returns
 - Use defer for cleanup operations
 - Keep functions small and focused
 - Use interfaces for abstraction
@@ -633,8 +633,8 @@ description: Rust best practices
 globs: ["**/*.rs"]
 ---
 - Run cargo clippy before committing
-- Use Result and Option explicitly — avoid unwrap() in production
-- Leverage the type system — make invalid states unrepresentable
+- Use Result and Option explicitly. Avoid unwrap() in production
+- Leverage the type system. Make invalid states unrepresentable
 - Use #[derive] for common traits
 - Prefer iterators over manual loops
 - Use cargo fmt for consistent formatting
@@ -742,7 +742,6 @@ globs: ["**/*.js", "**/*.ts"]
 - Use middleware for cross-cutting concerns (auth, logging, etc.)
 - Add rate limiting for public endpoints
 - Use environment variables for config (dotenv)
-- Avoid callback hell — use promises or async/await
 - Return consistent JSON error responses
 `;
 }
@@ -767,7 +766,7 @@ description: Django conventions
 globs: ["**/*.py"]
 ---
 - Follow Django's "fat models, thin views" principle
-- Use Django ORM efficiently — avoid N+1 queries
+- Use Django ORM efficiently. Avoid N+1 queries
 - Use class-based views for complex logic
 - Validate input with Django forms or serializers
 - Use migrations for all database changes
@@ -779,7 +778,7 @@ globs: ["**/*.py"]
 function generateFlask() {
   return `---
 description: Flask best practices
-globs: ["**/*.py"]
+alwaysApply: true
 ---
 - Use application factory pattern for app creation
 - Organize code with blueprints for modularity
@@ -796,11 +795,11 @@ function generateRails() {
 description: Ruby on Rails conventions
 globs: ["**/*.rb"]
 ---
-- Follow Rails conventions — "convention over configuration"
+- Follow Rails conventions: "convention over configuration"
 - Use Rails migrations for database changes
-- Keep controllers thin — move logic to models or services
+- Keep controllers thin. Move logic to models or services
 - Use strong parameters for mass assignment protection
-- Leverage ActiveRecord efficiently — avoid N+1 queries
+- Leverage ActiveRecord efficiently. Avoid N+1 queries
 - Use concerns for shared model/controller behavior
 - Write tests with RSpec or Minitest
 `;
@@ -823,26 +822,68 @@ globs: ["**/*.java"]
 
 function generateTesting(testingConfig) {
   let testingTools = [];
+  let globs = [];
+  let languageSpecific = [];
+  
   if (testingConfig.jest) testingTools.push('Jest');
   if (testingConfig.vitest) testingTools.push('Vitest');
   if (testingConfig.pytest) testingTools.push('Pytest');
   if (testingConfig.gotest) testingTools.push('Go test');
   if (testingConfig.cargotest) testingTools.push('Cargo test');
   
+  // BUG 5: Go should use **/*_test.go
+  if (testingConfig.gotest) {
+    globs.push('"**/*_test.go"');
+    languageSpecific.push('- Use table-driven tests with subtests via t.Run()');
+    languageSpecific.push('- Leverage testify/assert for readable assertions');
+    languageSpecific.push('- Keep test functions focused with clear names (TestFunctionName_Scenario)');
+  }
+  
+  // BUG 6: Rust should use tests/**/*.rs and **/*.rs (or alwaysApply)
+  if (testingConfig.cargotest) {
+    globs.push('"tests/**/*.rs"', '"**/*.rs"');
+    languageSpecific.push('- Use #[cfg(test)] modules for inline tests');
+    languageSpecific.push('- Use #[test] attribute and assert_eq!, assert! macros');
+    languageSpecific.push('- Organize integration tests in tests/ directory');
+  }
+  
+  // Python pytest
+  if (testingConfig.pytest) {
+    globs.push('"**/test_*.py"', '"**/*_test.py"', '"**/conftest.py"');
+    languageSpecific.push('- Use pytest fixtures for shared setup and teardown');
+    languageSpecific.push('- Leverage parametrize for data-driven tests');
+    languageSpecific.push('- Use conftest.py for shared fixtures and configuration');
+  }
+  
+  // JS/TS Jest/Vitest
+  if (testingConfig.jest || testingConfig.vitest) {
+    globs.push('"**/*.test.*"', '"**/*.spec.*"');
+    languageSpecific.push('- Use describe/it blocks for clear test organization');
+    languageSpecific.push('- Mock external dependencies with jest.mock() or vi.mock()');
+    languageSpecific.push('- Use beforeEach/afterEach for test isolation');
+  }
+  
+  // Default globs if none specified
+  if (globs.length === 0) {
+    globs.push('"**/*.test.*"', '"**/*.spec.*"', '"**/*_test.*"');
+  }
+  
   const toolsText = testingTools.length > 0 ? ' (using ' + testingTools.join(', ') + ')' : '';
+  const globsText = 'globs: [' + globs.join(', ') + ']';
+  const languageSpecificText = languageSpecific.length > 0 ? '\n' + languageSpecific.join('\n') : '';
 
   return `---
 description: Testing conventions${toolsText}
-globs: ["**/*.test.*", "**/*.spec.*", "**/*_test.*"]
+${globsText}
 ---
 - Write tests for all new features and bug fixes
 - Follow AAA pattern: Arrange, Act, Assert
-- Keep tests isolated — no shared state between tests
+- Keep tests isolated. No shared state between tests
 - Use descriptive test names that explain the scenario
 - Test edge cases and error conditions
 - Aim for high coverage on critical paths, not 100% everywhere
 - Mock external dependencies (APIs, databases)
-- Keep tests fast — unit tests should run in milliseconds
+- Keep tests fast. Unit tests should run in milliseconds${languageSpecificText}
 `;
 }
 
@@ -854,7 +895,7 @@ alwaysApply: true
 - Write clear, descriptive commit messages
 - Use conventional commits format: type(scope): description
 - Common types: feat, fix, docs, style, refactor, test, chore
-- Keep commits focused — one logical change per commit
+- Keep commits focused. One logical change per commit
 - Don't commit sensitive data (API keys, passwords, etc.)
 - Use .gitignore for generated files and dependencies
 - Review your diff before committing
