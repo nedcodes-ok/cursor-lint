@@ -195,7 +195,7 @@ async function lintMdcFile(filePath) {
     }
 
     // NEW: Description contains markdown formatting
-    if (fm.data.description && /[*_`#\[\]]/.test(fm.data.description)) {
+    if (fm.data.description && typeof fm.data.description === 'string' && /[*_`#\[\]]/.test(fm.data.description)) {
       issues.push({
         severity: 'warning',
         message: 'Description contains markdown formatting',
@@ -652,7 +652,7 @@ async function lintMdcFile(filePath) {
   }
 
   // 5. Description is identical to filename
-  if (fm.data && fm.data.description && filePath) {
+  if (fm.data && fm.data.description && typeof fm.data.description === 'string' && filePath) {
     const filename = path.basename(filePath, '.mdc');
     const descNorm = fm.data.description.toLowerCase().replace(/[^a-z0-9]/g, '');
     const filenameNorm = filename.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -832,7 +832,7 @@ async function lintMdcFile(filePath) {
   }
 
   // 16. Description contains the word 'rule'
-  if (fm.data && fm.data.description && /\brule\b/i.test(fm.data.description)) {
+  if (fm.data && fm.data.description && typeof fm.data.description === 'string' && /\brule\b/i.test(fm.data.description)) {
     issues.push({
       severity: 'info',
       message: 'Description contains the word "rule"',
@@ -959,7 +959,7 @@ async function lintMdcFile(filePath) {
   }
 
   // 26. alwaysApply: true on file-specific rule
-  if (fm.data && fm.data.alwaysApply === true && fm.data.description) {
+  if (fm.data && fm.data.alwaysApply === true && fm.data.description && typeof fm.data.description === 'string') {
     const fileSpecificKeywords = [
       /\bfor (React|Vue|Angular|TypeScript|JavaScript|Python|Go) (components?|files?)\b/i,
       /\bin \.tsx?\b files/i,
@@ -1049,7 +1049,7 @@ async function lintMdcFile(filePath) {
   }
 
   // 33. Rule body language mismatch (basic check)
-  if (body.length > 50 && fm.data && fm.data.description) {
+  if (body.length > 50 && fm.data && fm.data.description && typeof fm.data.description === 'string') {
     // Simple heuristic: check for significant non-English content in body but English description
     const nonAsciiChars = body.match(/[^\x00-\x7F]/g);
     const hasNonEnglish = nonAsciiChars && nonAsciiChars.length >= 10;

@@ -17,9 +17,10 @@ const rl = readline.createInterface({
 });
 
 // Server metadata
+const pkg = require('../package.json');
 const SERVER_INFO = {
   name: 'cursor-doctor',
-  version: '1.8.0',
+  version: pkg.version,
 };
 
 // Available tools
@@ -87,18 +88,32 @@ const TOOLS = [
   },
 ];
 
+// Input validation
+function validatePath(args, paramName) {
+  const p = args && args[paramName || 'path'];
+  if (!p || typeof p !== 'string') {
+    throw new Error(`Missing required parameter: ${paramName || 'path'} (must be a string)`);
+  }
+  return p;
+}
+
 // Tool execution handlers
 async function executeTool(name, args) {
   try {
     switch (name) {
       case 'lint_rules':
-        return await lintProject(args.path);
+        return await lintProject(validatePath(args));
       
-      case 'lint_file':
-        return await lintMdcFile(args.path);
+      case 'lint_file': {
+        const filePath = validatePath(args);
+        if (!filePath.endsWith('.mdc')) {
+          throw new Error('lint_file only accepts .mdc files');
+        }
+        return await lintMdcFile(filePath);
+      }
       
       case 'doctor': {
-        const result = await doctor(args.path);
+        const result = await doctor(validatePath(args));
         return {
           grade: result.grade,
           score: result.score,
@@ -112,7 +127,7 @@ async function executeTool(name, args) {
         if (!isLicensed()) {
           throw new Error('Pro feature — activate with: npx cursor-doctor activate <key>. Get a key at https://nedcodes.gumroad.com/l/cursor-doctor-pro');
         }
-        const result = await autoFix(args.path, { dryRun: args.dryRun || false });
+        const result = await autoFix(validatePath(args), { dryRun: args.dryRun || false });
         return {
           fixed: result.fixed || [],
           errors: result.errors || [],
@@ -195,7 +210,7 @@ async function handleRequest(request) {
         sendError(id, -32601, `Method not found: ${method}`);
     }
   } catch (error) {
-    sendError(id, -32603, error.message, { stack: error.stack });
+    sendError(id, -32603, error.message);
   }
 }
 
