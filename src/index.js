@@ -311,8 +311,14 @@ async function lintMdcFile(filePath) {
   if (/<[^>]+>/.test(body) && !hasCodeBlocks) {
     const xmlTags = body.match(/<\w+[^>]*>/g);
     if (xmlTags && xmlTags.length > 0) {
-      // Filter out TypeScript generic syntax: <T>, <T extends X>, <K extends keyof T>, etc.
-      const realXmlTags = xmlTags.filter(tag => !/^<[A-Z]\w*(\s+extends\s|\s*[>=,})|$])/.test(tag) && !/^<[A-Z]>$/.test(tag));
+      // Filter out: TypeScript generics (<T>, <T extends X>), placeholder syntax (<method>, <filename>), JSX self-closing (<br/>)
+      const realXmlTags = xmlTags.filter(tag => {
+        // TypeScript generics: <T>, <K extends keyof T>, etc.
+        if (/^<[A-Z]\w*(\s+extends\s|\s*[>=,})|$])/.test(tag) || /^<[A-Z]>$/.test(tag)) return false;
+        // Placeholder/template syntax: <method>, <filename>, <your-key>, <optional>, etc. (all lowercase, single word with hyphens)
+        if (/^<[a-z][a-z0-9_-]*>$/i.test(tag)) return false;
+        return true;
+      });
       if (realXmlTags.length > 0) {
         issues.push({
           severity: 'warning',
@@ -1853,7 +1859,7 @@ const SEMANTIC_PAIRS = [
   
   // Style contradictions - quotes
   { a: /\bsingle\s+quotes?\b/i, b: /\bdouble\s+quotes?\b/i, topic: 'quote style' },
-  { a: /\buse\s+['`]\b/i, b: /\buse\s+["`]\b/i, topic: 'quote style' },
+  { a: /\buse\s+single\s+quotes?\b/i, b: /\buse\s+double\s+quotes?\b/i, topic: 'quote style' },
   
   // Style contradictions - naming conventions
   { a: /\buse\s+camelCase\b/i, b: /\buse\s+snake_case\b/i, topic: 'naming convention' },

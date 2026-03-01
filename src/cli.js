@@ -64,7 +64,7 @@ var PURCHASE_URL = 'https://nedcodes.gumroad.com/l/cursor-doctor-pro';
 function showHelp() {
   var lines = [
     '',
-    CYAN + BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- Fix your Cursor AI setup in seconds.',
+    CYAN + BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- Fix your Cursor rules in seconds.',
     '',
     '  ' + BOLD + 'npx cursor-doctor scan' + RESET + '             Find what\'s wrong ' + DIM + '(default)' + RESET,
     '  ' + BOLD + 'npx cursor-doctor fix' + RESET + '              Auto-fix everything ' + DIM + '(Pro)' + RESET,
@@ -290,7 +290,7 @@ async function main() {
     var verbose = args.includes('--verbose') || args.includes('-v');
     for (var i = 0; i < results.length; i++) {
       var result = results[i];
-      var relPath = path.relative(cwd, result.file) || result.file;
+      var relPath = path.relative(cwd, result.file) || '.';
       // Filter out verboseOnly issues unless --verbose
       var visibleIssues = verbose ? result.issues : result.issues.filter(function(iss) { return !iss.verboseOnly; });
       if (visibleIssues.length === 0) {

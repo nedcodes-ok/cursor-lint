@@ -81,14 +81,14 @@ async function doctor(dir) {
     report.score += 15;
     var tokenDetail = `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window)`;
     if (tokenAnalysis.conditionalTokens > 0) {
-      tokenDetail += `, ~${tokenAnalysis.conditionalTokens} conditional`;
+      tokenDetail += `, ~${tokenAnalysis.conditionalTokens} per-file`;
     }
     report.checks.push({ name: 'Token budget', status: 'pass', detail: tokenDetail });
   } else if (budgetPct < 10) {
     report.score += 10;
     var tokenDetail = `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window) — getting heavy`;
     if (tokenAnalysis.conditionalTokens > 0) {
-      tokenDetail += `, ~${tokenAnalysis.conditionalTokens} conditional`;
+      tokenDetail += `, ~${tokenAnalysis.conditionalTokens} per-file`;
     }
     report.checks.push({ name: 'Token budget', status: 'warn', detail: tokenDetail });
   } else {
