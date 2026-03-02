@@ -34,7 +34,7 @@ No install needed. Runs directly with npx.
 ```bash
 npx cursor-doctor scan             # Find what's wrong (default)
 npx cursor-doctor fix              # Auto-fix everything (Pro)
-npx cursor-doctor fix --dry-run    # Preview fixes first
+npx cursor-doctor fix --preview    # Preview fixes (free)
 npx cursor-doctor lint             # Detailed rule-by-rule output
 npx cursor-doctor check            # CI pass/fail (exit 0 or 1)
 npx cursor-doctor init             # Generate rules for your stack
@@ -52,7 +52,7 @@ Run `cursor-doctor help` for the full list.
 34 auto-fixers: frontmatter repair, glob syntax, boolean strings, whitespace, TODO removal, duplicate descriptions, heading normalization, and more.
 
 ```bash
-npx cursor-doctor fix --dry-run    # See what would change
+npx cursor-doctor fix --preview    # See what would change (free)
 npx cursor-doctor fix              # Apply all fixes
 ```
 
@@ -84,13 +84,18 @@ Use cursor-doctor as an MCP tool in your AI coding assistant. Add to `.cursor/mc
 
 ## CI / GitHub Action
 
+Add to any workflow to catch broken rules before merge:
+
 ```yaml
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: nedcodes-ok/cursor-doctor@v1
+- uses: nedcodes-ok/cursor-doctor@v1
+```
+
+Or with options:
+
+```yaml
+- uses: nedcodes-ok/cursor-doctor@v1
+  with:
+    command: lint  # 'check' (default, pass/fail) or 'lint' (detailed)
 ```
 
 ## LSP Server

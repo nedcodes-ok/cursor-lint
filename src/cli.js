@@ -237,6 +237,12 @@ async function main() {
       console.log();
     }
 
+    // Star ask — show on every scan (non-intrusive, one line)
+    if (!hasNoRules) {
+      console.log('  ' + DIM + 'Helpful? ' + String.fromCharCode(11088) + ' https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+      console.log();
+    }
+
     process.exit(report.grade === 'F' ? 1 : 0);
   }
 
