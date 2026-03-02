@@ -1,7 +1,7 @@
 {
   "name": "cursor-doctor",
-  "version": "1.10.2",
-  "description": "Fix your Cursor AI setup in seconds. Health checks, rule testing, performance tracking, and auto-repair for .cursor configs. 80+ tests. Zero dependencies.",
+  "version": "1.10.14",
+  "description": "Cursor rules linter and auto-fixer. Find out why Cursor ignores your rules. Lint, diagnose, and fix your .mdc files. Treat rules like code, not config. 100+ checks, zero dependencies.",
   "main": "src/index.js",
   "bin": {
     "cursor-doctor": "src/cli.js",
@@ -41,9 +41,6 @@
   "files": [
     "src/"
   ],
-  "devDependencies": {
-    "playwright": "^1.58.2"
-  },
   "bugs": {
     "url": "https://github.com/nedcodes-ok/cursor-doctor/issues"
   }

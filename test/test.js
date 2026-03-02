@@ -2108,13 +2108,12 @@ Body X`);
 description: Rule Y
 globs:
   - "*.ts"
-  - "*.js"
 ---
 Body Y`);
     
     const results = await lintProject(TEST_PROJECT);
     const issues = results.flatMap(r => r.issues);
-    assert(issues.some(i => i.message.includes('overlap')));
+    assert(issues.some(i => i.message.includes('share identical globs') || i.message.includes('overlap')));
   });
 
   // 27. Glob doesn't match any files
@@ -2129,7 +2128,7 @@ Body`);
     
     const results = await lintProject(TEST_PROJECT);
     const issues = results.flatMap(r => r.issues);
-    assert(issues.some(i => i.message.includes("doesn't match any files")));
+    assert(issues.some(i => i.message.includes("match") && i.message.includes("files")));
   });
 
   // 40. Excessive alwaysApply rules
@@ -3260,6 +3259,83 @@ Check [this link](https://example.com) too.`;
     assert.strictEqual(response.error.code, -32602);
   });
 
+  test('mcp-server: doctor returns percentage', () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/test.mdc', '---\ndescription: Test rule\nalwaysApply: true\n---\nSome content here');
+    const response = callMcpServer({
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: { name: 'doctor', arguments: { path: TEST_PROJECT } },
+    });
+    assert(!response.error, 'doctor should not error');
+    const data = JSON.parse(response.result.content[0].text);
+    assert(data.grade, 'should have grade');
+    assert(typeof data.percentage === 'number', 'should have percentage as number');
+    assert(data.percentage >= 0 && data.percentage <= 100, 'percentage should be 0-100');
+  });
+
+  test('mcp-server: lint_rules returns summary and relative paths', () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/test.mdc', '---\ndescription: Test rule\nalwaysApply: true\n---\nSome content here');
+    const response = callMcpServer({
+      jsonrpc: '2.0',
+      id: 6,
+      method: 'tools/call',
+      params: { name: 'lint_rules', arguments: { path: TEST_PROJECT } },
+    });
+    assert(!response.error, 'lint_rules should not error');
+    const data = JSON.parse(response.result.content[0].text);
+    assert(data.summary, 'should have summary string');
+    assert(Array.isArray(data.files), 'should have files array');
+    // Files should use relative paths (no leading /)
+    for (const f of data.files) {
+      assert(!f.file.startsWith('/'), 'file path should be relative: ' + f.file);
+    }
+  });
+
+  test('mcp-server: lint_rules filters out clean files', () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/clean.mdc', '---\ndescription: Clean rule with good description\nalwaysApply: true\n---\nWrite clear code and handle errors');
+    const response = callMcpServer({
+      jsonrpc: '2.0',
+      id: 7,
+      method: 'tools/call',
+      params: { name: 'lint_rules', arguments: { path: TEST_PROJECT } },
+    });
+    const data = JSON.parse(response.result.content[0].text);
+    // Clean files should not appear in files array
+    for (const f of data.files) {
+      assert(f.issues.length > 0, 'files array should only contain files with issues');
+    }
+  });
+
+  test('mcp-server: fix_rules returns proRequired instead of error', () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/test.mdc', '---\ndescription: Test\nalwaysApply: true\n---\nContent');
+    const response = callMcpServer({
+      jsonrpc: '2.0',
+      id: 8,
+      method: 'tools/call',
+      params: { name: 'fix_rules', arguments: { path: TEST_PROJECT } },
+    });
+    // Should be a success response, not an error
+    assert(!response.error, 'fix_rules Pro gate should not be a JSON-RPC error');
+    const data = JSON.parse(response.result.content[0].text);
+    assert(data.proRequired === true, 'should have proRequired: true');
+    assert(data.purchaseUrl, 'should have purchaseUrl');
+  });
+
+  test('mcp-server: notifications have no response', () => {
+    // Notifications (no id) should produce no output
+    const { execSync } = require('child_process');
+    const result = execSync(`echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' | node src/mcp-server.js`, {
+      cwd: path.join(__dirname, '..'),
+      encoding: 'utf-8',
+    });
+    assert.strictEqual(result.trim(), '', 'notification should produce no output');
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Init Command Tests
   // ─────────────────────────────────────────────────────────────────────────────
@@ -3274,13 +3350,13 @@ Check [this link](https://example.com) too.`;
     const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
     
     assert(!result.error);
-    assert(result.created.length >= 2); // At least general.mdc and documentation.mdc
-    assert(result.created.includes('general.mdc'));
+    assert(result.created.length >= 2); // At least coding-standards.mdc and documentation.mdc
+    assert(result.created.includes('coding-standards.mdc'));
     assert(result.created.includes('documentation.mdc'));
     
     // Verify files were actually created
     const rulesDir = path.join(TEST_PROJECT, '.cursor', 'rules');
-    assert(fs.existsSync(path.join(rulesDir, 'general.mdc')));
+    assert(fs.existsSync(path.join(rulesDir, 'coding-standards.mdc')));
     assert(fs.existsSync(path.join(rulesDir, 'documentation.mdc')));
   });
 
@@ -3311,7 +3387,7 @@ Check [this link](https://example.com) too.`;
     const result = await initProject(TEST_PROJECT, { dryRun: false, force: false });
     
     assert(!result.error);
-    assert(result.created.includes('general.mdc'));
+    assert(result.created.includes('coding-standards.mdc'));
     assert(result.created.includes('typescript.mdc'));
     assert(result.created.includes('react.mdc'));
     assert(result.created.includes('testing.mdc'));
@@ -3381,19 +3457,19 @@ Check [this link](https://example.com) too.`;
   await asyncTest('init: --force overwrites existing rules', async () => {
     setupTestProject();
     
-    // Create existing general.mdc with different content
-    writeFixture('.cursor/rules/general.mdc', '---\ndescription: Old\n---\nOld content');
+    // Create existing coding-standards.mdc with different content
+    writeFixture('.cursor/rules/coding-standards.mdc', '---\ndescription: Old\n---\nOld content');
     
-    const oldContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'general.mdc'), 'utf-8');
+    const oldContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'coding-standards.mdc'), 'utf-8');
     
     const { initProject } = require('../src/init');
     const result = await initProject(TEST_PROJECT, { dryRun: false, force: true });
     
     assert(!result.error);
-    assert(result.created.includes('general.mdc'));
+    assert(result.created.includes('coding-standards.mdc'));
     
     // Verify content was overwritten
-    const newContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'general.mdc'), 'utf-8');
+    const newContent = fs.readFileSync(path.join(TEST_PROJECT, '.cursor', 'rules', 'coding-standards.mdc'), 'utf-8');
     assert(newContent !== oldContent);
     assert(newContent.includes('General coding conventions'));
   });

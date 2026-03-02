@@ -23,7 +23,7 @@ function migrate(dir, options) {
 
   // Check if .cursorrules exists
   if (!fs.existsSync(cursorrules)) {
-    result.error = 'No .cursorrules file found in this directory';
+    result.error = 'No .cursorrules file found. Already using .mdc format, or run this from your project root.';
     return result;
   }
 

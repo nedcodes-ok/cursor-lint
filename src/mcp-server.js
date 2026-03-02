@@ -3,6 +3,7 @@
 // Protocol: JSON-RPC 2.0 over stdin/stdout
 // Spec: https://spec.modelcontextprotocol.io
 
+const path = require('path');
 const readline = require('readline');
 const { lintProject, lintMdcFile } = require('./index');
 const { doctor } = require('./doctor');
@@ -27,7 +28,7 @@ const SERVER_INFO = {
 const TOOLS = [
   {
     name: 'lint_rules',
-    description: 'Lint Cursor AI rules (.mdc files) in a project directory',
+    description: 'Lint Cursor AI rules (.mdc files) in a project directory. Returns only files with issues, using relative paths.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -55,7 +56,7 @@ const TOOLS = [
   },
   {
     name: 'doctor',
-    description: 'Run a health check on Cursor AI setup and get a grade (F to A+)',
+    description: 'Run a health check on Cursor AI setup and get a grade (F to A) with percentage score',
     inputSchema: {
       type: 'object',
       properties: {
@@ -69,7 +70,7 @@ const TOOLS = [
   },
   {
     name: 'fix_rules',
-    description: 'Auto-fix common issues in Cursor AI rules',
+    description: 'Auto-fix common issues in Cursor AI rules (requires Pro license, $9 one-time)',
     inputSchema: {
       type: 'object',
       properties: {
@@ -97,37 +98,85 @@ function validatePath(args, paramName) {
   return p;
 }
 
+/**
+ * Merge lint results by file path, convert to relative paths, filter out clean files.
+ * Returns { summary, files } for compact MCP output.
+ */
+function formatLintResults(results, projectPath) {
+  // Merge issues by file path
+  const merged = {};
+  for (const r of results) {
+    const relFile = path.relative(projectPath, r.file) || r.file;
+    if (!merged[relFile]) merged[relFile] = [];
+    for (const issue of (r.issues || [])) {
+      merged[relFile].push(issue);
+    }
+  }
+
+  // Filter out files with no issues
+  const files = [];
+  let errors = 0, warnings = 0, info = 0;
+  for (const [file, issues] of Object.entries(merged)) {
+    if (issues.length === 0) continue;
+    files.push({ file, issues });
+    for (const i of issues) {
+      if (i.severity === 'error') errors++;
+      else if (i.severity === 'warning') warnings++;
+      else info++;
+    }
+  }
+
+  const total = files.length;
+  const allFiles = Object.keys(merged).length;
+  const summary = `${allFiles} files checked. ${errors} error(s), ${warnings} warning(s), ${info} info. ${allFiles - total} clean.`;
+
+  return { summary, files };
+}
+
 // Tool execution handlers
 async function executeTool(name, args) {
   try {
     switch (name) {
-      case 'lint_rules':
-        return await lintProject(validatePath(args));
+      case 'lint_rules': {
+        const projectPath = validatePath(args);
+        const raw = await lintProject(projectPath);
+        return formatLintResults(raw, projectPath);
+      }
       
       case 'lint_file': {
         const filePath = validatePath(args);
         if (!filePath.endsWith('.mdc')) {
           throw new Error('lint_file only accepts .mdc files');
         }
-        return await lintMdcFile(filePath);
+        const result = await lintMdcFile(filePath);
+        return {
+          file: path.basename(filePath),
+          issues: result.issues || [],
+        };
       }
       
       case 'doctor': {
-        const result = await doctor(validatePath(args));
+        const projectPath = validatePath(args);
+        const result = await doctor(projectPath);
+        const pct = result.maxScore > 0 ? Math.round((result.score / result.maxScore) * 100) : 0;
         return {
           grade: result.grade,
-          score: result.score,
-          maxScore: result.maxScore,
+          percentage: pct,
           checks: result.checks,
-          suggestions: result.suggestions || [],
         };
       }
       
       case 'fix_rules': {
+        const projectPath = validatePath(args);
         if (!isLicensed()) {
-          throw new Error('Pro feature — activate with: npx cursor-doctor activate <key>. Get a key at https://nedcodes.gumroad.com/l/cursor-doctor-pro');
+          return {
+            proRequired: true,
+            message: 'Auto-fix requires a Pro license ($9 one-time, no subscription).',
+            activateCommand: 'npx cursor-doctor activate <key>',
+            purchaseUrl: 'https://nedcodes.gumroad.com/l/cursor-doctor-pro',
+          };
         }
-        const result = await autoFix(validatePath(args), { dryRun: args.dryRun || false });
+        const result = await autoFix(projectPath, { dryRun: args.dryRun || false });
         return {
           fixed: result.fixed || [],
           errors: result.errors || [],
@@ -170,6 +219,12 @@ function sendError(id, code, message, data) {
 async function handleRequest(request) {
   const { id, method, params } = request;
 
+  // Handle notifications (no id = notification, no response expected)
+  if (id === undefined || id === null) {
+    // Silently accept notifications like notifications/initialized
+    return;
+  }
+
   try {
     switch (method) {
       case 'initialize':
@@ -180,6 +235,10 @@ async function handleRequest(request) {
             tools: {},
           },
         });
+        break;
+
+      case 'notifications/initialized':
+        // Client confirmation after initialize — no response needed
         break;
 
       case 'tools/list':

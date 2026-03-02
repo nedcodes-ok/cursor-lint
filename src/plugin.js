@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { parseFrontmatter: _parseFM } = require("./frontmatter");
 const path = require('path');
 
 // Regex patterns from Cursor's official validator
@@ -45,30 +46,11 @@ function isSafeRelativePath(value) {
   return !normalized.startsWith('../') && normalized !== '..';
 }
 
-// Helper: Parse frontmatter from markdown content
+// Helper: Parse frontmatter from markdown content (returns raw fields or null)
 function parseFrontmatter(content) {
-  const normalized = content.replace(/\r\n/g, '\n');
-  if (!normalized.startsWith('---\n')) return null;
-  
-  const closingIndex = normalized.indexOf('\n---\n', 4);
-  if (closingIndex === -1) return null;
-  
-  const frontmatterBlock = normalized.slice(4, closingIndex);
-  const fields = {};
-  
-  for (const line of frontmatterBlock.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    
-    const separator = line.indexOf(':');
-    if (separator === -1) continue;
-    
-    const key = line.slice(0, separator).trim();
-    const value = line.slice(separator + 1).trim();
-    fields[key] = value;
-  }
-  
-  return fields;
+  const result = _parseFM(content);
+  if (!result.found || !result.data) return null;
+  return result.data;
 }
 
 // Helper: Extract path values from manifest fields

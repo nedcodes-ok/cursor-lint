@@ -465,6 +465,7 @@ function formatMcpLint(report, colors) {
 
   if (report.totalFiles === 0) {
     lines.push('  ' + DIM + 'No MCP config files found (.cursor/mcp.json, mcp.json, *.mcp.json).' + RESET);
+    lines.push('  ' + DIM + 'Add MCP tools to .cursor/mcp.json — see Cursor docs for setup.' + RESET);
     lines.push('');
     return lines.join('\n');
   }

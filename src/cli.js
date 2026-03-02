@@ -21,6 +21,34 @@ const { getPackNames, getPack, getAllPacks } = require('./registry');
 
 const VERSION = require('../package.json').version;
 
+// Non-blocking update check — fires early, awaited before exit
+var _updateCheck = (function() {
+  if (process.env.CURSOR_DOCTOR_NO_UPDATE_CHECK) return Promise.resolve(null);
+  try {
+    var https = require('https');
+    return new Promise(function(resolve) {
+      var timer = setTimeout(function() { resolve(null); }, 3000);
+      var req = https.get('https://registry.npmjs.org/cursor-doctor/latest', { timeout: 2500 }, function(res) {
+        var data = '';
+        res.on('data', function(chunk) { data += chunk; });
+        res.on('end', function() {
+          clearTimeout(timer);
+          try {
+            var latest = JSON.parse(data).version;
+            if (latest && latest !== VERSION) {
+              resolve(latest);
+            } else {
+              resolve(null);
+            }
+          } catch (e) { resolve(null); }
+        });
+      });
+      req.on('error', function() { clearTimeout(timer); resolve(null); });
+      req.on('timeout', function() { req.destroy(); });
+    });
+  } catch (e) { return Promise.resolve(null); }
+})();
+
 var useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const RED = useColor ? '\x1b[31m' : '';
 const YELLOW = useColor ? '\x1b[33m' : '';
@@ -36,61 +64,66 @@ var PURCHASE_URL = 'https://nedcodes.gumroad.com/l/cursor-doctor-pro';
 function showHelp() {
   var lines = [
     '',
-    CYAN + BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- Fix your Cursor AI setup in seconds.',
+    CYAN + BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- Fix your Cursor rules in seconds.',
     '',
-    YELLOW + 'Usage:' + RESET,
-    '  npx cursor-doctor              # Run health check (default)',
-    '  npx cursor-doctor scan         # Same as above',
-    '  npx cursor-doctor check        # Quick pass/fail for CI',
-    '  npx cursor-doctor init         # Generate rules based on your stack',
-    '  npx cursor-doctor install      # Install community rule packs',
-    '  npx cursor-doctor lint         # Detailed rule linting',
-    '  npx cursor-doctor migrate      # Convert .cursorrules to .mdc (--dry-run, --force)',
-    '  npx cursor-doctor stats        # Token usage dashboard',
-    '  npx cursor-doctor budget       # Smart token budget analysis',
-    '  npx cursor-doctor agents       # Lint CLAUDE.md, AGENTS.md, .cursor/agents/',
-    '  npx cursor-doctor mcp          # Validate MCP config files',
+    '  ' + BOLD + 'npx cursor-doctor scan' + RESET + '             Find what\'s wrong ' + DIM + '(default)' + RESET,
+    '  ' + BOLD + 'npx cursor-doctor fix' + RESET + '              Auto-fix everything ' + DIM + '(Pro)' + RESET,
+    '  ' + DIM + 'npx cursor-doctor fix --preview    Preview fixes before buying' + RESET,
     '',
-    YELLOW + 'Pro Commands ($9 one-time key):' + RESET,
-    '  npx cursor-doctor audit        # Full diagnostic report',
-    '  npx cursor-doctor audit --md   # Export audit as markdown',
-    '  npx cursor-doctor budget --pro # Per-file-type breakdown, waste detection, history',
-    '  npx cursor-doctor conflicts    # Cross-format conflict detection',
-    '  npx cursor-doctor perf         # Rule performance tracking',
-    '  npx cursor-doctor test <file>  # Test rule adherence with AI',
-    '  npx cursor-doctor test <rule> <code>  # Test single rule against code',
-    '  npx cursor-doctor team export  # Export rules as shareable config',
-    '  npx cursor-doctor team import <source>  # Import rules from file/URL',
-    '  npx cursor-doctor team drift   # Detect drift from team baseline',
-    '  npx cursor-doctor team baseline <source>  # Set team baseline',
-    '  npx cursor-doctor fix          # Auto-fix issues',
-    '  npx cursor-doctor fix --dry-run # Preview fixes',
+    YELLOW + 'Diagnose:' + RESET,
+    '  npx cursor-doctor lint           Detailed rule-by-rule linting',
+    '  npx cursor-doctor check          Pass/fail for CI',
+    '  npx cursor-doctor audit          Full diagnostic report ' + DIM + '(Pro)' + RESET,
+    '  npx cursor-doctor audit --md     Export as markdown ' + DIM + '(Pro)' + RESET,
     '',
-    YELLOW + 'Other:' + RESET,
-    '  npx cursor-doctor activate <key>  # Activate license',
-    '  npx cursor-doctor-mcp              # MCP server (for AI assistants)',
+    YELLOW + 'Analyze:' + RESET,
+    '  npx cursor-doctor stats          Token usage dashboard',
+    '  npx cursor-doctor budget         Token budget analysis',
+    '  npx cursor-doctor conflicts      Cross-format conflicts ' + DIM + '(Pro)' + RESET,
+    '  npx cursor-doctor perf           Rule performance tracking ' + DIM + '(Pro)' + RESET,
+    '',
+    YELLOW + 'Create & Manage:' + RESET,
+    '  npx cursor-doctor init           Generate rules for your stack',
+    '  npx cursor-doctor install <pack> Install community rule packs',
+    '  npx cursor-doctor migrate        Convert .cursorrules to .mdc',
+    '',
+    YELLOW + 'Test:' + RESET,
+    '  npx cursor-doctor test <file>    AI rule adherence testing ' + DIM + '(Pro)' + RESET,
+    '  npx cursor-doctor agents         Lint CLAUDE.md, AGENTS.md',
+    '  npx cursor-doctor mcp            Validate MCP config',
+    '',
+    YELLOW + 'Team ' + DIM + '(Pro)' + RESET + ':',
+    '  npx cursor-doctor team export|import|drift|baseline',
+    '',
+    DIM + '  npx cursor-doctor activate <key>  Activate license' + RESET,
+    DIM + '  npx cursor-doctor-mcp             MCP server (for AI assistants)' + RESET,
     '',
     YELLOW + 'Flags:' + RESET,
     '  --quiet, -q    Suppress all output except errors and the final summary',
     '  --json         Output results as JSON',
     '  --dry-run      Preview changes without writing files',
     '',
-    DIM + 'Get a Pro key: ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=help' + RESET,
+    'Pro: $9 one-time — ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=help',
     '',
   ];
   console.log(lines.join('\n'));
 }
 
-function requirePro(dir) {
+function requirePro(dir, cmd) {
   if (isLicensed(dir)) return true;
   console.log();
-  console.log(YELLOW + BOLD + 'Pro feature — $9 one-time, no subscription.' + RESET);
+  if (cmd) {
+    console.log(YELLOW + 'cursor-doctor ' + cmd + RESET + ' requires a Pro license.');
+  } else {
+    console.log(YELLOW + 'Pro feature' + RESET + ' — requires a license.');
+  }
   console.log();
-  console.log('  Includes: audit, fix, conflicts, budget --pro,');
-  console.log('  rule performance tracking, AI rule testing, team sync.');
+  console.log('  ' + DIM + 'See what would be fixed (free):' + RESET + '  npx cursor-doctor lint');
   console.log();
-  console.log('  ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=paywall' + RESET);
+  console.log('  Pro key: $9 one-time — ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=paywall' + RESET);
   console.log('  Then: ' + DIM + 'cursor-doctor activate <your-key>' + RESET);
+  console.log();
+  console.log('  ' + DIM + 'Full refund if it doesn\'t find real issues.' + RESET);
   console.log();
   return false;
 }
@@ -155,7 +188,7 @@ function log(msg, severity) {
       console.log(RED + 'Activation failed: ' + RESET + result.error);
       process.exit(1);
     }
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- scan (free, default) ---
@@ -202,10 +235,22 @@ function log(msg, severity) {
     log('  ' + GREEN + passes + ' passed' + RESET + '  ' + (fixable > 0 ? YELLOW + fixable + ' fixable' + RESET : ''), 'summary');
     log('', 'summary');
 
-    if (fixable > 0) {
-      log('  ' + CYAN + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
-      log('  ' + CYAN + 'Full diagnostic:' + RESET + ' npx cursor-doctor audit');
-      log('  ' + DIM + 'Pro ($9 one-time) ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=scan' + RESET);
+    var hasNoRules = report.checks.some(function(c) { return c.name === 'Rules exist' && c.status === 'fail'; });
+    if (hasNoRules) {
+      log('  ' + CYAN + 'Get started:' + RESET + '  npx cursor-doctor init');
+      log('  ' + DIM + 'Or generate rules from your codebase:' + RESET + '  npx rulegen-ai');
+      log('');
+    } else if (fixable > 0) {
+      log('  ' + DIM + 'See details:' + RESET + '  npx cursor-doctor lint');
+      log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
+      log('');
+    } else if (passes > 0 && (report.grade === 'A' || report.grade === 'B')) {
+      log('  ' + GREEN + String.fromCharCode(10024) + ' Your Cursor rules look good. Nothing to fix.' + RESET);
+      log('');
+    }
+
+    if (!hasNoRules) {
+      log('  ' + DIM + 'Helpful? ' + String.fromCharCode(11088) + ' https://github.com/nedcodes-ok/cursor-doctor' + RESET);
       log('');
     }
 
@@ -225,7 +270,7 @@ function log(msg, severity) {
 
     if (issues.length === 0) {
       log(GREEN + String.fromCharCode(10003) + RESET + ' Cursor setup healthy (' + report.grade + ', ' + report.percentage + '%)', 'summary');
-      process.exit(0);
+      await exitClean(0);
     }
 
     for (var i = 0; i < issues.length; i++) {
@@ -234,7 +279,8 @@ function log(msg, severity) {
       log(icon + ' ' + issue.name + ': ' + issue.detail, issue.status === 'fail' ? 'error' : undefined);
     }
     log('\nGrade: ' + report.grade + ' (' + report.percentage + '%)', 'summary');
-    process.exit(1);
+    // Exit 1 only for D/F grades (real problems), not for warnings on A/B/C grades
+    process.exit(report.grade === 'F' || report.grade === 'D' ? 1 : 0);
   }
 
   // --- lint (free) ---
@@ -255,22 +301,43 @@ function log(msg, severity) {
     log('');
     var totalErrors = 0;
     var totalWarnings = 0;
+    var totalInfo = 0;
     var totalPassed = 0;
+    var sevOrder = { error: 0, warning: 1, info: 2 };
+    var verbose = args.includes('--verbose') || args.includes('-v');
     for (var i = 0; i < results.length; i++) {
       var result = results[i];
-      var relPath = path.relative(cwd, result.file) || result.file;
+      var relPath = path.relative(cwd, result.file) || '.';
       var fileHasErrors = result.issues.some(function(iss) { return iss.severity === 'error'; });
+      // Filter out verboseOnly issues unless --verbose
+      var visibleIssues = verbose ? result.issues : result.issues.filter(function(iss) { return !iss.verboseOnly; });
       if (!quiet || fileHasErrors) log(relPath, fileHasErrors ? 'error' : undefined);
-      if (result.issues.length === 0) {
-        if (!quiet) log('  ' + GREEN + String.fromCharCode(10003) + ' All checks passed' + RESET);
-        totalPassed++;
+      if (visibleIssues.length === 0) {
+        if (result.issues.length === 0) totalPassed++;
+        if (verbose && !quiet) {
+          console.log(DIM + relPath + ' — ok' + RESET);
+        }
       } else {
-        for (var j = 0; j < result.issues.length; j++) {
-          var issue = result.issues[j];
+        var sorted = visibleIssues.slice().sort(function(a, b) {
+          return (sevOrder[a.severity] || 2) - (sevOrder[b.severity] || 2);
+        });
+        var fileErrors = 0, fileWarnings = 0, fileInfo = 0;
+        for (var j = 0; j < sorted.length; j++) {
+          if (sorted[j].severity === 'error') fileErrors++;
+          else if (sorted[j].severity === 'warning') fileWarnings++;
+          else fileInfo++;
+        }
+        var fileSummaryParts = [];
+        if (fileErrors > 0) fileSummaryParts.push(RED + fileErrors + ' error' + (fileErrors > 1 ? 's' : '') + RESET);
+        if (fileWarnings > 0) fileSummaryParts.push(YELLOW + fileWarnings + ' warning' + (fileWarnings > 1 ? 's' : '') + RESET);
+        if (fileInfo > 0) fileSummaryParts.push(BLUE + fileInfo + ' info' + RESET);
+        console.log(BOLD + relPath + RESET + '  ' + DIM + '(' + RESET + fileSummaryParts.join(DIM + ', ' + RESET) + DIM + ')' + RESET);
+        for (var j = 0; j < sorted.length; j++) {
+          var issue = sorted[j];
           var icon;
           if (issue.severity === 'error') { icon = RED + String.fromCharCode(10007) + RESET; totalErrors++; }
           else if (issue.severity === 'warning') { icon = YELLOW + String.fromCharCode(9888) + RESET; totalWarnings++; }
-          else { icon = BLUE + String.fromCharCode(8505) + RESET; }
+          else { icon = BLUE + String.fromCharCode(8505) + RESET; totalInfo++; }
           var lineInfo = issue.line ? ' ' + DIM + '(line ' + issue.line + ')' + RESET : '';
           var isErr = issue.severity === 'error';
           if (!quiet || isErr) {
@@ -278,20 +345,28 @@ function log(msg, severity) {
             if (issue.hint) log('    ' + DIM + String.fromCharCode(8594) + ' ' + issue.hint + RESET, isErr ? 'error' : undefined);
           }
         }
+        console.log();
       }
       if (!quiet || fileHasErrors) log('');
     }
     log(String.fromCharCode(9472).repeat(50), 'summary');
     var parts = [];
-    if (totalErrors > 0) parts.push(RED + totalErrors + ' error(s)' + RESET);
-    if (totalWarnings > 0) parts.push(YELLOW + totalWarnings + ' warning(s)' + RESET);
+    if (totalErrors > 0) parts.push(RED + totalErrors + ' error' + (totalErrors > 1 ? 's' : '') + RESET);
+    if (totalWarnings > 0) parts.push(YELLOW + totalWarnings + ' warning' + (totalWarnings > 1 ? 's' : '') + RESET);
+    if (totalInfo > 0) parts.push(BLUE + totalInfo + ' info' + RESET);
     if (totalPassed > 0) parts.push(GREEN + totalPassed + ' passed' + RESET);
     log(parts.join(', '), 'summary');
     if (totalErrors > 0 || totalWarnings > 0) {
       log('');
-      log('  ' + BOLD + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
-      log('  Most issues above can be fixed automatically (Pro, $9 one-time)');
-      log('  ' + DIM + 'https://nedcodes.gumroad.com/l/cursor-doctor-pro' + RESET);
+      if (totalWarnings <= 3 && totalErrors === 0) {
+        // Few cosmetic issues — emphasize deeper analysis
+        log('  ' + BOLD + 'Go deeper:' + RESET + ' npx cursor-doctor audit  ' + DIM + '(full diagnostic)' + RESET);
+        log('  ' + DIM + 'Also:' + RESET + ' conflicts, perf, fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
+      } else {
+        log('  ' + BOLD + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
+        log('  Most issues above can be fixed automatically (Pro, $9 one-time)');
+      }
+      log('  ' + DIM + PURCHASE_URL + RESET);
     }
     log('');
     process.exit(totalErrors > 0 ? 1 : 0);
@@ -319,7 +394,7 @@ function log(msg, severity) {
     if (result.created.length === 0 && result.skipped.length === 0) {
       console.log(YELLOW + 'No rules generated. Is this an empty project?' + RESET);
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
     
     if (result.created.length > 0) {
@@ -350,7 +425,7 @@ function log(msg, severity) {
       console.log();
     }
     
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- install (free) ---
@@ -376,7 +451,7 @@ function log(msg, severity) {
       console.log('  ' + DIM + 'Install: npx cursor-doctor install <pack-name>' + RESET);
       console.log('  ' + DIM + 'Example: npx cursor-doctor install react typescript' + RESET);
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
     
     // Get pack names from arguments
@@ -398,7 +473,7 @@ function log(msg, severity) {
       console.log();
       console.log(DIM + 'Run with --list to see all available packs' + RESET);
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
     
     console.log();
@@ -492,7 +567,7 @@ function log(msg, severity) {
       }
     }
     
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- migrate (free) ---
@@ -552,13 +627,18 @@ function log(msg, severity) {
       console.log(DIM + 'Original .cursorrules backed up to ' + result.backupCreated + RESET);
       console.log();
     }
+
+    if (!dryRun && result.created.length > 0) {
+      console.log('  ' + DIM + 'Next:' + RESET + '  npx cursor-doctor scan  ' + DIM + '(verify your new rules)' + RESET);
+      console.log();
+    }
     
     if (dryRun) {
       console.log(DIM + 'This was a dry run. Run without --dry-run to apply changes.' + RESET);
       console.log();
     }
     
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- stats (free) ---
@@ -567,7 +647,7 @@ function log(msg, severity) {
 
     if (asJson) {
       console.log(JSON.stringify(stats, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -586,19 +666,19 @@ function log(msg, severity) {
       }
     }
     console.log();
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- budget (free basic, pro detailed) ---
   if (command === 'budget') {
     var isPro = args.includes('--pro');
-    if (isPro && !requirePro(cwd)) process.exit(1);
+    if (isPro && !requirePro(cwd, 'budget --pro')) process.exit(1);
 
     var analysis = analyzeTokenBudget(cwd, { pro: isPro });
 
     if (asJson) {
       console.log(JSON.stringify(analysis, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -707,12 +787,12 @@ function log(msg, severity) {
       console.log();
     }
 
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- perf (PRO) ---
   if (command === 'perf' || command === 'performance') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'perf')) process.exit(1);
 
     var days = 30;
     var daysArg = args.find(function(a) { return a.startsWith('--days='); });
@@ -734,7 +814,7 @@ function log(msg, severity) {
 
     if (asJson) {
       console.log(JSON.stringify(analysis, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -799,12 +879,12 @@ function log(msg, severity) {
       console.log();
     }
 
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- test (PRO) ---
   if (command === 'test') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'test')) process.exit(1);
 
     var provider = getProvider();
     if (!provider) {
@@ -853,7 +933,7 @@ function log(msg, severity) {
 
       if (asJson) {
         console.log(JSON.stringify(results, null, 2));
-        process.exit(0);
+        await exitClean(0);
       }
 
       for (var i = 0; i < results.results.length; i++) {
@@ -923,7 +1003,7 @@ function log(msg, severity) {
 
       if (asJson) {
         console.log(JSON.stringify(result, null, 2));
-        process.exit(0);
+        await exitClean(0);
       }
 
       if (result.error) {
@@ -981,12 +1061,12 @@ function log(msg, severity) {
         console.log();
       }
     }
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- team (PRO) ---
   if (command === 'team') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'team')) process.exit(1);
 
     var subcommand = args.find(function(a) { return !a.startsWith('-') && a !== 'team'; });
 
@@ -1006,7 +1086,7 @@ function log(msg, severity) {
       console.log('  --name="Config Name"     Name the exported config');
       console.log('  --out=<file>             Output file for export (default: stdout)');
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
 
     // --- team export ---
@@ -1033,7 +1113,7 @@ function log(msg, severity) {
       } else {
         process.stdout.write(jsonOutput + '\n');
       }
-      process.exit(0);
+      await exitClean(0);
     }
 
     // --- team import ---
@@ -1103,7 +1183,7 @@ function log(msg, severity) {
         console.log('  ' + YELLOW + String.fromCharCode(9888) + RESET + ' Skipped: ' + result.skipped[i].file + ' (' + result.skipped[i].reason + ')');
       }
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
 
     // --- team baseline ---
@@ -1121,7 +1201,7 @@ function log(msg, severity) {
       console.log('  ' + DIM + 'Saved to ' + result.path + RESET);
       console.log('  ' + DIM + 'Run "cursor-doctor team drift" to check for divergence.' + RESET);
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
 
     // --- team drift ---
@@ -1137,7 +1217,7 @@ function log(msg, severity) {
 
       if (asJson) {
         console.log(JSON.stringify(result, null, 2));
-        process.exit(0);
+        await exitClean(0);
       }
 
       console.log();
@@ -1183,7 +1263,7 @@ function log(msg, severity) {
 
     if (asJson) {
       console.log(JSON.stringify(results, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -1208,7 +1288,7 @@ function log(msg, severity) {
 
     if (asJson) {
       console.log(JSON.stringify(report, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -1223,13 +1303,13 @@ function log(msg, severity) {
 
   // --- conflicts (PRO) ---
   if (command === 'conflicts') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'conflicts')) process.exit(1);
 
     var report = crossConflictReport(cwd);
 
     if (asJson) {
       console.log(JSON.stringify(report, null, 2));
-      process.exit(0);
+      await exitClean(0);
     }
 
     console.log();
@@ -1271,7 +1351,7 @@ function log(msg, severity) {
 
   // --- audit (PRO) ---
   if (command === 'audit') {
-    if (!requirePro(cwd)) process.exit(1);
+    if (!requirePro(cwd, 'audit')) process.exit(1);
     var report = await fullAudit(cwd);
     if (args.includes('--md')) {
       process.stdout.write(formatAuditMarkdown(report));
@@ -1295,13 +1375,14 @@ function log(msg, severity) {
         console.log();
       }
     }
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- fix (PRO) ---
   if (command === 'fix') {
-    if (!requirePro(cwd)) process.exit(1);
-    var dryRun = args.includes('--dry-run');
+    var preview = args.includes('--preview');
+    if (!preview && !requirePro(cwd, 'fix')) process.exit(1);
+    var dryRun = args.includes('--dry-run') || preview;
     var results = await autoFix(cwd, { dryRun: dryRun });
 
     console.log();
@@ -1321,11 +1402,12 @@ function log(msg, severity) {
     if (totalActions === 0) {
       console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' Nothing to fix. Setup looks clean.');
       console.log();
-      process.exit(0);
+      await exitClean(0);
     }
 
     for (var i = 0; i < results.fixed.length; i++) {
-      console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' ' + results.fixed[i].file + ': ' + results.fixed[i].change);
+      var changeText = results.fixed[i].change || (results.fixed[i].changes ? results.fixed[i].changes.join(', ') : 'fixed');
+      console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' ' + results.fixed[i].file + ': ' + changeText);
     }
     for (var i = 0; i < results.splits.length; i++) {
       console.log('  ' + BLUE + String.fromCharCode(9986) + RESET + ' Split ' + results.splits[i].file + ' -> ' + results.splits[i].parts.join(', '));
@@ -1342,14 +1424,43 @@ function log(msg, severity) {
     for (var i = 0; i < results.deduped.length; i++) {
       console.log('  ' + YELLOW + '!' + RESET + ' ' + results.deduped[i].fileA + ' + ' + results.deduped[i].fileB + ': ' + results.deduped[i].overlapPct + '% overlap (manual review)');
     }
+    if (preview && totalActions > 0) {
+      console.log();
+      console.log('  ' + BOLD + totalActions + ' fix' + (totalActions > 1 ? 'es' : '') + ' available.' + RESET + '  Get Pro to apply them:');
+      console.log('  ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=fix-preview' + RESET);
+      console.log('  ' + DIM + 'Full refund if it doesn\'t find real issues.' + RESET);
+    } else if (!dryRun && totalActions > 0) {
+      console.log();
+      console.log('  ' + DIM + 'cursor-doctor helped? Star us on GitHub:' + RESET);
+      console.log('  ' + CYAN + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+    }
     console.log();
-    process.exit(0);
+    await exitClean(0);
   }
 
   // --- unknown ---
   console.log('Unknown command: ' + command);
   console.log('Run ' + DIM + 'cursor-doctor help' + RESET + ' for usage.');
   process.exit(1);
+}
+
+async function exitClean(code) {
+  if (code === 0) {
+    try {
+      var latest = await _updateCheck;
+      if (latest) {
+        console.log();
+        if (useColor) {
+          console.log('  ' + YELLOW + 'Update available: ' + RESET + VERSION + ' \u2192 ' + GREEN + latest + RESET);
+          console.log('  Run: ' + CYAN + 'npx cursor-doctor@latest' + RESET);
+        } else {
+          console.log('  Update available: ' + VERSION + ' \u2192 ' + latest);
+          console.log('  Run: npx cursor-doctor@latest');
+        }
+      }
+    } catch (e) {}
+  }
+  process.exit(code);
 }
 
 main().catch(function(err) {

@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { parseFrontmatter } = require("./frontmatter");
 const path = require('path');
 
 const VAGUE_PATTERNS = [
@@ -49,68 +50,6 @@ function findVagueRules(content) {
   return issues;
 }
 
-function parseFrontmatter(content) {
-  var normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const match = normalized.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return { found: false, data: null, error: null };
-
-  try {
-    const data = {};
-    const lines = match[1].split('\n');
-    var currentKey = null;
-    var currentList = null;
-    for (var i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // YAML list item (  - "value")
-      if (line.match(/^\s+-\s+/)) {
-        if (currentKey && currentList) {
-          var itemVal = line.replace(/^\s+-\s+/, '').trim();
-          if (itemVal.startsWith('"') && itemVal.endsWith('"')) itemVal = itemVal.slice(1, -1);
-          else if (itemVal.startsWith("'") && itemVal.endsWith("'")) itemVal = itemVal.slice(1, -1);
-          currentList.push(itemVal);
-        }
-        continue;
-      }
-
-      // Flush any pending list
-      if (currentKey && currentList) {
-        data[currentKey] = currentList;
-        currentKey = null;
-        currentList = null;
-      }
-
-      // Check for bad indentation (key starts with space = likely nested/broken YAML)
-      if (line.match(/^\s+\S/) && !line.match(/^\s+-/)) {
-        const prevLine = i > 0 ? lines[i - 1] : null;
-        if (prevLine && !prevLine.endsWith(':')) {
-          return { found: true, data: null, error: 'Invalid YAML indentation' };
-        }
-      }
-
-      const colonIdx = line.indexOf(':');
-      if (colonIdx === -1) continue;
-      const key = line.slice(0, colonIdx).trim();
-      const rawVal = line.slice(colonIdx + 1).trim();
-
-      if (rawVal === '') {
-        // Could be start of a YAML list (key with no inline value)
-        currentKey = key;
-        currentList = [];
-      } else if (rawVal === 'true') data[key] = true;
-      else if (rawVal === 'false') data[key] = false;
-      else if (rawVal.startsWith('"') && rawVal.endsWith('"')) data[key] = rawVal.slice(1, -1);
-      else data[key] = rawVal;
-    }
-    // Flush final list
-    if (currentKey && currentList) {
-      data[currentKey] = currentList;
-    }
-    return { found: true, data, error: null };
-  } catch (e) {
-    return { found: true, data: null, error: e.message };
-  }
-}
 
 // Helper: Get body content after frontmatter
 function getBody(content) {
@@ -179,7 +118,7 @@ async function lintMdcFile(filePath) {
       issues.push({ severity: 'error', message: 'Rule will never load: alwaysApply is false and no globs are set', hint: 'Set alwaysApply: true for global rules, or add globs to scope to specific files' });
     }
     if (fm.data.globs && typeof fm.data.globs === 'string' && fm.data.globs.includes(',') && !fm.data.globs.trim().startsWith('[')) {
-      issues.push({ severity: 'warning', message: 'Globs as comma-separated string — consider using YAML array format', hint: 'Use globs:\\n  - "*.ts"\\n  - "*.tsx"' });
+      issues.push({ severity: 'warning', message: 'Globs as comma-separated string — use YAML array format', hint: 'Comma-separated globs can fail to match in some Cursor versions. Use:\\n  globs:\\n    - "*.ts"\\n    - "*.tsx"' });
     }
 
     // NEW: Frontmatter has unknown keys
@@ -229,13 +168,13 @@ async function lintMdcFile(filePath) {
     });
   }
 
-  // 2. No examples
+  // 2. No examples (only flag longer rules where examples would meaningfully help)
   const hasCodeBlocks = /```/.test(body) || /\n {4,}\S/.test(body);
-  if (body.length > 200 && !hasCodeBlocks) {
+  if (body.length > 500 && !hasCodeBlocks) {
     issues.push({
-      severity: 'warning',
+      severity: 'info',
       message: 'Rule has no code examples',
-      hint: 'Rules with examples get followed more reliably by the AI model.',
+      hint: 'Longer rules with examples get followed more reliably by the AI model.',
     });
   }
 
@@ -368,15 +307,25 @@ async function lintMdcFile(filePath) {
 
   // NEW: Body/Content Rules
   
-  // Rule body contains XML tags
+  // Rule body contains XML tags (skip TypeScript generics like <T extends ...>)
   if (/<[^>]+>/.test(body) && !hasCodeBlocks) {
     const xmlTags = body.match(/<\w+[^>]*>/g);
     if (xmlTags && xmlTags.length > 0) {
-      issues.push({
-        severity: 'warning',
-        message: 'Rule body contains XML/HTML tags',
-        hint: 'Cursor doesn\'t process XML/HTML in rules. Use markdown or plain text instead.',
+      // Filter out: TypeScript generics (<T>, <T extends X>), placeholder syntax (<method>, <filename>), JSX self-closing (<br/>)
+      const realXmlTags = xmlTags.filter(tag => {
+        // TypeScript generics: <T>, <K extends keyof T>, etc.
+        if (/^<[A-Z]\w*(\s+extends\s|\s*[>=,})|$])/.test(tag) || /^<[A-Z]>$/.test(tag)) return false;
+        // Placeholder/template syntax: <method>, <filename>, <your-key>, <optional>, etc. (all lowercase, single word with hyphens)
+        if (/^<[a-z][a-z0-9_-]*>$/i.test(tag)) return false;
+        return true;
       });
+      if (realXmlTags.length > 0) {
+        issues.push({
+          severity: 'warning',
+          message: 'Rule body contains XML/HTML tags',
+          hint: 'Cursor doesn\'t process XML/HTML in rules. Use markdown or plain text instead.',
+        });
+      }
     }
   }
 
@@ -1256,9 +1205,9 @@ async function lintProjectStructure(dir) {
     return fs.statSync(fullPath).isDirectory();
   });
   
-  if (mdcFiles.length > 10 && subdirs.length === 0) {
+  if (mdcFiles.length > 15 && subdirs.length === 0) {
     issues.push({
-      severity: 'warning',
+      severity: 'info',
       message: `${mdcFiles.length} rules with no subdirectory organization`,
       hint: 'Organize rules into subdirectories (e.g., .cursor/rules/typescript/, .cursor/rules/react/) for better maintainability.',
     });
@@ -1277,7 +1226,7 @@ async function lintProjectStructure(dir) {
   }
 
   // Rule filenames are too generic
-  const genericNames = ['rules.mdc', 'general.mdc', 'misc.mdc', 'config.mdc', 'setup.mdc', 'default.mdc'];
+  const genericNames = ['rules.mdc', 'misc.mdc', 'config.mdc', 'setup.mdc', 'default.mdc'];
   for (const generic of genericNames) {
     if (mdcFiles.includes(generic)) {
       issues.push({
@@ -1289,13 +1238,15 @@ async function lintProjectStructure(dir) {
   }
 
   // Multiple rules with nearly identical filenames
+  // Only flag when names differ by just a "-rules" suffix (e.g., typescript.mdc and typescript-rules.mdc)
+  // Don't flag topic-prefixed names (e.g., typescript.mdc and typescript-types.mdc) — these are distinct topics
   const basenames = mdcFiles.map(f => f.replace(/\.mdc$/, ''));
   for (let i = 0; i < basenames.length; i++) {
     for (let j = i + 1; j < basenames.length; j++) {
       const a = basenames[i];
       const b = basenames[j];
-      // Check if one is a substring of the other or they differ by just a suffix
-      if (a.startsWith(b) || b.startsWith(a) || a.replace(/-rules?$/, '') === b.replace(/-rules?$/, '')) {
+      // Only flag if they differ by a -rules/-rule suffix (redundant naming)
+      if (a.replace(/-rules?$/, '') === b.replace(/-rules?$/, '') && a !== b) {
         issues.push({
           severity: 'warning',
           message: `Similar filenames: ${mdcFiles[i]} and ${mdcFiles[j]}`,
@@ -1573,8 +1524,8 @@ async function lintProject(dir) {
       });
     }
 
-    // 10. Duplicate rule content
-    if (mdcFiles.length > 1) {
+    // 10. Duplicate rule content (skip pairwise similarity for large rule sets to avoid O(n²) hang)
+    if (mdcFiles.length > 1 && mdcFiles.length <= 50) {
       const parsed = [];
       for (const file of mdcFiles) {
         const filePath = path.join(rulesDirPath, file);
@@ -1585,7 +1536,8 @@ async function lintProject(dir) {
         parsed.push({ file, filePath, body, description: fm.data && fm.data.description ? fm.data.description : undefined });
       }
 
-      // Compare each pair
+      // Compare each pair — group duplicates instead of O(n²) individual warnings
+      const dupGroups = []; // Array of Sets of filenames
       for (let i = 0; i < parsed.length; i++) {
         for (let j = i + 1; j < parsed.length; j++) {
           const a = parsed[i];
@@ -1593,17 +1545,23 @@ async function lintProject(dir) {
           const sim = similarity(a.body, b.body);
           
           if (sim > 0.8) {
-            results.push({
-              file: rulesDirPath,
-              issues: [{
-                severity: 'warning',
-                message: `Possible duplicate rules: ${a.file} and ${b.file}`,
-                hint: 'These rules have very similar content. Consider merging them.',
-              }],
-            });
+            // Find existing group containing either file
+            let foundGroup = null;
+            for (const group of dupGroups) {
+              if (group.has(a.file) || group.has(b.file)) {
+                foundGroup = group;
+                break;
+              }
+            }
+            if (foundGroup) {
+              foundGroup.add(a.file);
+              foundGroup.add(b.file);
+            } else {
+              dupGroups.push(new Set([a.file, b.file]));
+            }
           }
           
-          // NEW: Check for duplicate descriptions
+          // Check for duplicate descriptions
           if (a.description && b.description && a.description === b.description) {
             results.push({
               file: rulesDirPath,
@@ -1614,6 +1572,40 @@ async function lintProject(dir) {
               }],
             });
           }
+        }
+      }
+      // Emit one grouped warning per duplicate cluster
+      for (const group of dupGroups) {
+        const files = Array.from(group).sort();
+        results.push({
+          file: rulesDirPath,
+          issues: [{
+            severity: 'warning',
+            message: `Possible duplicate rules (${files.length} similar): ${files.join(', ')}`,
+            hint: 'These rules have very similar content. Differentiate them or merge into fewer rules.',
+          }],
+        });
+      }
+    } else if (mdcFiles.length > 50) {
+      // For large rule sets, only check for duplicate descriptions (O(n) with hash)
+      const descMap = {};
+      for (const file of mdcFiles) {
+        const filePath = path.join(rulesDirPath, file);
+        var dupContent;
+        try { dupContent = fs.readFileSync(filePath, 'utf-8'); } catch (e) { continue; }
+        const fm = parseFrontmatter(dupContent);
+        const desc = fm.data && fm.data.description ? fm.data.description.trim() : '';
+        if (desc && descMap[desc]) {
+          results.push({
+            file: rulesDirPath,
+            issues: [{
+              severity: 'warning',
+              message: `Duplicate descriptions: ${descMap[desc]} and ${file}`,
+              hint: 'Each rule should have a unique description so Cursor can differentiate them.',
+            }],
+          });
+        } else if (desc) {
+          descMap[desc] = file;
         }
       }
     }
@@ -1668,7 +1660,7 @@ async function lintProject(dir) {
         throw e;
       }
     }
-    if (mdcFiles.length > 1) {
+    if (mdcFiles.length > 1 && mdcFiles.length <= 100) {
       const globsByFile = [];
       for (const file of mdcFiles) {
         const filePath = path.join(rulesDirPath, file);
@@ -1681,61 +1673,30 @@ async function lintProject(dir) {
         }
       }
 
-      // Check for identical glob sets
-      for (let i = 0; i < globsByFile.length; i++) {
-        for (let j = i + 1; j < globsByFile.length; j++) {
-          const a = globsByFile[i];
-          const b = globsByFile[j];
-          const aSet = new Set(a.globs);
-          const bSet = new Set(b.globs);
-          if (aSet.size === bSet.size && [...aSet].every(g => bSet.has(g))) {
-            results.push({
-              file: rulesDirPath,
-              issues: [{
-                severity: 'warning',
-                message: `Rules have identical globs: ${a.file} and ${b.file}`,
-                hint: 'Both rules target the same files. Consider merging or using different globs.',
-              }],
-            });
-          }
-        }
+      // Check for identical glob sets — group by glob signature to avoid O(n²) output
+      const globSignatureMap = {};
+      for (const entry of globsByFile) {
+        const sig = [...new Set(entry.globs)].sort().join('|');
+        if (!globSignatureMap[sig]) globSignatureMap[sig] = [];
+        globSignatureMap[sig].push(entry.file);
       }
-
-      // 34. Globs overlap between rules
-      for (let i = 0; i < globsByFile.length; i++) {
-        for (let j = i + 1; j < globsByFile.length; j++) {
-          const a = globsByFile[i];
-          const b = globsByFile[j];
-          // Check if globs overlap significantly
-          let overlaps = 0;
-          for (const aGlob of a.globs) {
-            for (const bGlob of b.globs) {
-              // Check for common patterns
-              const aExt = aGlob.match(/\*\.(\w+)$/);
-              const bExt = bGlob.match(/\*\.(\w+)$/);
-              if (aExt && bExt && aExt[1] === bExt[1]) {
-                overlaps++;
-              } else if (aGlob === bGlob) {
-                overlaps++;
-              }
-            }
-          }
-          if (overlaps > 0 && overlaps >= Math.min(a.globs.length, b.globs.length) * 0.5) {
-            results.push({
-              file: rulesDirPath,
-              issues: [{
-                severity: 'info',
-                message: `Globs overlap between rules: ${a.file} and ${b.file}`,
-                hint: 'These rules target overlapping file patterns. Ensure they have distinct purposes or consolidate.',
-              }],
-            });
-          }
+      for (const sig of Object.keys(globSignatureMap)) {
+        const files = globSignatureMap[sig];
+        if (files.length > 1) {
+          results.push({
+            file: rulesDirPath,
+            issues: [{
+              severity: 'info',
+              message: `${files.length} rules share identical globs: ${files.join(', ')}`,
+              hint: 'These rules target the same files. This is fine if they cover different topics. Consider merging if they overlap in purpose.',
+            }],
+          });
         }
       }
     }
   }
 
-  // 27. Glob doesn't match any files in project (info-level)
+  // 27. Glob doesn't match any files in project (info-level, collapsed per file)
   if (fs.existsSync(rulesDirPath) && fs.statSync(rulesDirPath).isDirectory()) {
     let mdcFiles;
     try {
@@ -1747,6 +1708,27 @@ async function lintProject(dir) {
         throw e;
       }
     }
+    // Build a cache of which extensions exist in the project
+    const existingExts = new Set();
+    const scanExts = (dirPath, depth = 0) => {
+      if (depth > 5) return;
+      try {
+        const entries = fs.readdirSync(dirPath);
+        for (const entry of entries) {
+          if (entry.startsWith('.') && entry !== '.cursor') continue;
+          const fullPath = path.join(dirPath, entry);
+          const stat = fs.statSync(fullPath);
+          if (stat.isDirectory() && entry !== 'node_modules') {
+            scanExts(fullPath, depth + 1);
+          } else if (stat.isFile()) {
+            const dotIdx = entry.lastIndexOf('.');
+            if (dotIdx > 0) existingExts.add(entry.slice(dotIdx + 1));
+          }
+        }
+      } catch {}
+    };
+    scanExts(dir);
+
     for (const file of mdcFiles) {
       const filePath = path.join(rulesDirPath, file);
       var fileContent;
@@ -1754,43 +1736,36 @@ async function lintProject(dir) {
       const fm = parseFrontmatter(fileContent);
       if (fm.data && fm.data.globs) {
         const globs = parseGlobs(fm.data.globs);
+        const unmatchedGlobs = [];
         for (const glob of globs) {
-          // Simple check: look for files matching the extension
           const extMatch = glob.match(/\*\.(\w+)$/);
-          if (extMatch) {
-            const ext = extMatch[1];
-            // Quick scan: check if any files with this extension exist
-            let foundMatch = false;
-            const checkDir = (dirPath, depth = 0) => {
-              if (depth > 5) return; // Limit recursion depth
-              try {
-                const entries = fs.readdirSync(dirPath);
-                for (const entry of entries) {
-                  if (entry.startsWith('.') && entry !== '.cursor') continue;
-                  const fullPath = path.join(dirPath, entry);
-                  const stat = fs.statSync(fullPath);
-                  if (stat.isDirectory() && entry !== 'node_modules') {
-                    checkDir(fullPath, depth + 1);
-                  } else if (stat.isFile() && entry.endsWith('.' + ext)) {
-                    foundMatch = true;
-                    return;
-                  }
-                }
-              } catch {}
-            };
-            checkDir(dir);
-            
-            if (!foundMatch) {
-              results.push({
-                file: filePath,
-                issues: [{
-                  severity: 'info',
-                  message: `Glob doesn't match any files in project: ${glob}`,
-                  hint: 'This glob pattern matches zero existing files. Verify it\'s correct or remove it.',
-                }],
-              });
-            }
+          if (extMatch && !existingExts.has(extMatch[1])) {
+            unmatchedGlobs.push(glob);
           }
+        }
+        // Collapse into one issue per file
+        if (unmatchedGlobs.length > 0 && unmatchedGlobs.length === globs.length) {
+          // ALL globs unmatched — single warning
+          results.push({
+            file: filePath,
+            issues: [{
+              severity: 'info',
+              verboseOnly: true,
+              message: `No matching files for globs: ${unmatchedGlobs.join(', ')}`,
+              hint: 'None of this rule\'s glob patterns match existing files. Verify the patterns or remove the rule if unused.',
+            }],
+          });
+        } else if (unmatchedGlobs.length > 0) {
+          // Some globs unmatched
+          results.push({
+            file: filePath,
+            issues: [{
+              severity: 'info',
+              verboseOnly: true,
+              message: `Glob${unmatchedGlobs.length > 1 ? 's' : ''} match no files: ${unmatchedGlobs.join(', ')}`,
+              hint: 'These glob patterns match zero existing files. Verify they\'re correct or remove them.',
+            }],
+          });
         }
       }
     }
@@ -1884,7 +1859,7 @@ const SEMANTIC_PAIRS = [
   
   // Style contradictions - quotes
   { a: /\bsingle\s+quotes?\b/i, b: /\bdouble\s+quotes?\b/i, topic: 'quote style' },
-  { a: /\buse\s+['`]\b/i, b: /\buse\s+["`]\b/i, topic: 'quote style' },
+  { a: /\buse\s+single\s+quotes?\b/i, b: /\buse\s+double\s+quotes?\b/i, topic: 'quote style' },
   
   // Style contradictions - naming conventions
   { a: /\buse\s+camelCase\b/i, b: /\buse\s+snake_case\b/i, topic: 'naming convention' },
@@ -1906,7 +1881,12 @@ const SEMANTIC_PAIRS = [
   // Pattern contradictions - TypeScript
   { a: /\buse\s+interfaces?\b/i, b: /\buse\s+types?\b/i, topic: 'TypeScript type definition' },
   { a: /\bprefer\s+interfaces?\b/i, b: /\bprefer\s+type\s+aliases?\b/i, topic: 'TypeScript type definition' },
+  { a: /\bprefer\s+interfaces?\s+over\s+types?\b/i, b: /\bprefer\s+types?\s+over\s+interfaces?\b/i, topic: 'TypeScript type definition' },
   { a: /\binterfaces?\b.*\bonly\b/i, b: /\btypes?\b.*\bonly\b/i, topic: 'TypeScript type definition' },
+  
+  // Pattern contradictions - barrel exports
+  { a: /\buse\s+barrel\s+exports?\b/i, b: /\bno\s+barrel\s+exports?\b/i, topic: 'barrel exports' },
+  { a: /\bbarrel\s+exports?\b.*\bclean\b/i, b: /\bbarrel\s+exports?\b.*\btree.shaking\b/i, topic: 'barrel exports' },
   
   // Pattern contradictions - OOP vs FP
   { a: /\bprefer\s+composition\b/i, b: /\bprefer\s+inheritance\b/i, topic: 'code organization pattern' },
@@ -1982,6 +1962,8 @@ function detectConflicts(dir) {
     throw e;
   }
   if (files.length < 2) return [];
+  // Skip pairwise conflict detection for very large rule sets (O(n²) with regex)
+  if (files.length > 50) return [];
 
   const parsed = [];
   for (const file of files) {

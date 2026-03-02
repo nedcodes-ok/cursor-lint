@@ -28,7 +28,7 @@ async function doctor(dir) {
     report.score += 12;
     report.checks.push({ name: 'Rules exist', status: 'warn', detail: 'Only .cursorrules found — run cursor-doctor migrate to convert' });
   } else {
-    report.checks.push({ name: 'Rules exist', status: 'fail', detail: 'No rules found. Create .cursor/rules/*.mdc files or use npx rulegen-ai to generate them.' });
+    report.checks.push({ name: 'Rules exist', status: 'fail', detail: 'No rules found. Run npx cursor-doctor init or npx rulegen-ai to auto-generate rules from your codebase.' });
   }
 
   // 2. Check for legacy .cursorrules
@@ -50,15 +50,20 @@ async function doctor(dir) {
   let errors = 0, warnings = 0;
   for (const r of lintResults) {
     for (const i of r.issues) {
+      // Skip "no rules found" — doctor already has a separate "Rules exist" check
+      if (i.message && i.message.includes('No Cursor rules')) continue;
       if (i.severity === 'error') errors++;
       else if (i.severity === 'warning') warnings++;
     }
   }
   if (errors === 0 && warnings === 0) {
     report.score += 25;
-    report.checks.push({ name: 'Rule syntax', status: 'pass', detail: 'All rules pass lint checks' });
+    var syntaxDetail = (hasMdc || hasCursorrules) ? 'All rules pass lint checks' : 'No rules to lint';
+    report.checks.push({ name: 'Rule syntax', status: hasMdc || hasCursorrules ? 'pass' : 'info', detail: syntaxDetail });
   } else if (errors === 0) {
-    report.score += 18;
+    // Scale score down with more warnings: 18 for 1-2, drops by 2 per additional warning
+    var warnScore = Math.max(5, 18 - Math.max(0, warnings - 2) * 2);
+    report.score += warnScore;
     report.checks.push({ name: 'Rule syntax', status: 'warn', detail: `${warnings} warning(s). Run cursor-doctor lint for details.` });
   } else {
     report.score += Math.max(0, 8 - errors * 2);
@@ -74,10 +79,18 @@ async function doctor(dir) {
     report.checks.push({ name: 'Token budget', status: 'info', detail: 'No rules to measure' });
   } else if (budgetPct < 3) {
     report.score += 15;
-    report.checks.push({ name: 'Token budget', status: 'pass', detail: `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window)` });
+    var tokenDetail = `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window)`;
+    if (tokenAnalysis.conditionalTokens > 0) {
+      tokenDetail += `, ~${tokenAnalysis.conditionalTokens} per-file`;
+    }
+    report.checks.push({ name: 'Token budget', status: 'pass', detail: tokenDetail });
   } else if (budgetPct < 10) {
     report.score += 10;
-    report.checks.push({ name: 'Token budget', status: 'warn', detail: `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window) — getting heavy` });
+    var tokenDetail = `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window) — getting heavy`;
+    if (tokenAnalysis.conditionalTokens > 0) {
+      tokenDetail += `, ~${tokenAnalysis.conditionalTokens} per-file`;
+    }
+    report.checks.push({ name: 'Token budget', status: 'warn', detail: tokenDetail });
   } else {
     report.score += 3;
     report.checks.push({ name: 'Token budget', status: 'fail', detail: `~${tokenAnalysis.alwaysLoadedTokens} always-loaded tokens (${budgetPct}% of context window) — eating your context` });
@@ -136,8 +149,11 @@ async function doctor(dir) {
     report.checks.push({ name: 'File sizes', status: 'warn', detail: `Large files: ${detail}. Big files can overwhelm the AI.` });
   } else {
     report.score += 2;
-    const detail = bigFiles.map(f => `${f.name} (${(f.size/1024).toFixed(1)}KB)`).join(', ');
-    report.checks.push({ name: 'File sizes', status: 'fail', detail: `${bigFiles.length} oversized files: ${detail}` });
+    // Cap the display to avoid a wall of text
+    const top5 = bigFiles.sort((a, b) => b.size - a.size).slice(0, 5);
+    const detail = top5.map(f => `${f.name} (${(f.size/1024).toFixed(1)}KB)`).join(', ');
+    const suffix = bigFiles.length > 5 ? ` and ${bigFiles.length - 5} more` : '';
+    report.checks.push({ name: 'File sizes', status: 'fail', detail: `${bigFiles.length} oversized files: ${detail}${suffix}` });
   }
 
   // 7. alwaysApply overuse check (NEW)

@@ -1032,7 +1032,7 @@ function fixMissingDescription(content, filename) {
   const fm = parseFrontmatter(content);
   
   if (!fm.found || !fm.data) return { content, changes };
-  if (fm.data.description && fm.data.description.trim().length > 0) return { content, changes };
+  if (fm.data.description && typeof fm.data.description === 'string' && fm.data.description.trim().length > 0) return { content, changes };
   
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { content, changes };
@@ -1411,7 +1411,7 @@ function fixBodyStartsWithDescription(content) {
   const lines = body.split('\n');
   const firstNonEmptyLine = lines.find(line => line.trim().length > 0);
   
-  if (firstNonEmptyLine && firstNonEmptyLine.trim() === fm.data.description.trim()) {
+  if (firstNonEmptyLine && fm.data.description && typeof fm.data.description === 'string' && firstNonEmptyLine.trim() === fm.data.description.trim()) {
     // Find and remove the duplicate line
     const indexToRemove = lines.findIndex(line => line.trim() === fm.data.description.trim());
     if (indexToRemove !== -1) {
