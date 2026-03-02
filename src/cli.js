@@ -222,8 +222,8 @@ async function main() {
     console.log();
 
     var passes = report.checks.filter(function(c) { return c.status === 'pass'; }).length;
-    var fixable = report.checks.filter(function(c) { return c.status === 'fail' || c.status === 'warn'; }).length;
-    console.log('  ' + GREEN + passes + ' passed' + RESET + '  ' + (fixable > 0 ? YELLOW + fixable + ' fixable' + RESET : ''));
+    var issues = report.checks.filter(function(c) { return c.status === 'fail' || c.status === 'warn'; }).length;
+    console.log('  ' + GREEN + passes + ' passed' + RESET + '  ' + (issues > 0 ? YELLOW + issues + ' issue' + (issues > 1 ? 's' : '') + RESET : ''));
     console.log();
 
     // Check if user has no rules at all (no-rules footer should push to init, not lint/fix)
@@ -232,12 +232,27 @@ async function main() {
       console.log('  ' + CYAN + 'Get started:' + RESET + '  npx cursor-doctor init');
       console.log('  ' + DIM + 'Or generate rules from your codebase:' + RESET + '  npx rulegen-ai');
       console.log();
-    } else if (fixable > 0) {
+    } else if (issues > 0) {
       console.log('  ' + DIM + 'See details:' + RESET + '  npx cursor-doctor lint');
-      if (!isLicensed(cwd)) {
-        console.log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
-      } else {
-        console.log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix');
+      // Only suggest auto-fix if lint actually has fixable issues
+      var lintResults = await lintProject(cwd);
+      var hasAutoFixable = false;
+      for (var si = 0; si < lintResults.length; si++) {
+        var sIssues = lintResults[si].issues || [];
+        for (var sj = 0; sj < sIssues.length; sj++) {
+          if (sIssues[sj].fixable !== false && (sIssues[sj].severity === 'error' || sIssues[sj].severity === 'warning')) {
+            hasAutoFixable = true;
+            break;
+          }
+        }
+        if (hasAutoFixable) break;
+      }
+      if (hasAutoFixable) {
+        if (!isLicensed(cwd)) {
+          console.log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
+        } else {
+          console.log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix');
+        }
       }
       console.log();
     } else if (passes > 0 && (report.grade === 'A' || report.grade === 'B')) {
@@ -1481,12 +1496,32 @@ async function main() {
       console.log('  ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=fix-preview' + RESET);
       console.log('  ' + DIM + 'Full refund if it doesn\'t find real issues.' + RESET);
     } else if (!dryRun && totalActions > 0) {
+      // Run post-fix lint to show remaining issues
+      var postFixLint = await lintProject(cwd);
+      var postFixIssues = 0;
+      var postFixManual = 0;
+      for (var pfi = 0; pfi < postFixLint.length; pfi++) {
+        var pfIssues = postFixLint[pfi].issues || [];
+        for (var pfj = 0; pfj < pfIssues.length; pfj++) {
+          if (pfIssues[pfj].severity === 'error' || pfIssues[pfj].severity === 'warning') {
+            postFixIssues++;
+            if (pfIssues[pfj].fixable === false) postFixManual++;
+          }
+        }
+      }
+      if (postFixIssues > 0) {
+        console.log();
+        console.log('  ' + YELLOW + postFixIssues + ' issue' + (postFixIssues > 1 ? 's' : '') + ' remaining' + RESET + (postFixManual > 0 ? ' (' + postFixManual + ' need manual review)' : '') + '. Run ' + DIM + 'cursor-doctor lint' + RESET + ' for details.');
+      } else {
+        console.log();
+        console.log('  ' + GREEN + String.fromCharCode(10003) + ' All issues resolved.' + RESET);
+      }
       console.log();
       console.log('  ' + DIM + 'cursor-doctor helped? Star us on GitHub:' + RESET);
       console.log('  ' + CYAN + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
     }
     console.log();
-    await exitClean(0);
+    await exitClean((postFixIssues || 0) > 0 ? 1 : 0);
   }
 
   // --- unknown ---

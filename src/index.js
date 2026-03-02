@@ -74,7 +74,7 @@ function similarity(textA, textB) {
   const wordsA = new Set(normA.split(/\s+/));
   const wordsB = new Set(normB.split(/\s+/));
   
-  if (wordsA.size === 0 && wordsB.size === 0) return 1.0;
+  if (wordsA.size === 0 && wordsB.size === 0) return 0.0;  // Two empty bodies are not meaningful duplicates
   if (wordsA.size === 0 || wordsB.size === 0) return 0.0;
   
   const intersection = new Set([...wordsA].filter(w => wordsB.has(w)));
@@ -343,17 +343,28 @@ async function lintMdcFile(filePath) {
 
     // NEW: Multiple globs that could be simplified
     if (globs.length >= 2) {
-      const extensions = globs.map(g => {
-        const match = g.match(/^\*\.(\w+)$/);
-        return match ? match[1] : null;
-      }).filter(Boolean);
-      
-      if (extensions.length >= 2 && extensions.length === globs.length) {
+      // Check for exact duplicates first
+      const uniqueGlobs = [...new Set(globs)];
+      if (uniqueGlobs.length < globs.length) {
         issues.push({
-          severity: 'info',
-          message: `Multiple globs could be simplified: ${globs.join(', ')}`,
-          hint: `Consider using ["*.{${extensions.join(',')}}"] for cleaner syntax.`,
+          severity: 'warning',
+          message: `Duplicate globs found: ${globs.join(', ')}`,
+          hint: `Remove duplicate glob entries. Use: [${uniqueGlobs.map(g => `"${g}"`).join(', ')}]`,
+          fixable: true,
         });
+      } else {
+        const extensions = globs.map(g => {
+          const match = g.match(/^\*\.(\w+)$/);
+          return match ? match[1] : null;
+        }).filter(Boolean);
+        
+        if (extensions.length >= 2 && extensions.length === globs.length) {
+          issues.push({
+            severity: 'info',
+            message: `Multiple globs could be simplified: ${globs.join(', ')}`,
+            hint: `Consider using ["*.{${extensions.join(',')}}"] for cleaner syntax.`,
+          });
+        }
       }
     }
   }
@@ -507,6 +518,7 @@ async function lintMdcFile(filePath) {
         severity: 'warning',
         message: 'Rule uses negations without alternatives',
         hint: 'Instead of "don\'t use X", say "use Y instead of X" to give the model clear direction.',
+        fixable: false,
       });
     }
   }
