@@ -44,9 +44,13 @@ fi
 npm whoami >/dev/null 2>&1 || fail "Not logged into npm. Run 'npm login' first."
 
 # --- Step 1: Run tests ---
-step "Running tests"
+step "Running unit tests"
 cd "$DOCTOR_DIR"
-npm test || fail "Tests failed. Fix before releasing."
+npm test || fail "Unit tests failed. Fix before releasing."
+
+step "Running regression suite"
+cd "$DOCTOR_DIR"
+node test/regression.js || fail "Regression tests failed. Run 'node test/regression.js' to see diffs. If output changes are intentional, run 'node test/regression.js --update' and commit."
 
 # --- Step 2: Bump version ---
 step "Bumping version ($BUMP)"
