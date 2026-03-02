@@ -70,6 +70,11 @@ function showHelp() {
     '  npx cursor-doctor activate <key>  # Activate license',
     '  npx cursor-doctor-mcp              # MCP server (for AI assistants)',
     '',
+    YELLOW + 'Flags:' + RESET,
+    '  --quiet, -q    Suppress all output except errors and the final summary',
+    '  --json         Output results as JSON',
+    '  --dry-run      Preview changes without writing files',
+    '',
     DIM + 'Get a Pro key: ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=help' + RESET,
     '',
   ];
@@ -104,6 +109,12 @@ async function main() {
   }
 
   var asJson = args.includes('--json');
+  var quiet = args.includes('--quiet') || args.includes('-q');
+
+function log(msg, severity) {
+  if (quiet && severity !== 'error' && severity !== 'summary') return;
+  console.log(msg);
+}
   var command = args.find(function(a) { return !a.startsWith('-'); }) || 'scan';
   
   // Parse path argument (first non-flag arg after command)
@@ -160,17 +171,17 @@ async function main() {
     var gradeEmoji = { A: String.fromCharCode(11088), B: String.fromCharCode(10004), C: String.fromCharCode(9888), D: String.fromCharCode(9881), F: String.fromCharCode(128680) };
     var gc = gradeColors[report.grade] || RESET;
 
-    console.log();
-    console.log('  ' + gc + BOLD + String.fromCharCode(9618).repeat(2) + ' Cursor Health: ' + report.grade + ' ' + String.fromCharCode(9618).repeat(2) + RESET);
-    console.log();
+    log('');
+    log('  ' + gc + BOLD + String.fromCharCode(9618).repeat(2) + ' Cursor Health: ' + report.grade + ' ' + String.fromCharCode(9618).repeat(2) + RESET);
+    log('');
 
     // Progress bar
     var barWidth = 30;
     var filled = Math.round((report.percentage / 100) * barWidth);
     var empty = barWidth - filled;
     var bar = gc + String.fromCharCode(9608).repeat(filled) + RESET + DIM + String.fromCharCode(9617).repeat(empty) + RESET;
-    console.log('  ' + bar + '  ' + gc + BOLD + report.percentage + '%' + RESET);
-    console.log();
+    log('  ' + bar + '  ' + gc + BOLD + report.percentage + '%' + RESET);
+    log('');
 
     for (var i = 0; i < report.checks.length; i++) {
       var check = report.checks[i];
@@ -179,21 +190,23 @@ async function main() {
       else if (check.status === 'warn') icon = YELLOW + String.fromCharCode(9888) + RESET;
       else if (check.status === 'fail') icon = RED + String.fromCharCode(10007) + RESET;
       else icon = BLUE + String.fromCharCode(8505) + RESET;
-      console.log('  ' + icon + ' ' + BOLD + check.name + RESET);
-      console.log('    ' + DIM + check.detail + RESET);
+      if (!quiet || check.status === 'fail' || check.status === 'warn') {
+        log('  ' + icon + ' ' + BOLD + check.name + RESET, check.status === 'fail' ? 'error' : undefined);
+        log('    ' + DIM + check.detail + RESET, check.status === 'fail' ? 'error' : undefined);
+      }
     }
-    console.log();
+    log('');
 
     var passes = report.checks.filter(function(c) { return c.status === 'pass'; }).length;
     var fixable = report.checks.filter(function(c) { return c.status === 'fail' || c.status === 'warn'; }).length;
-    console.log('  ' + GREEN + passes + ' passed' + RESET + '  ' + (fixable > 0 ? YELLOW + fixable + ' fixable' + RESET : ''));
-    console.log();
+    log('  ' + GREEN + passes + ' passed' + RESET + '  ' + (fixable > 0 ? YELLOW + fixable + ' fixable' + RESET : ''), 'summary');
+    log('', 'summary');
 
     if (fixable > 0) {
-      console.log('  ' + CYAN + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
-      console.log('  ' + CYAN + 'Full diagnostic:' + RESET + ' npx cursor-doctor audit');
-      console.log('  ' + DIM + 'Pro ($9 one-time) ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=scan' + RESET);
-      console.log();
+      log('  ' + CYAN + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
+      log('  ' + CYAN + 'Full diagnostic:' + RESET + ' npx cursor-doctor audit');
+      log('  ' + DIM + 'Pro ($9 one-time) ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=scan' + RESET);
+      log('');
     }
 
     process.exit(report.grade === 'F' ? 1 : 0);
@@ -211,16 +224,16 @@ async function main() {
     var issues = report.checks.filter(function(c) { return c.status === 'fail' || c.status === 'warn'; });
 
     if (issues.length === 0) {
-      console.log(GREEN + String.fromCharCode(10003) + RESET + ' Cursor setup healthy (' + report.grade + ', ' + report.percentage + '%)');
+      log(GREEN + String.fromCharCode(10003) + RESET + ' Cursor setup healthy (' + report.grade + ', ' + report.percentage + '%)', 'summary');
       process.exit(0);
     }
 
     for (var i = 0; i < issues.length; i++) {
       var issue = issues[i];
       var icon = issue.status === 'fail' ? RED + String.fromCharCode(10007) + RESET : YELLOW + String.fromCharCode(9888) + RESET;
-      console.log(icon + ' ' + issue.name + ': ' + issue.detail);
+      log(icon + ' ' + issue.name + ': ' + issue.detail, issue.status === 'fail' ? 'error' : undefined);
     }
-    console.log('\nGrade: ' + report.grade + ' (' + report.percentage + '%)');
+    log('\nGrade: ' + report.grade + ' (' + report.percentage + '%)', 'summary');
     process.exit(1);
   }
 
@@ -237,18 +250,19 @@ async function main() {
       process.exit(hasJsonErrors ? 1 : 0);
     }
 
-    console.log();
-    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- lint');
-    console.log();
+    log('');
+    log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- lint');
+    log('');
     var totalErrors = 0;
     var totalWarnings = 0;
     var totalPassed = 0;
     for (var i = 0; i < results.length; i++) {
       var result = results[i];
       var relPath = path.relative(cwd, result.file) || result.file;
-      console.log(relPath);
+      var fileHasErrors = result.issues.some(function(iss) { return iss.severity === 'error'; });
+      if (!quiet || fileHasErrors) log(relPath, fileHasErrors ? 'error' : undefined);
       if (result.issues.length === 0) {
-        console.log('  ' + GREEN + String.fromCharCode(10003) + ' All checks passed' + RESET);
+        if (!quiet) log('  ' + GREEN + String.fromCharCode(10003) + ' All checks passed' + RESET);
         totalPassed++;
       } else {
         for (var j = 0; j < result.issues.length; j++) {
@@ -258,25 +272,28 @@ async function main() {
           else if (issue.severity === 'warning') { icon = YELLOW + String.fromCharCode(9888) + RESET; totalWarnings++; }
           else { icon = BLUE + String.fromCharCode(8505) + RESET; }
           var lineInfo = issue.line ? ' ' + DIM + '(line ' + issue.line + ')' + RESET : '';
-          console.log('  ' + icon + ' ' + issue.message + lineInfo);
-          if (issue.hint) console.log('    ' + DIM + String.fromCharCode(8594) + ' ' + issue.hint + RESET);
+          var isErr = issue.severity === 'error';
+          if (!quiet || isErr) {
+            log('  ' + icon + ' ' + issue.message + lineInfo, isErr ? 'error' : undefined);
+            if (issue.hint) log('    ' + DIM + String.fromCharCode(8594) + ' ' + issue.hint + RESET, isErr ? 'error' : undefined);
+          }
         }
       }
-      console.log();
+      if (!quiet || fileHasErrors) log('');
     }
-    console.log(String.fromCharCode(9472).repeat(50));
+    log(String.fromCharCode(9472).repeat(50), 'summary');
     var parts = [];
     if (totalErrors > 0) parts.push(RED + totalErrors + ' error(s)' + RESET);
     if (totalWarnings > 0) parts.push(YELLOW + totalWarnings + ' warning(s)' + RESET);
     if (totalPassed > 0) parts.push(GREEN + totalPassed + ' passed' + RESET);
-    console.log(parts.join(', '));
+    log(parts.join(', '), 'summary');
     if (totalErrors > 0 || totalWarnings > 0) {
-      console.log();
-      console.log('  ' + BOLD + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
-      console.log('  Most issues above can be fixed automatically (Pro, $9 one-time)');
-      console.log('  ' + DIM + 'https://nedcodes.gumroad.com/l/cursor-doctor-pro' + RESET);
+      log('');
+      log('  ' + BOLD + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
+      log('  Most issues above can be fixed automatically (Pro, $9 one-time)');
+      log('  ' + DIM + 'https://nedcodes.gumroad.com/l/cursor-doctor-pro' + RESET);
     }
-    console.log();
+    log('');
     process.exit(totalErrors > 0 ? 1 : 0);
   }
 
