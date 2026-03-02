@@ -3747,6 +3747,143 @@ Check [this link](https://example.com) too.`;
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // FP-REGRESSION: False Positive Tests
+  // Mission: "Never show a false positive." (Kaner Lesson #2)
+  // Every real-world false positive gets a permanent test here.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  console.log('\n  False Positive Regression:');
+
+  // FP-REGRESSION: Qualified "be consistent" should NOT trigger vague warning
+  // Source: Real-world test (wordpress-php-guzzle-gutenberg, awesome-cursorrules)
+  // "be consistent with WordPress ecosystem best practices" is qualified, not vague
+  await asyncTest('FP-REGRESSION: "be consistent with [qualifier]" is not vague', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/wp.mdc', `---
+description: WordPress coding standards
+alwaysApply: true
+---
+Follow WordPress coding standards.
+Be consistent with WordPress ecosystem best practices.
+Use proper hooks and filters.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('be consistent'));
+    assert.strictEqual(vagueWarnings.length, 0, 'Qualified "be consistent with..." should not trigger vague warning');
+  });
+
+  // FP-REGRESSION: Qualified "be concise" should NOT trigger vague warning
+  // Source: Real-world test (angular-typescript, awesome-cursorrules)
+  // "be concise and minimize extraneous prose" is a specific instruction
+  await asyncTest('FP-REGRESSION: "be concise and [action]" is not vague', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/style.mdc', `---
+description: Code style rules
+alwaysApply: true
+---
+Write clear documentation.
+Be concise and minimize extraneous prose in comments.
+Use JSDoc for public APIs.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('be concise'));
+    assert.strictEqual(vagueWarnings.length, 0, 'Qualified "be concise and..." should not trigger vague warning');
+  });
+
+  // FP-REGRESSION: "follow best practices" WITH qualifier should not trigger
+  // Pattern: "follow best practices for [thing]" or "follow best practices in [area]"
+  await asyncTest('FP-REGRESSION: "follow best practices for [qualifier]" is not vague', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/sec.mdc', `---
+description: Security rules
+alwaysApply: true
+---
+Follow best practices for input validation and sanitization.
+Never trust user input.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('follow best practices'));
+    assert.strictEqual(vagueWarnings.length, 0, 'Qualified "follow best practices for..." should not trigger vague warning');
+  });
+
+  // FP-REGRESSION: Standalone "be consistent" with no qualifier SHOULD trigger
+  // This is the control — truly vague advice should still be caught
+  await asyncTest('FP-REGRESSION: standalone "be consistent" IS vague (control test)', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/vague-real.mdc', `---
+description: General rules
+alwaysApply: true
+---
+Write good code.
+Be consistent.
+Test everything.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected'));
+    assert(vagueWarnings.length > 0, 'Standalone "Be consistent." should still trigger vague warning');
+  });
+
+  // FP-REGRESSION: Quote style conflict should not trigger on code references
+  // Source: Cold-eye analysis — 'use client' and `any` in code triggering quote conflict
+  await asyncTest('FP-REGRESSION: code references like use client should not trigger quote conflict', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/react.mdc', `---
+description: React conventions
+globs: ["**/*.tsx"]
+alwaysApply: false
+---
+Mark client components with 'use client' directive at the top.
+Avoid using \`any\` type — prefer explicit types or \`unknown\`.
+Use single-responsibility components.`);
+    const result = await lintMdcFile(filePath);
+    const quoteConflicts = result.issues.filter(i => i.message.toLowerCase().includes('quote'));
+    assert.strictEqual(quoteConflicts.length, 0, 'Code references like use client should not trigger quote style warnings');
+  });
+
+  // FP-REGRESSION: Placeholder syntax <method> should not trigger XML/HTML warning
+  // Source: Cold-eye analysis — <method>, <filename> etc. are placeholder syntax not XML
+  await asyncTest('FP-REGRESSION: placeholder syntax <method> is not XML/HTML', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/api.mdc', `---
+description: API design rules
+globs: ["src/api/**/*.ts"]
+alwaysApply: false
+---
+Every endpoint must have:
+- A <method> (GET, POST, PUT, DELETE)
+- A <path> starting with /api/
+- A <response_type> definition
+Use proper HTTP status codes.`);
+    const result = await lintMdcFile(filePath);
+    const xmlWarnings = result.issues.filter(i => i.message.toLowerCase().includes('xml') || i.message.toLowerCase().includes('html'));
+    assert.strictEqual(xmlWarnings.length, 0, 'Placeholder syntax like <method> should not trigger XML/HTML warnings');
+  });
+
+  // FP-REGRESSION: "follow solid principles" should trigger (truly vague, no qualifier)
+  await asyncTest('FP-REGRESSION: "follow solid principles" without qualifier IS vague (control)', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/oop.mdc', `---
+description: OOP rules
+alwaysApply: true
+---
+Follow SOLID principles.
+Use dependency injection.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('follow solid principles'));
+    assert(vagueWarnings.length > 0, 'Standalone "Follow SOLID principles." should trigger vague warning');
+  });
+
+  // FP-REGRESSION: "handle errors properly" with qualifier should not trigger
+  await asyncTest('FP-REGRESSION: "handle errors properly by [action]" is not vague', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/errors.mdc', `---
+description: Error handling standards
+alwaysApply: true
+---
+Handle errors properly by wrapping async calls in try/catch blocks.
+Log all errors with stack traces.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('handle errors'));
+    assert.strictEqual(vagueWarnings.length, 0, 'Qualified "handle errors properly by..." should not trigger vague warning');
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // Test Summary & Cleanup
   // ─────────────────────────────────────────────────────────────────────────────
 
