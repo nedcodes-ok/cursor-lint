@@ -1,0 +1,8 @@
+---
+description: Rule 32 for module 32
+globs: ["src/mod-32/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 32 conventions. Keep boundaries clean.
+No circular imports between modules.

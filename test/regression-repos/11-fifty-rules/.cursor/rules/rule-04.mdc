@@ -1,0 +1,8 @@
+---
+description: Rule 04 for module 04
+globs: ["src/mod-04/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 04 conventions. Keep boundaries clean.
+No circular imports between modules.

@@ -1,0 +1,9 @@
+---
+description: Standards for module 10
+globs: ["src/modules/module-10/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 10 conventions. Keep boundaries clean.
+Use dependency injection. No circular imports.
+Document public APIs with JSDoc.

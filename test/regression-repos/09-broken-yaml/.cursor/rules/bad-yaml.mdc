@@ -1,0 +1,8 @@
+---
+description: This has a tab	in the YAML
+globs: **/*.js
+alwaysApply: maybe
+---
+
+This rule has YAML issues. Globs not in array format.
+alwaysApply is a string not boolean.

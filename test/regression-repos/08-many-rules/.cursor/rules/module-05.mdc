@@ -1,0 +1,9 @@
+---
+description: Standards for module 05
+globs: ["src/modules/module-05/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 05 conventions. Keep boundaries clean.
+Use dependency injection. No circular imports.
+Document public APIs with JSDoc.

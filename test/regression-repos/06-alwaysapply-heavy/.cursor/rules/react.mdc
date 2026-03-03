@@ -1,0 +1,8 @@
+---
+description: react coding standards
+globs: []
+alwaysApply: true
+---
+
+Follow react best practices. Keep code clean and well-documented.
+Use proper error handling and logging.

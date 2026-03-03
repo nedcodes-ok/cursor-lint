@@ -1,0 +1,7 @@
+---
+description: Working rule with proper frontmatter
+globs: ["**/*.ts"]
+alwaysApply: false
+---
+
+This rule is fine. Standard TypeScript conventions.

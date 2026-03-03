@@ -1,0 +1,8 @@
+---
+description: Rule 50 for module 50
+globs: ["src/mod-50/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 50 conventions. Keep boundaries clean.
+No circular imports between modules.

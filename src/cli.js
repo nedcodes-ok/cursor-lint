@@ -235,6 +235,7 @@ function log(msg, severity) {
     log('  ' + GREEN + passes + ' passed' + RESET + '  ' + (fixable > 0 ? YELLOW + fixable + ' fixable' + RESET : ''), 'summary');
     log('', 'summary');
 
+    // Check if user has no rules at all
     var hasNoRules = report.checks.some(function(c) { return c.name === 'Rules exist' && c.status === 'fail'; });
     if (hasNoRules) {
       log('  ' + CYAN + 'Get started:' + RESET + '  npx cursor-doctor init');
@@ -359,7 +360,6 @@ function log(msg, severity) {
     if (totalErrors > 0 || totalWarnings > 0) {
       log('');
       if (totalWarnings <= 3 && totalErrors === 0) {
-        // Few cosmetic issues — emphasize deeper analysis
         log('  ' + BOLD + 'Go deeper:' + RESET + ' npx cursor-doctor audit  ' + DIM + '(full diagnostic)' + RESET);
         log('  ' + DIM + 'Also:' + RESET + ' conflicts, perf, fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
       } else {

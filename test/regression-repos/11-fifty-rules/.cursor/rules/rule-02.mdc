@@ -1,0 +1,8 @@
+---
+description: Rule 02 for module 02
+globs: ["src/mod-02/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 02 conventions. Keep boundaries clean.
+No circular imports between modules.

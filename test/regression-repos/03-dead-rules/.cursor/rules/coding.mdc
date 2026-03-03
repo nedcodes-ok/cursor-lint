@@ -1,0 +1,8 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+Write clean, maintainable code. Follow SOLID principles.
+Use dependency injection for testability.

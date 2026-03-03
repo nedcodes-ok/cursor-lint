@@ -1,0 +1,8 @@
+---
+description: Rule 15 for module 15
+globs: ["src/mod-15/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 15 conventions. Keep boundaries clean.
+No circular imports between modules.

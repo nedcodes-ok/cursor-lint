@@ -1,0 +1,8 @@
+---
+description: Rule 35 for module 35
+globs: ["src/mod-35/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 35 conventions. Keep boundaries clean.
+No circular imports between modules.

@@ -1,0 +1,8 @@
+---
+description: Rule 45 for module 45
+globs: ["src/mod-45/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 45 conventions. Keep boundaries clean.
+No circular imports between modules.

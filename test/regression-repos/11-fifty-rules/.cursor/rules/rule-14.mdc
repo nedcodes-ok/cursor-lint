@@ -1,0 +1,8 @@
+---
+description: Rule 14 for module 14
+globs: ["src/mod-14/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 14 conventions. Keep boundaries clean.
+No circular imports between modules.

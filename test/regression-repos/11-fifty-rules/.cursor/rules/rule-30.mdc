@@ -1,0 +1,8 @@
+---
+description: Rule 30 for module 30
+globs: ["src/mod-30/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 30 conventions. Keep boundaries clean.
+No circular imports between modules.

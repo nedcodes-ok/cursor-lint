@@ -1,0 +1,8 @@
+---
+description: Rule 47 for module 47
+globs: ["src/mod-47/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 47 conventions. Keep boundaries clean.
+No circular imports between modules.

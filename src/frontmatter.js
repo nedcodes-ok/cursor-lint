@@ -7,7 +7,13 @@
 function parseFrontmatter(content) {
   var normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const match = normalized.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return { found: false, data: null, error: null };
+  if (!match) {
+    // Also check for empty frontmatter block (---\n---)
+    if (normalized.startsWith('---\n---')) {
+      return { found: true, data: {}, error: null };
+    }
+    return { found: false, data: null, error: null };
+  }
 
   try {
     const data = {};
@@ -54,7 +60,20 @@ function parseFrontmatter(content) {
         currentList = [];
       } else if (rawVal === 'true') data[key] = true;
       else if (rawVal === 'false') data[key] = false;
-      else if (rawVal.startsWith('"') && rawVal.endsWith('"')) data[key] = rawVal.slice(1, -1);
+      else if (rawVal.startsWith('[') && rawVal.endsWith(']')) {
+        // Inline JSON-style array: ["a", "b"] or []
+        const inner = rawVal.slice(1, -1).trim();
+        if (inner === '') {
+          data[key] = [];
+        } else {
+          data[key] = inner.split(',').map(function(item) {
+            item = item.trim();
+            if (item.startsWith('"') && item.endsWith('"')) return item.slice(1, -1);
+            if (item.startsWith("'") && item.endsWith("'")) return item.slice(1, -1);
+            return item;
+          });
+        }
+      } else if (rawVal.startsWith('"') && rawVal.endsWith('"')) data[key] = rawVal.slice(1, -1);
       else data[key] = rawVal;
     }
     // Flush final list

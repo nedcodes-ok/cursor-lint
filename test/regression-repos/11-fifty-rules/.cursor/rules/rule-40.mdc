@@ -1,0 +1,8 @@
+---
+description: Rule 40 for module 40
+globs: ["src/mod-40/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 40 conventions. Keep boundaries clean.
+No circular imports between modules.

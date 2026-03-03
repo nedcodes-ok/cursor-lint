@@ -1,0 +1,22 @@
+exit:0
+---
+cursor-doctor vX.X.X -- lint
+
+.cursor/rules  (1 warning)
+  ⚠ Project has 25 rule files
+    → More rules means more tokens consumed per request. Consider consolidating related rules.
+
+.cursor/rules  (1 warning)
+  ⚠ Possible duplicate rules (25 similar): module-01.mdc, module-02.mdc, module-03.mdc, module-04.mdc, module-05.mdc, module-06.mdc, module-07.mdc, module-08.mdc, module-09.mdc, module-10.mdc, module-11.mdc, module-12.mdc, module-13.mdc, module-14.mdc, module-15.mdc, module-16.mdc, module-17.mdc, module-18.mdc, module-19.mdc, module-20.mdc, module-21.mdc, module-22.mdc, module-23.mdc, module-24.mdc, module-25.mdc
+    → These rules have very similar content. Differentiate them or merge into fewer rules.
+
+.cursor  (1 info)
+  ℹ 25 rules with no subdirectory organization
+    → Organize rules into subdirectories (e.g., .cursor/rules/typescript/, .cursor/rules/react/) for better maintainability.
+
+──────────────────────────────────────────────────
+2 warnings, 1 info, 25 passed
+
+  Go deeper: npx cursor-doctor audit  (full diagnostic)
+  Also: conflicts, perf, fix  (Pro, $9 one-time)
+  https://nedcodes.gumroad.com/l/cursor-doctor-pro

@@ -112,6 +112,30 @@ function fixEmptyGlobsArray(content) {
   return { content, changes };
 }
 
+// 4b. Fix duplicate globs: deduplicate identical glob entries
+function fixDuplicateGlobs(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found || !fm.data || !fm.data.globs) return { content, changes };
+  
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return { content, changes };
+  
+  const globs = Array.isArray(fm.data.globs) ? fm.data.globs : [];
+  const uniqueGlobs = [...new Set(globs)];
+  
+  if (uniqueGlobs.length < globs.length) {
+    let yaml = match[1];
+    const globsStr = `[${uniqueGlobs.map(g => `"${g}"`).join(', ')}]`;
+    yaml = yaml.replace(/^globs:.*$/m, `globs: ${globsStr}`);
+    content = content.replace(/^---\n[\s\S]*?\n---/, `---\n${yaml}\n---`);
+    changes.push(`Removed ${globs.length - uniqueGlobs.length} duplicate glob(s)`);
+  }
+  
+  return { content, changes };
+}
+
 // 5. Fix description with markdown: strip *, _, `, #, [, ]
 function fixDescriptionMarkdown(content) {
   const changes = [];
@@ -276,11 +300,14 @@ function fixPleaseThankYou(content) {
       return null;
     }
     
-    // "Please X" at start of line → "X" (capitalize first word)
-    if (/^please\s+/i.test(trimmed)) {
+    // "Please X" at start of line or after list marker → "X" (capitalize first word)
+    const pleaseMatch = trimmed.match(/^([-*]\s+)?please\s+/i);
+    if (pleaseMatch) {
       modified = true;
-      const rest = trimmed.replace(/^please\s+/i, '');
-      return line.replace(trimmed, rest.charAt(0).toUpperCase() + rest.slice(1));
+      const prefix = pleaseMatch[1] || '';
+      const rest = trimmed.replace(/^([-*]\s+)?please\s+/i, '');
+      const fixed = prefix + rest.charAt(0).toUpperCase() + rest.slice(1);
+      return line.replace(trimmed, fixed);
     }
     
     // "X please" at end → "X"
@@ -318,10 +345,10 @@ function fixFirstPerson(content) {
   const lines = body.split('\n');
   const fixedLines = lines.map(line => {
     const patterns = [
-      /^(\s*)I want you to\s+/i,
-      /^(\s*)I need you to\s+/i,
-      /^(\s*)I'd like you to\s+/i,
-      /^(\s*)My preference is (to\s+)?/i,
+      /^(\s*(?:[-*]\s+)?)I want you to\s+/i,
+      /^(\s*(?:[-*]\s+)?)I need you to\s+/i,
+      /^(\s*(?:[-*]\s+)?)I'd like you to\s+/i,
+      /^(\s*(?:[-*]\s+)?)My preference is (to\s+)?/i,
     ];
     
     for (const pattern of patterns) {
@@ -669,6 +696,7 @@ async function autoFix(dir, options = {}) {
     fixFrontmatterTabs,
     fixCommaSeparatedGlobs,
     fixEmptyGlobsArray,
+    fixDuplicateGlobs,
     fixDescriptionMarkdown,
     fixUnknownFrontmatterKeys,
     fixDescriptionRule,
@@ -723,17 +751,32 @@ async function autoFix(dir, options = {}) {
     }
     
     // Apply filename-aware fixers
+    let skipFile = false;
+    let skipReason = '';
     for (const fixer of filenameFixers) {
       const result = fixer(content, entry);
+      if (result.skip) {
+        skipFile = true;
+        skipReason = result.skipReason || 'Skipped';
+        break;
+      }
       content = result.content;
       allChanges.push(...result.changes);
     }
+    if (skipFile) {
+      results.fixed.push({ file: entry, change: skipReason });
+      continue;
+    }
     
     // Legacy frontmatter fixer (for cases not covered by new fixers)
-    const legacyFixed = fixFrontmatter(content);
-    if (legacyFixed !== content) {
-      content = legacyFixed;
-      allChanges.push('frontmatter repaired');
+    // Only run if content doesn't already have valid frontmatter (avoid double-frontmatter)
+    const preLegacyFm = parseFrontmatter(content);
+    if (!preLegacyFm.found || preLegacyFm.error) {
+      const legacyFixed = fixFrontmatter(content);
+      if (legacyFixed !== content) {
+        content = legacyFixed;
+        allChanges.push('frontmatter repaired');
+      }
     }
     
     if (content !== original) {
@@ -1015,6 +1058,12 @@ function fixMissingFrontmatter(content, filename) {
   const fm = parseFrontmatter(content);
   
   if (fm.found) return { content, changes };
+  
+  // If file is empty or whitespace-only, skip — adding frontmatter to an empty file
+  // just creates a new lint error (frontmatter but no instructions)
+  if (content.trim().length === 0) {
+    return { content, changes, skip: true, skipReason: 'Empty file — delete or add content manually' };
+  }
   
   // No frontmatter - add default
   const basename = filename ? filename.replace(/\.mdc$/, '') : 'rule';
@@ -1498,6 +1547,7 @@ module.exports = {
   fixFrontmatterTabs,
   fixCommaSeparatedGlobs,
   fixEmptyGlobsArray,
+  fixDuplicateGlobs,
   fixDescriptionMarkdown,
   fixUnknownFrontmatterKeys,
   fixDescriptionRule,

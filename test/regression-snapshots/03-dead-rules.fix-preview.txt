@@ -1,0 +1,10 @@
+exit:0
+---
+cursor-doctor fix (dry run)
+
+  ✓ coding.mdc: Changed alwaysApply to true (was false with no globs), Added missing description from filename
+  ✓ workflow.mdc: Changed alwaysApply to true (was false with no globs), Added missing description from filename
+
+  4 fixes available.  Get Pro to apply them:
+  https://nedcodes.gumroad.com/l/cursor-doctor-pro?utm_source=cli&utm_medium=npx&utm_campaign=fix-preview
+  Full refund if it doesn't find real issues.

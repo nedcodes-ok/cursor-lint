@@ -1,0 +1,10 @@
+---
+description: Testing standards and patterns
+globs: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts"]
+alwaysApply: false
+---
+
+Write tests using Vitest and React Testing Library.
+Test behavior, not implementation details.
+Use describe/it blocks with clear, readable names.
+Mock external dependencies at the module level.

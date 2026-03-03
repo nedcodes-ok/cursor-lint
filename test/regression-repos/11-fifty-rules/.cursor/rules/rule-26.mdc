@@ -1,0 +1,8 @@
+---
+description: Rule 26 for module 26
+globs: ["src/mod-26/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 26 conventions. Keep boundaries clean.
+No circular imports between modules.

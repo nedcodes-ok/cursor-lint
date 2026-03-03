@@ -1,0 +1,9 @@
+---
+description: Standards for module 24
+globs: ["src/modules/module-24/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 24 conventions. Keep boundaries clean.
+Use dependency injection. No circular imports.
+Document public APIs with JSDoc.

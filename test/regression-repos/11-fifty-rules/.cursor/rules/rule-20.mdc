@@ -1,0 +1,8 @@
+---
+description: Rule 20 for module 20
+globs: ["src/mod-20/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 20 conventions. Keep boundaries clean.
+No circular imports between modules.

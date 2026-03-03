@@ -1,0 +1,8 @@
+---
+description: Rule 54 for module 54
+globs: ["src/mod-54/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 54 conventions. Keep boundaries clean.
+No circular imports between modules.

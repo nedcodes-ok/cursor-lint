@@ -1,0 +1,14 @@
+exit:0
+---
+cursor-doctor vX.X.X -- lint
+
+.cursorrules  (1 warning)
+  ⚠ .cursorrules may be ignored in agent mode
+    → Convert to .mdc format: npx cursor-doctor migrate. This moves your rules to .cursor/rules/*.mdc where Cursor always reads them.
+
+──────────────────────────────────────────────────
+1 warning
+
+  Go deeper: npx cursor-doctor audit  (full diagnostic)
+  Also: conflicts, perf, fix  (Pro, $9 one-time)
+  https://nedcodes.gumroad.com/l/cursor-doctor-pro

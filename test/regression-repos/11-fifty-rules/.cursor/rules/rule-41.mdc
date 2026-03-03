@@ -1,0 +1,8 @@
+---
+description: Rule 41 for module 41
+globs: ["src/mod-41/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 41 conventions. Keep boundaries clean.
+No circular imports between modules.

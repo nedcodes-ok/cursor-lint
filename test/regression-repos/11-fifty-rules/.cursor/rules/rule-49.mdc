@@ -1,0 +1,8 @@
+---
+description: Rule 49 for module 49
+globs: ["src/mod-49/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 49 conventions. Keep boundaries clean.
+No circular imports between modules.

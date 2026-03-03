@@ -1,0 +1,8 @@
+---
+description: API design conventions
+globs: ["src/api/**/*.ts"]
+alwaysApply: false
+---
+
+Use REST conventions. Proper HTTP status codes.
+Validate all input with Zod schemas.

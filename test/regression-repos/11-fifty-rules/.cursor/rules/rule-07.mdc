@@ -1,0 +1,8 @@
+---
+description: Rule 07 for module 07
+globs: ["src/mod-07/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 07 conventions. Keep boundaries clean.
+No circular imports between modules.

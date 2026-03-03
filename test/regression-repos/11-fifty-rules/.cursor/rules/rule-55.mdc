@@ -1,0 +1,8 @@
+---
+description: Rule 55 for module 55
+globs: ["src/mod-55/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 55 conventions. Keep boundaries clean.
+No circular imports between modules.

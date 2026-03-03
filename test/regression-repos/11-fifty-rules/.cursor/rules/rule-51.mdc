@@ -1,0 +1,8 @@
+---
+description: Rule 51 for module 51
+globs: ["src/mod-51/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 51 conventions. Keep boundaries clean.
+No circular imports between modules.

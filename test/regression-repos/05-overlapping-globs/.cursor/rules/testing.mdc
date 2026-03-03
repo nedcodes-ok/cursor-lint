@@ -1,0 +1,8 @@
+---
+description: Test file conventions
+globs: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+alwaysApply: false
+---
+
+Use describe/it pattern. One assertion per test ideally.
+Mock external services. Use fixtures for test data.

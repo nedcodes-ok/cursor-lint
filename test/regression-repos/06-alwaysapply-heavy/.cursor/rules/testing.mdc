@@ -1,0 +1,8 @@
+---
+description: testing coding standards
+globs: []
+alwaysApply: true
+---
+
+Follow testing best practices. Keep code clean and well-documented.
+Use proper error handling and logging.

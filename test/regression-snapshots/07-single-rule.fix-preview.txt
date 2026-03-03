@@ -1,0 +1,5 @@
+exit:0
+---
+cursor-doctor fix (dry run)
+
+  ✓ Nothing to fix. Setup looks clean.

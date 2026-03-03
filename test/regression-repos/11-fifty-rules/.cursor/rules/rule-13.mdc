@@ -1,0 +1,8 @@
+---
+description: Rule 13 for module 13
+globs: ["src/mod-13/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 13 conventions. Keep boundaries clean.
+No circular imports between modules.

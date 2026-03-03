@@ -1,0 +1,9 @@
+---
+description: Standards for module 13
+globs: ["src/modules/module-13/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 13 conventions. Keep boundaries clean.
+Use dependency injection. No circular imports.
+Document public APIs with JSDoc.

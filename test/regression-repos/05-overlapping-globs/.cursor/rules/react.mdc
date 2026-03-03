@@ -1,0 +1,9 @@
+---
+description: React component conventions
+globs: ["**/*.tsx", "src/components/**/*.ts"]
+alwaysApply: false
+---
+
+Use functional components with hooks.
+Prefer composition over inheritance.
+Keep components under 200 lines.

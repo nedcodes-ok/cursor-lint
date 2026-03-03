@@ -1,0 +1,8 @@
+---
+description: Rule 19 for module 19
+globs: ["src/mod-19/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 19 conventions. Keep boundaries clean.
+No circular imports between modules.

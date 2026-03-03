@@ -1,0 +1,8 @@
+---
+description: Rule 43 for module 43
+globs: ["src/mod-43/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 43 conventions. Keep boundaries clean.
+No circular imports between modules.

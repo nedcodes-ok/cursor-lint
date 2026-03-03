@@ -1,0 +1,8 @@
+---
+description: Rule 06 for module 06
+globs: ["src/mod-06/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 06 conventions. Keep boundaries clean.
+No circular imports between modules.

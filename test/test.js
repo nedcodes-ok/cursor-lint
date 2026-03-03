@@ -3747,6 +3747,386 @@ Check [this link](https://example.com) too.`;
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // FP-REGRESSION: False Positive Tests
+  // Mission: "Never show a false positive." (Kaner Lesson #2)
+  // Every real-world false positive gets a permanent test here.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  console.log('\n  False Positive Regression:');
+
+  // FP-REGRESSION: Qualified "be consistent" should NOT trigger vague warning
+  // Source: Real-world test (wordpress-php-guzzle-gutenberg, awesome-cursorrules)
+  // "be consistent with WordPress ecosystem best practices" is qualified, not vague
+  await asyncTest('FP-REGRESSION: "be consistent with [qualifier]" is not vague', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/wp.mdc', `---
+description: WordPress coding standards
+alwaysApply: true
+---
+Follow WordPress coding standards.
+Be consistent with WordPress ecosystem best practices.
+Use proper hooks and filters.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('be consistent'));
+    assert.strictEqual(vagueWarnings.length, 0, 'Qualified "be consistent with..." should not trigger vague warning');
+  });
+
+  // FP-REGRESSION: Qualified "be concise" should NOT trigger vague warning
+  // Source: Real-world test (angular-typescript, awesome-cursorrules)
+  // "be concise and minimize extraneous prose" is a specific instruction
+  await asyncTest('FP-REGRESSION: "be concise and [action]" is not vague', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/style.mdc', `---
+description: Code style rules
+alwaysApply: true
+---
+Write clear documentation.
+Be concise and minimize extraneous prose in comments.
+Use JSDoc for public APIs.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('be concise'));
+    assert.strictEqual(vagueWarnings.length, 0, 'Qualified "be concise and..." should not trigger vague warning');
+  });
+
+  // FP-REGRESSION: "follow best practices" WITH qualifier should not trigger
+  // Pattern: "follow best practices for [thing]" or "follow best practices in [area]"
+  await asyncTest('FP-REGRESSION: "follow best practices for [qualifier]" is not vague', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/sec.mdc', `---
+description: Security rules
+alwaysApply: true
+---
+Follow best practices for input validation and sanitization.
+Never trust user input.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('follow best practices'));
+    assert.strictEqual(vagueWarnings.length, 0, 'Qualified "follow best practices for..." should not trigger vague warning');
+  });
+
+  // FP-REGRESSION: Standalone "be consistent" with no qualifier SHOULD trigger
+  // This is the control — truly vague advice should still be caught
+  await asyncTest('FP-REGRESSION: standalone "be consistent" IS vague (control test)', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/vague-real.mdc', `---
+description: General rules
+alwaysApply: true
+---
+Write good code.
+Be consistent.
+Test everything.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected'));
+    assert(vagueWarnings.length > 0, 'Standalone "Be consistent." should still trigger vague warning');
+  });
+
+  // FP-REGRESSION: Quote style conflict should not trigger on code references
+  // Source: Cold-eye analysis — 'use client' and `any` in code triggering quote conflict
+  await asyncTest('FP-REGRESSION: code references like use client should not trigger quote conflict', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/react.mdc', `---
+description: React conventions
+globs: ["**/*.tsx"]
+alwaysApply: false
+---
+Mark client components with 'use client' directive at the top.
+Avoid using \`any\` type — prefer explicit types or \`unknown\`.
+Use single-responsibility components.`);
+    const result = await lintMdcFile(filePath);
+    const quoteConflicts = result.issues.filter(i => i.message.toLowerCase().includes('quote'));
+    assert.strictEqual(quoteConflicts.length, 0, 'Code references like use client should not trigger quote style warnings');
+  });
+
+  // FP-REGRESSION: Placeholder syntax <method> should not trigger XML/HTML warning
+  // Source: Cold-eye analysis — <method>, <filename> etc. are placeholder syntax not XML
+  await asyncTest('FP-REGRESSION: placeholder syntax <method> is not XML/HTML', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/api.mdc', `---
+description: API design rules
+globs: ["src/api/**/*.ts"]
+alwaysApply: false
+---
+Every endpoint must have:
+- A <method> (GET, POST, PUT, DELETE)
+- A <path> starting with /api/
+- A <response_type> definition
+Use proper HTTP status codes.`);
+    const result = await lintMdcFile(filePath);
+    const xmlWarnings = result.issues.filter(i => i.message.toLowerCase().includes('xml') || i.message.toLowerCase().includes('html'));
+    assert.strictEqual(xmlWarnings.length, 0, 'Placeholder syntax like <method> should not trigger XML/HTML warnings');
+  });
+
+  // FP-REGRESSION: "follow solid principles" should trigger (truly vague, no qualifier)
+  await asyncTest('FP-REGRESSION: "follow solid principles" without qualifier IS vague (control)', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/oop.mdc', `---
+description: OOP rules
+alwaysApply: true
+---
+Follow SOLID principles.
+Use dependency injection.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('follow solid principles'));
+    assert(vagueWarnings.length > 0, 'Standalone "Follow SOLID principles." should trigger vague warning');
+  });
+
+  // FP-REGRESSION: "handle errors properly" with qualifier should not trigger
+  await asyncTest('FP-REGRESSION: "handle errors properly by [action]" is not vague', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/errors.mdc', `---
+description: Error handling standards
+alwaysApply: true
+---
+Handle errors properly by wrapping async calls in try/catch blocks.
+Log all errors with stack traces.`);
+    const result = await lintMdcFile(filePath);
+    const vagueWarnings = result.issues.filter(i => i.message.includes('Vague rule detected') && i.message.includes('handle errors'));
+    assert.strictEqual(vagueWarnings.length, 0, 'Qualified "handle errors properly by..." should not trigger vague warning');
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BUG-CLUSTER: autofix.js + frontmatter.js Hot Zone Tests
+  // "Bugs cluster. Where you find one, look for more." (Kaner Lesson #4)
+  // These are the two most bug-prone files. Extra test density here.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  console.log('\n  Bug Cluster — autofix.js:');
+
+  // CLUSTER: description is a number, not a string → .trim() would crash
+  await asyncTest('CLUSTER: autofix handles numeric description without crash', async () => {
+    setupTestProject();
+    const content = `---\ndescription: 42\nalwaysApply: true\n---\nSome body content.`;
+    const { fixMissingDescription } = require('../src/autofix');
+    const result = fixMissingDescription(content, 'test.mdc');
+    assert(result.content, 'Should return content without crashing');
+  });
+
+  // CLUSTER: description is boolean true → typeof check
+  await asyncTest('CLUSTER: autofix handles boolean description without crash', async () => {
+    setupTestProject();
+    const content = `---\ndescription: true\nalwaysApply: true\n---\nBody.`;
+    const { fixMissingDescription } = require('../src/autofix');
+    const result = fixMissingDescription(content, 'test.mdc');
+    assert(result.content, 'Should return content without crashing');
+  });
+
+  // CLUSTER: globs is a plain string (not array) → .trim() on string is fine, but .length check?
+  await asyncTest('CLUSTER: autofix handles string globs in fixMissingAlwaysApply', async () => {
+    setupTestProject();
+    const content = `---\ndescription: Test\nglobs: "**/*.ts"\n---\nBody.`;
+    const { fixMissingAlwaysApply } = require('../src/autofix');
+    const result = fixMissingAlwaysApply(content);
+    assert.strictEqual(result.changes.length, 0, 'Should not add alwaysApply when globs exist as string');
+  });
+
+  // CLUSTER: globs is null/undefined → .trim() would crash
+  await asyncTest('CLUSTER: autofix handles null globs without crash', async () => {
+    setupTestProject();
+    const content = `---\ndescription: Test\nglobs:\nalwaysApply: false\n---\nBody.`;
+    const { fixWillNeverLoad } = require('../src/autofix');
+    const result = fixWillNeverLoad(content);
+    assert(result.changes.length > 0, 'Should fix will-never-load rule');
+  });
+
+  // CLUSTER: globs is empty array [] → fixMissingAlwaysApply should add it
+  await asyncTest('CLUSTER: autofix handles empty globs array', async () => {
+    setupTestProject();
+    const content = `---\ndescription: Test\nglobs: []\n---\nBody.`;
+    const { fixMissingAlwaysApply } = require('../src/autofix');
+    const result = fixMissingAlwaysApply(content);
+    // No alwaysApply key exists, globs is empty → should add alwaysApply: true
+    assert(result.content.includes('alwaysApply: true'), 'Should add alwaysApply when globs is empty array');
+  });
+
+  // CLUSTER: content with no frontmatter at all → all fixers should bail gracefully
+  await asyncTest('CLUSTER: all autofix functions handle no-frontmatter content', async () => {
+    setupTestProject();
+    const content = `Just raw markdown. No frontmatter.`;
+    const autofix = require('../src/autofix');
+    const fns = [
+      'fixMissingDescription', 'fixMissingAlwaysApply', 'fixWillNeverLoad',
+      'fixBodyStartsWithDescription', 'fixDescriptionSentence'
+    ];
+    for (const fn of fns) {
+      if (autofix[fn]) {
+        const result = fn === 'fixMissingDescription' 
+          ? autofix[fn](content, 'test.mdc')
+          : autofix[fn](content);
+        assert(result.content !== undefined, `${fn} should return content without crashing on no-frontmatter`);
+        assert(Array.isArray(result.changes), `${fn} should return changes array`);
+      }
+    }
+  });
+
+  // CLUSTER: body that starts with description (duplicate line removal)
+  await asyncTest('CLUSTER: fixBodyStartsWithDescription removes exact duplicate', async () => {
+    setupTestProject();
+    const content = `---\ndescription: TypeScript Standards\nalwaysApply: true\n---\nTypeScript Standards\n\nUse strict mode always.`;
+    const { fixBodyStartsWithDescription } = require('../src/autofix');
+    const result = fixBodyStartsWithDescription(content);
+    assert(result.changes.length > 0, 'Should detect and remove duplicate description line');
+    assert(!result.content.match(/TypeScript Standards\n\nTypeScript Standards/), 'Should not have duplicate');
+  });
+
+  // CLUSTER: body starts with SIMILAR but not identical description → should NOT remove
+  await asyncTest('CLUSTER: fixBodyStartsWithDescription preserves non-exact match', async () => {
+    setupTestProject();
+    const content = `---\ndescription: TypeScript Standards\nalwaysApply: true\n---\nTypeScript Standards and Best Practices\n\nUse strict mode.`;
+    const { fixBodyStartsWithDescription } = require('../src/autofix');
+    const result = fixBodyStartsWithDescription(content);
+    assert.strictEqual(result.changes.length, 0, 'Should not remove line that is similar but not identical to description');
+  });
+
+  // CLUSTER: fix with empty body (just frontmatter, no content)
+  await asyncTest('CLUSTER: autofix handles frontmatter-only file (empty body)', async () => {
+    setupTestProject();
+    const content = `---\ndescription: Empty rule\nalwaysApply: true\n---\n`;
+    const { fixExcessiveBlankLines, fixTrailingWhitespace } = require('../src/autofix');
+    const r1 = fixExcessiveBlankLines(content);
+    assert(r1.content !== undefined, 'fixExcessiveBlankLines should handle empty body');
+    const r2 = fixTrailingWhitespace(content);
+    assert(r2.content !== undefined, 'fixTrailingWhitespace should handle empty body');
+  });
+
+  console.log('\n  Bug Cluster — frontmatter.js:');
+
+  // CLUSTER: inline JSON array globs ["a", "b"]
+  test('CLUSTER: parseFrontmatter handles inline JSON array globs', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\ndescription: Test\nglobs: ["**/*.ts", "**/*.tsx"]\nalwaysApply: false\n---\nBody.`;
+    const fm = parseFrontmatter(content);
+    assert(fm.found, 'Should find frontmatter');
+    // The inline array might be parsed as string — that's OK, but it shouldn't crash
+    assert(fm.data !== null, 'Should parse without error');
+  });
+
+  // CLUSTER: YAML list globs (multi-line)
+  test('CLUSTER: parseFrontmatter handles YAML list globs', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\ndescription: Test\nglobs:\n  - "**/*.ts"\n  - "**/*.tsx"\nalwaysApply: false\n---\nBody.`;
+    const fm = parseFrontmatter(content);
+    assert(fm.found);
+    assert(Array.isArray(fm.data.globs), 'YAML list globs should be parsed as array');
+    assert.strictEqual(fm.data.globs.length, 2);
+  });
+
+  // CLUSTER: empty frontmatter values
+  test('CLUSTER: parseFrontmatter handles all-empty values', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\ndescription:\nglobs:\nalwaysApply:\n---\nBody.`;
+    const fm = parseFrontmatter(content);
+    assert(fm.found);
+    assert(fm.data !== null, 'Should parse empty values without error');
+    // Empty values → empty arrays (from the list parser)
+    assert(Array.isArray(fm.data.description) || fm.data.description === undefined || fm.data.description === '',
+      'Empty description should not crash');
+  });
+
+  // CLUSTER: frontmatter with Windows line endings
+  test('CLUSTER: parseFrontmatter handles CRLF line endings', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\r\ndescription: Test\r\nglobs: ["**/*.ts"]\r\nalwaysApply: true\r\n---\r\nBody.`;
+    const fm = parseFrontmatter(content);
+    assert(fm.found, 'Should find frontmatter with CRLF');
+    assert.strictEqual(fm.data.description, 'Test');
+    assert.strictEqual(fm.data.alwaysApply, true);
+  });
+
+  // CLUSTER: frontmatter with no closing ---
+  test('CLUSTER: parseFrontmatter handles unclosed frontmatter', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\ndescription: Test\nalwaysApply: true\n\nBody without closing delimiters.`;
+    const fm = parseFrontmatter(content);
+    assert.strictEqual(fm.found, false, 'Unclosed frontmatter should return found: false');
+  });
+
+  // CLUSTER: frontmatter with colons in value
+  test('CLUSTER: parseFrontmatter handles colons in description', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\ndescription: Rules for src: components and utils\nalwaysApply: true\n---\nBody.`;
+    const fm = parseFrontmatter(content);
+    assert(fm.found);
+    assert.strictEqual(fm.data.description, 'Rules for src: components and utils', 'Should preserve colons in values');
+  });
+
+  // CLUSTER: frontmatter with special characters in globs
+  test('CLUSTER: parseFrontmatter handles special glob characters', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\ndescription: Test\nglobs: ["**/*.{ts,tsx}", "src/**/[id]/*.ts"]\nalwaysApply: false\n---\nBody.`;
+    const fm = parseFrontmatter(content);
+    assert(fm.found);
+    assert(fm.data !== null, 'Should parse glob special chars without error');
+  });
+
+  // CLUSTER: frontmatter with tabs (known issue)
+  test('CLUSTER: parseFrontmatter handles tabs in frontmatter', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\ndescription:\tTest with tab\nalwaysApply: true\n---\nBody.`;
+    const fm = parseFrontmatter(content);
+    assert(fm.found);
+    // Tab handling may vary, but should not crash
+    assert(fm.data !== null, 'Should parse without crashing on tabs');
+  });
+
+  // CLUSTER: completely empty frontmatter block
+  test('CLUSTER: parseFrontmatter handles empty frontmatter block', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\n---\nBody with empty frontmatter.`;
+    const fm = parseFrontmatter(content);
+    assert(fm.found, 'Should find empty frontmatter');
+    assert(fm.data !== null);
+    assert.strictEqual(Object.keys(fm.data).length, 0, 'Empty frontmatter should have no keys');
+  });
+
+  // CLUSTER: frontmatter where alwaysApply is string "true" not boolean
+  test('CLUSTER: parseFrontmatter parses string "true" as boolean', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const content = `---\ndescription: Test\nalwaysApply: true\n---\nBody.`;
+    const fm = parseFrontmatter(content);
+    assert.strictEqual(fm.data.alwaysApply, true, 'Should parse "true" as boolean true');
+  });
+
+  // CLUSTER: extremely long frontmatter description (stress)
+  test('CLUSTER: parseFrontmatter handles 1000-char description', () => {
+    const { parseFrontmatter } = require('../src/frontmatter');
+    const longDesc = 'A'.repeat(1000);
+    const content = `---\ndescription: ${longDesc}\nalwaysApply: true\n---\nBody.`;
+    const fm = parseFrontmatter(content);
+    assert(fm.found);
+    assert.strictEqual(fm.data.description, longDesc);
+  });
+
+  // FP-REGRESSION: Self-contradicting rule within single file must be caught
+  // Source: User report (playground) — "Always use semicolons" + "Avoid semicolons" in same rule showed 0 issues
+  await asyncTest('FP-REGRESSION: intra-rule contradiction "use X" vs "avoid X" detected', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/self-conflict.mdc', `---
+description: Style rules
+alwaysApply: true
+---
+Always use semicolons at the end of every statement.
+
+Avoid semicolons.`);
+    const result = await lintMdcFile(filePath);
+    const conflicts = result.issues.filter(i => i.message.includes('Contradict'));
+    assert(conflicts.length >= 1, 'Should detect self-contradiction about semicolons');
+    assert(conflicts[0].severity === 'error');
+  });
+
+  // FP-REGRESSION: Complementary advice in same rule must NOT flag as contradiction
+  await asyncTest('FP-REGRESSION: complementary "use asyncio" + "avoid mixing" is NOT a conflict', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/no-conflict.mdc', `---
+description: Python async
+alwaysApply: true
+---
+Use asyncio.create_task() to run tasks in background.
+Avoid mixing blocking and async code (use asyncio.to_thread for blocking calls).`);
+    const result = await lintMdcFile(filePath);
+    const conflicts = result.issues.filter(i => i.message.includes('Contradict'));
+    assert(conflicts.length === 0, 'Complementary async advice should not flag as conflict');
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // Test Summary & Cleanup
   // ─────────────────────────────────────────────────────────────────────────────
 

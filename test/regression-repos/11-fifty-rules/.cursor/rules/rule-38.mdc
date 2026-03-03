@@ -1,0 +1,8 @@
+---
+description: Rule 38 for module 38
+globs: ["src/mod-38/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 38 conventions. Keep boundaries clean.
+No circular imports between modules.

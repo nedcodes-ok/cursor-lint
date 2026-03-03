@@ -1,0 +1,22 @@
+exit:0
+---
+cursor-doctor vX.X.X -- lint
+
+.cursor/rules  (1 warning)
+  ⚠ Project has 55 rule files
+    → More rules means more tokens consumed per request. Consider consolidating related rules.
+
+.cursor  (1 info)
+  ℹ 55 rules with no subdirectory organization
+    → Organize rules into subdirectories (e.g., .cursor/rules/typescript/, .cursor/rules/react/) for better maintainability.
+
+ℹ 55 files: Description contains the word "rule"
+  .cursor/rules/rule-01.mdc, .cursor/rules/rule-02.mdc, .cursor/rules/rule-03.mdc +52 more
+  → Redundant. "Rule for TypeScript" → "TypeScript conventions". The context is already a rule.
+
+──────────────────────────────────────────────────
+1 warning, 56 info
+
+  Go deeper: npx cursor-doctor audit  (full diagnostic)
+  Also: conflicts, perf, fix  (Pro, $9 one-time)
+  https://nedcodes.gumroad.com/l/cursor-doctor-pro

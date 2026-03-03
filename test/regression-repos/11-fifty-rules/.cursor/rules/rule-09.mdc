@@ -1,0 +1,8 @@
+---
+description: Rule 09 for module 09
+globs: ["src/mod-09/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 09 conventions. Keep boundaries clean.
+No circular imports between modules.

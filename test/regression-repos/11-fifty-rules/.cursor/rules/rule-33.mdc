@@ -1,0 +1,8 @@
+---
+description: Rule 33 for module 33
+globs: ["src/mod-33/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 33 conventions. Keep boundaries clean.
+No circular imports between modules.

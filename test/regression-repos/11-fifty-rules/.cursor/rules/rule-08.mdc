@@ -1,0 +1,8 @@
+---
+description: Rule 08 for module 08
+globs: ["src/mod-08/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 08 conventions. Keep boundaries clean.
+No circular imports between modules.

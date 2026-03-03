@@ -1,0 +1,8 @@
+---
+description: Rule 18 for module 18
+globs: ["src/mod-18/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 18 conventions. Keep boundaries clean.
+No circular imports between modules.

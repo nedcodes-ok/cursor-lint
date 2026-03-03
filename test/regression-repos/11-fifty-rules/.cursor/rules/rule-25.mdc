@@ -1,0 +1,8 @@
+---
+description: Rule 25 for module 25
+globs: ["src/mod-25/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 25 conventions. Keep boundaries clean.
+No circular imports between modules.

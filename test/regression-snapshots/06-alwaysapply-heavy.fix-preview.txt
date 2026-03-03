@@ -1,0 +1,16 @@
+exit:0
+---
+cursor-doctor fix (dry run)
+
+  ✓ api.mdc: Removed empty globs array
+  ✓ errors.mdc: Removed empty globs array
+  ✓ general.mdc: Removed empty globs array
+  ✓ logging.mdc: Removed empty globs array
+  ✓ react.mdc: Removed empty globs array
+  ✓ security.mdc: Removed empty globs array
+  ✓ testing.mdc: Removed empty globs array
+  ✓ typescript.mdc: Removed empty globs array
+
+  8 fixes available.  Get Pro to apply them:
+  https://nedcodes.gumroad.com/l/cursor-doctor-pro?utm_source=cli&utm_medium=npx&utm_campaign=fix-preview
+  Full refund if it doesn't find real issues.

@@ -1,0 +1,8 @@
+---
+description: Rule 48 for module 48
+globs: ["src/mod-48/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 48 conventions. Keep boundaries clean.
+No circular imports between modules.

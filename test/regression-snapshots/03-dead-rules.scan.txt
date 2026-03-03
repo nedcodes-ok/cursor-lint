@@ -1,0 +1,29 @@
+exit:0
+---
+▒▒ Cursor Health: B ▒▒
+
+  ███████████████████████░░░░░░░  76%
+
+  ✓ Rules exist
+    .cursor/rules/ found with .mdc files
+  ✓ No legacy .cursorrules
+    Using modern .mdc format
+  ✗ Rule syntax
+    2 error(s), 5 warning(s). Run cursor-doctor lint to see issues.
+  ✓ Token budget
+    ~0 always-loaded tokens (0% of context window), ~139 per-file
+  ✓ Coverage
+    Rules cover your project file types
+  ✓ File sizes
+    All context files are reasonably sized
+  ℹ alwaysApply usage
+    No alwaysApply rules (consider adding global coding standards)
+  ℹ Agent skills
+    No agent skills found (optional but helpful for complex workflows)
+
+  5 passed  1 issue
+
+  See details:  npx cursor-doctor lint
+  Auto-fix:     npx cursor-doctor fix  (Pro, $9 one-time)
+
+  Helpful? ⭐ https://github.com/nedcodes-ok/cursor-doctor

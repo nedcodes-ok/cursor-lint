@@ -1,0 +1,8 @@
+---
+description: Rule 53 for module 53
+globs: ["src/mod-53/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 53 conventions. Keep boundaries clean.
+No circular imports between modules.

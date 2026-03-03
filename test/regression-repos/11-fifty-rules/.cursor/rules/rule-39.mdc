@@ -1,0 +1,8 @@
+---
+description: Rule 39 for module 39
+globs: ["src/mod-39/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 39 conventions. Keep boundaries clean.
+No circular imports between modules.

@@ -1,0 +1,8 @@
+---
+description: Rule 36 for module 36
+globs: ["src/mod-36/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 36 conventions. Keep boundaries clean.
+No circular imports between modules.

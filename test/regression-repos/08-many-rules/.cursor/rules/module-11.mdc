@@ -1,0 +1,9 @@
+---
+description: Standards for module 11
+globs: ["src/modules/module-11/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 11 conventions. Keep boundaries clean.
+Use dependency injection. No circular imports.
+Document public APIs with JSDoc.

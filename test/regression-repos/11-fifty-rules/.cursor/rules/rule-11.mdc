@@ -1,0 +1,8 @@
+---
+description: Rule 11 for module 11
+globs: ["src/mod-11/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 11 conventions. Keep boundaries clean.
+No circular imports between modules.

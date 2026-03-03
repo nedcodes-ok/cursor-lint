@@ -3,6 +3,7 @@ const path = require('path');
 const { lintProject, parseFrontmatter } = require('./index');
 const { showStats } = require('./stats');
 const { analyzeTokenBudget } = require('./token-budget');
+const { extractDirectives, findDirectiveConflicts, subjectsSimilar, normalizeSubject } = require('./directives');
 const { detectCrossFormatConflicts } = require('./cross-conflicts');
 
 function detectStack(dir) {
@@ -91,128 +92,6 @@ function globsOverlap(a, b) {
   const extA = a.match(/\*\.(\w+)$/);
   const extB = b.match(/\*\.(\w+)$/);
   if (extA && extB && extA[1] === extB[1]) return true;
-  return false;
-}
-
-function extractDirectives(text) {
-  const directives = [];
-  const lines = text.split('\n');
-  
-  // Handle compound directives like "always use X" or "never use X"
-  const compoundPattern = /\b(always|never)\s+(use|avoid|prefer|include|exclude)\s+([^.\n]{3,50})/gi;
-  // Single directives like "use X" or "avoid X"
-  const singlePattern = /\b(use|prefer|avoid|don't|do not|no|remove|add|include|exclude|enable|disable)\s+([^.\n]{3,50})/gi;
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('#') || trimmed.startsWith('<!--') || trimmed.length < 5) continue;
-    
-    // Try compound pattern first
-    compoundPattern.lastIndex = 0;
-    let match = compoundPattern.exec(trimmed);
-    if (match) {
-      const modifier = match[1].toLowerCase(); // always/never
-      const action = match[2].toLowerCase();   // use/avoid/etc
-      const subject = normalizeSubject(match[3]);
-      if (subject) {
-        // Combine modifier and action: "always use" becomes "use", "never use" becomes "never"
-        const finalAction = modifier === 'never' ? 'never' : action;
-        directives.push({ action: finalAction, subject, line: trimmed });
-      }
-      continue;
-    }
-    
-    // Try single pattern
-    singlePattern.lastIndex = 0;
-    match = singlePattern.exec(trimmed);
-    if (match) {
-      const action = match[1].toLowerCase();
-      const subject = normalizeSubject(match[2]);
-      if (subject) {
-        directives.push({ action, subject, line: trimmed });
-      }
-    }
-  }
-  
-  return directives;
-}
-
-function normalizeSubject(text) {
-  // Lowercase and trim
-  let normalized = text.toLowerCase().trim();
-  
-  // Remove trailing punctuation
-  normalized = normalized.replace(/[.,;:!?]+$/, '');
-  
-  // Remove leading articles
-  normalized = normalized.replace(/^(the|a|an)\s+/i, '');
-  
-  // Remove extra whitespace
-  normalized = normalized.replace(/\s+/g, ' ');
-  
-  // Return null if too short or too long
-  if (normalized.length < 3 || normalized.length > 50) return null;
-  
-  return normalized;
-}
-
-function findDirectiveConflicts(aDirectives, bDirectives) {
-  const conflicts = [];
-  const opposites = {
-    'use': ['never', 'avoid', 'don\'t', 'do not', 'no', 'remove', 'exclude', 'disable'],
-    'prefer': ['avoid', 'never', 'don\'t', 'do not', 'no'],
-    'always': ['never', 'avoid', 'don\'t', 'do not', 'no'],
-    'add': ['remove', 'exclude', 'no'],
-    'include': ['exclude', 'remove', 'no'],
-    'enable': ['disable', 'no'],
-  };
-  
-  for (const aDir of aDirectives) {
-    for (const bDir of bDirectives) {
-      // Check if subjects are similar (allowing for minor variations)
-      if (subjectsSimilar(aDir.subject, bDir.subject)) {
-        // Check if actions are contradictory
-        const aAction = aDir.action;
-        const bAction = bDir.action;
-        
-        if (opposites[aAction] && opposites[aAction].includes(bAction)) {
-          conflicts.push(`"${aAction} ${aDir.subject}" vs "${bAction} ${bDir.subject}"`);
-        } else if (opposites[bAction] && opposites[bAction].includes(aAction)) {
-          conflicts.push(`"${aAction} ${aDir.subject}" vs "${bAction} ${bDir.subject}"`);
-        }
-      }
-    }
-  }
-  
-  return conflicts;
-}
-
-function subjectsSimilar(a, b) {
-  // Exact match
-  if (a === b) return true;
-  
-  // One contains the other (allowing for variations)
-  if (a.length > 5 && b.includes(a)) return true;
-  if (b.length > 5 && a.includes(b)) return true;
-  
-  // Extract key words (longer than 4 chars) and check for overlap
-  const wordsA = a.split(/\s+/).filter(w => w.length > 4);
-  const wordsB = b.split(/\s+/).filter(w => w.length > 4);
-  
-  // If they share a significant word, consider them similar
-  for (const wordA of wordsA) {
-    for (const wordB of wordsB) {
-      if (wordA === wordB || wordA.includes(wordB) || wordB.includes(wordA)) {
-        return true;
-      }
-    }
-  }
-  
-  // Remove common variations and compare
-  const cleanA = a.replace(/\b(ing|ed|s)\b/g, '').replace(/\s+/g, '');
-  const cleanB = b.replace(/\b(ing|ed|s)\b/g, '').replace(/\s+/g, '');
-  if (cleanA === cleanB) return true;
-  
   return false;
 }
 

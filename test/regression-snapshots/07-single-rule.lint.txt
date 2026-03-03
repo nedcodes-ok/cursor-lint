@@ -1,0 +1,14 @@
+exit:0
+---
+cursor-doctor vX.X.X -- lint
+
+.cursor/rules/project.mdc  (1 warning)
+  ⚠ Vague rule detected: "keep it simple" (line 7)
+    → Replace with a specific instruction. Instead of "keep it simple", say exactly what to do: what tool, what pattern, what format.
+
+──────────────────────────────────────────────────
+1 warning
+
+  Go deeper: npx cursor-doctor audit  (full diagnostic)
+  Also: conflicts, perf, fix  (Pro, $9 one-time)
+  https://nedcodes.gumroad.com/l/cursor-doctor-pro

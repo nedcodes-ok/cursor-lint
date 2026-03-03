@@ -1,0 +1,9 @@
+---
+description: Django project conventions
+globs: ["**/*.py"]
+alwaysApply: false
+---
+
+Use class-based views for complex logic, function views for simple endpoints.
+Follow Django REST Framework conventions for API views.
+Use model managers for complex queries.

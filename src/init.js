@@ -202,7 +202,9 @@ async function initProject(projectPath, options = {}) {
   });
   if (detected.testing.hasTests) detectedTechs.push('testing');
 
-  const summary = 'Generated ' + created.length + ' rules for: ' + detectedTechs.join(', ');
+  const summary = detectedTechs.length > 0
+    ? 'Generated ' + created.length + ' rules for: ' + detectedTechs.join(', ')
+    : 'Generated ' + created.length + ' rules';
 
   return {
     created,

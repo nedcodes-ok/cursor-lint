@@ -1,0 +1,8 @@
+---
+description: Rule 17 for module 17
+globs: ["src/mod-17/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 17 conventions. Keep boundaries clean.
+No circular imports between modules.

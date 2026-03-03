@@ -1,0 +1,9 @@
+---
+description: Standards for module 03
+globs: ["src/modules/module-03/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 03 conventions. Keep boundaries clean.
+Use dependency injection. No circular imports.
+Document public APIs with JSDoc.

@@ -1,0 +1,8 @@
+---
+description: Rule 12 for module 12
+globs: ["src/mod-12/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 12 conventions. Keep boundaries clean.
+No circular imports between modules.

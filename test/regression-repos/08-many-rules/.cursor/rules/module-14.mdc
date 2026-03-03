@@ -1,0 +1,9 @@
+---
+description: Standards for module 14
+globs: ["src/modules/module-14/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 14 conventions. Keep boundaries clean.
+Use dependency injection. No circular imports.
+Document public APIs with JSDoc.

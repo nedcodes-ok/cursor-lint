@@ -1,0 +1,9 @@
+---
+description: Standards for module 22
+globs: ["src/modules/module-22/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 22 conventions. Keep boundaries clean.
+Use dependency injection. No circular imports.
+Document public APIs with JSDoc.

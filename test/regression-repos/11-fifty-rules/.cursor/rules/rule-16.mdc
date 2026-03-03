@@ -1,0 +1,8 @@
+---
+description: Rule 16 for module 16
+globs: ["src/mod-16/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 16 conventions. Keep boundaries clean.
+No circular imports between modules.

@@ -1,0 +1,8 @@
+---
+description: Protocol buffer conventions
+globs: ["**/*.proto"]
+alwaysApply: false
+---
+
+Use proto3 syntax. Follow Google API design guide.
+All fields must have comments. Use well-known types.

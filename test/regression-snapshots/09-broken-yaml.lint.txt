@@ -1,0 +1,24 @@
+exit:1
+---
+cursor-doctor vX.X.X -- lint
+
+.cursor/rules/bad-yaml.mdc  (1 warning)
+  ⚠ Frontmatter indentation uses tabs
+    → YAML prefers spaces over tabs for indentation. Use 2 spaces.
+
+.cursor/rules/good.mdc  (1 info)
+  ℹ Description contains the word "rule"
+    → Redundant. "Rule for TypeScript" → "TypeScript conventions". The context is already a rule.
+
+.cursor/rules/no-frontmatter.mdc  (1 error, 1 warning)
+  ⚠ Rule has no clear actionable instructions
+    → Rules should contain clear commands. Use imperative verbs: use, write, create, ensure, etc.
+  ✗ Missing YAML frontmatter
+    → Add --- block with description and alwaysApply: true
+
+──────────────────────────────────────────────────
+1 error, 2 warnings, 1 info
+
+  Auto-fix: npx cursor-doctor fix
+  Most issues above can be fixed automatically (Pro, $9 one-time)
+  https://nedcodes.gumroad.com/l/cursor-doctor-pro

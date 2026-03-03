@@ -1,0 +1,9 @@
+---
+description: Standards for module 16
+globs: ["src/modules/module-16/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 16 conventions. Keep boundaries clean.
+Use dependency injection. No circular imports.
+Document public APIs with JSDoc.

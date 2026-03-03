@@ -1,0 +1,8 @@
+---
+description: General TypeScript coding standards
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: false
+---
+
+Use strict mode. No implicit any.
+Prefer const over let. Never use var.

@@ -1,0 +1,8 @@
+---
+description: Rule 37 for module 37
+globs: ["src/mod-37/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 37 conventions. Keep boundaries clean.
+No circular imports between modules.

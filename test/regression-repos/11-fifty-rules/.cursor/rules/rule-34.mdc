@@ -1,0 +1,8 @@
+---
+description: Rule 34 for module 34
+globs: ["src/mod-34/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 34 conventions. Keep boundaries clean.
+No circular imports between modules.

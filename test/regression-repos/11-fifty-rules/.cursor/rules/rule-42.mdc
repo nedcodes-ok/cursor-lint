@@ -1,0 +1,8 @@
+---
+description: Rule 42 for module 42
+globs: ["src/mod-42/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 42 conventions. Keep boundaries clean.
+No circular imports between modules.

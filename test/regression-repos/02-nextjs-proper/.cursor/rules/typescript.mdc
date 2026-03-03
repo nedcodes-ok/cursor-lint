@@ -1,0 +1,10 @@
+---
+description: TypeScript coding standards for the project
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: false
+---
+
+Use strict TypeScript. No `any` types unless explicitly justified with a comment.
+Prefer interfaces over type aliases for object shapes.
+Use discriminated unions for state management.
+Export types from a central `types/` directory.

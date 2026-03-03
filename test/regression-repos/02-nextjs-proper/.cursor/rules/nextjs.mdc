@@ -1,0 +1,10 @@
+---
+description: Next.js App Router conventions
+globs: ["app/**/*.tsx", "app/**/*.ts"]
+alwaysApply: false
+---
+
+Use App Router conventions. Server Components by default.
+Mark client components with 'use client' only when needed.
+Use loading.tsx and error.tsx for route-level loading states.
+Prefer Server Actions over API routes for mutations.

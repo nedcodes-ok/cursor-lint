@@ -1,0 +1,8 @@
+---
+description: general coding standards
+globs: []
+alwaysApply: true
+---
+
+Follow general best practices. Keep code clean and well-documented.
+Use proper error handling and logging.

@@ -1,0 +1,8 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+Follow a strict workflow: plan first, implement second, test third.
+Never skip the planning phase. Document decisions in ADRs.

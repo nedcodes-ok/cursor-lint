@@ -1,0 +1,28 @@
+exit:0
+---
+▒▒ Cursor Health: A ▒▒
+
+  █████████████████████████████░  96%
+
+  ✓ Rules exist
+    .cursor/rules/ found with .mdc files
+  ✓ No legacy .cursorrules
+    Using modern .mdc format
+  ✓ Rule syntax
+    All rules pass lint checks
+  ✓ Token budget
+    ~0 always-loaded tokens (0% of context window), ~280 per-file
+  ✓ Coverage
+    Rules cover your project file types
+  ✓ File sizes
+    All context files are reasonably sized
+  ℹ alwaysApply usage
+    No alwaysApply rules (consider adding global coding standards)
+  ℹ Agent skills
+    No agent skills found (optional but helpful for complex workflows)
+
+  6 passed
+
+  ✨ Your Cursor rules look good. Nothing to fix.
+
+  Helpful? ⭐ https://github.com/nedcodes-ok/cursor-doctor

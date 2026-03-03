@@ -1,0 +1,8 @@
+---
+description: Rule 10 for module 10
+globs: ["src/mod-10/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 10 conventions. Keep boundaries clean.
+No circular imports between modules.

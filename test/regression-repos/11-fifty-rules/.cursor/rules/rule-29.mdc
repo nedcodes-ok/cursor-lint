@@ -1,0 +1,8 @@
+---
+description: Rule 29 for module 29
+globs: ["src/mod-29/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 29 conventions. Keep boundaries clean.
+No circular imports between modules.

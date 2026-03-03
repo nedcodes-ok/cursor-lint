@@ -1,0 +1,8 @@
+---
+description: Rule 44 for module 44
+globs: ["src/mod-44/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 44 conventions. Keep boundaries clean.
+No circular imports between modules.

@@ -1,0 +1,8 @@
+---
+description: Rule 27 for module 27
+globs: ["src/mod-27/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 27 conventions. Keep boundaries clean.
+No circular imports between modules.

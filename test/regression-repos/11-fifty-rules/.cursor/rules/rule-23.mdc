@@ -1,0 +1,8 @@
+---
+description: Rule 23 for module 23
+globs: ["src/mod-23/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 23 conventions. Keep boundaries clean.
+No circular imports between modules.

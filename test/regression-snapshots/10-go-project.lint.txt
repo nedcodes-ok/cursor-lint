@@ -1,0 +1,14 @@
+exit:0
+---
+cursor-doctor vX.X.X -- lint
+
+.cursor/rules/proto.mdc  (1 warning)
+  ⚠ Rule body references specific model names: o3
+    → Rules should be model-agnostic. Remove model-specific instructions.
+
+──────────────────────────────────────────────────
+1 warning, 1 passed
+
+  Go deeper: npx cursor-doctor audit  (full diagnostic)
+  Also: conflicts, perf, fix  (Pro, $9 one-time)
+  https://nedcodes.gumroad.com/l/cursor-doctor-pro

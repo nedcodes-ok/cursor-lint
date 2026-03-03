@@ -1,0 +1,8 @@
+---
+description: Rule 46 for module 46
+globs: ["src/mod-46/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 46 conventions. Keep boundaries clean.
+No circular imports between modules.

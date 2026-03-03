@@ -1,0 +1,10 @@
+---
+description: Go coding standards
+globs: ["**/*.go"]
+alwaysApply: false
+---
+
+Follow effective Go conventions. Use table-driven tests.
+Handle all errors explicitly. No blank error returns.
+Use context.Context for cancellation and timeouts.
+Prefer composition over embedding.

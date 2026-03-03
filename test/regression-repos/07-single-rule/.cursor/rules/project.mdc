@@ -1,0 +1,10 @@
+---
+description: Project-wide coding standards
+globs: ["**/*.js", "**/*.ts"]
+alwaysApply: false
+---
+
+This is a Node.js CLI tool. Keep it simple.
+No unnecessary dependencies. Prefer built-in Node.js APIs.
+Use CommonJS (require/module.exports), not ESM.
+All errors must have exit codes and human-readable messages.

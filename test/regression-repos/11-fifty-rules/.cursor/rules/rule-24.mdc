@@ -1,0 +1,8 @@
+---
+description: Rule 24 for module 24
+globs: ["src/mod-24/**/*.ts"]
+alwaysApply: false
+---
+
+Follow module 24 conventions. Keep boundaries clean.
+No circular imports between modules.
