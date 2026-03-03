@@ -248,8 +248,16 @@ async function main() {
         if (hasAutoFixable) break;
       }
       if (hasAutoFixable) {
+        var fixableCount = 0;
+        for (var fc = 0; fc < lintResults.length; fc++) {
+          var fci = lintResults[fc].issues || [];
+          for (var fcj = 0; fcj < fci.length; fcj++) {
+            if (fci[fcj].fixable !== false && (fci[fcj].severity === 'error' || fci[fcj].severity === 'warning')) fixableCount++;
+          }
+        }
         if (!isLicensed(cwd)) {
-          console.log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix  ' + DIM + '(Pro, $9 one-time)' + RESET);
+          console.log('  ' + BOLD + 'Auto-fix:' + RESET + '     npx cursor-doctor fix  ' + DIM + '(' + fixableCount + ' issue' + (fixableCount > 1 ? 's' : '') + ' fixable)' + RESET);
+          console.log('  ' + DIM + 'Pro key: $9 one-time — ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=scan' + RESET);
         } else {
           console.log('  ' + DIM + 'Auto-fix:' + RESET + '     npx cursor-doctor fix');
         }
@@ -469,10 +477,16 @@ async function main() {
           console.log('  ' + DIM + PURCHASE_URL + RESET);
         }
       } else if (hasFixableIssues) {
-        console.log('  ' + BOLD + 'Auto-fix:' + RESET + ' npx cursor-doctor fix');
+        var fixCount = 0;
+        for (var fxi = 0; fxi < results.length; fxi++) {
+          var fxis = results[fxi].issues || [];
+          for (var fxj = 0; fxj < fxis.length; fxj++) {
+            if (fxis[fxj].fixable !== false && (fxis[fxj].severity === 'error' || fxis[fxj].severity === 'warning')) fixCount++;
+          }
+        }
+        console.log('  ' + BOLD + 'Auto-fix:' + RESET + ' npx cursor-doctor fix  ' + DIM + '(' + fixCount + ' issue' + (fixCount > 1 ? 's' : '') + ' fixable)' + RESET);
         if (!licensed) {
-          console.log('  Most issues above can be fixed automatically (Pro, $9 one-time)');
-          console.log('  ' + DIM + PURCHASE_URL + RESET);
+          console.log('  ' + DIM + 'Pro key: $9 one-time — ' + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=lint' + RESET);
         }
       } else {
         // Only unfixable issues (contradictions) — don't suggest auto-fix

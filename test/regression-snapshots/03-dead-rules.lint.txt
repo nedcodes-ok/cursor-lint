@@ -27,7 +27,6 @@ cursor-doctor vX.X.X -- lint
 ──────────────────────────────────────────────────
 2 errors, 5 warnings, 1 info, 1 passed
 
-  Auto-fix: npx cursor-doctor fix
-  Most issues above can be fixed automatically (Pro, $9 one-time)
-  https://nedcodes.gumroad.com/l/cursor-doctor-pro
+  Auto-fix: npx cursor-doctor fix  (7 issues fixable)
+  Pro key: $9 one-time — https://nedcodes.gumroad.com/l/cursor-doctor-pro?utm_source=cli&utm_medium=npx&utm_campaign=lint
   Helpful? ⭐ https://github.com/nedcodes-ok/cursor-doctor
