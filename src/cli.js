@@ -62,6 +62,26 @@ const RESET = useColor ? '\x1b[0m' : '';
 
 var PURCHASE_URL = 'https://nedcodes.gumroad.com/l/cursor-doctor-pro';
 
+// Star CTA variants for A/B testing
+function getStarCTA() {
+  var variants = [
+    {
+      message: 'cursor-doctor saved you time? ' + String.fromCharCode(11088) + ' Star it so others can find it too',
+      url: 'https://github.com/nedcodes-ok/cursor-doctor?utm_source=cli&utm_medium=star_cta&utm_campaign=variant_a'
+    },
+    {
+      message: 'Join 2 devs who star\'d cursor-doctor ' + String.fromCharCode(11088),
+      url: 'https://github.com/nedcodes-ok/cursor-doctor?utm_source=cli&utm_medium=star_cta&utm_campaign=variant_b'
+    },
+    {
+      message: String.fromCharCode(11088) + ' One star helps other devs find this tool',
+      url: 'https://github.com/nedcodes-ok/cursor-doctor?utm_source=cli&utm_medium=star_cta&utm_campaign=variant_c'
+    }
+  ];
+  var index = Math.floor(Math.random() * 3);
+  return variants[index];
+}
+
 function showHelp() {
   var lines = [
     '',
@@ -324,8 +344,9 @@ async function main() {
 
     // Star ask — show only on A/B grades (happy users more likely to star)
     if (!hasNoRules && (report.grade === 'A' || report.grade === 'B')) {
-      console.log('  ' + DIM + 'cursor-doctor saved you time? ' + String.fromCharCode(11088) + ' Star it so others can find it too' + RESET);
-      console.log('  ' + DIM + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+      var starCTA = getStarCTA();
+      console.log('  ' + DIM + starCTA.message + RESET);
+      console.log('  ' + DIM + starCTA.url + RESET);
       console.log();
     } else if (!hasNoRules && (report.grade === 'C' || report.grade === 'D' || report.grade === 'F')) {
       console.log('  ' + DIM + 'Run npx cursor-doctor fix to improve your grade' + RESET);
@@ -681,8 +702,9 @@ async function main() {
     // Star ask — only show on A/B grades (get grade from doctor)
     var healthReport = await doctor(cwd);
     if (healthReport.grade === 'A' || healthReport.grade === 'B') {
-      console.log('  ' + DIM + 'cursor-doctor saved you time? ' + String.fromCharCode(11088) + ' Star it so others can find it too' + RESET);
-      console.log('  ' + DIM + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+      var starCTA = getStarCTA();
+      console.log('  ' + DIM + starCTA.message + RESET);
+      console.log('  ' + DIM + starCTA.url + RESET);
     } else if (healthReport.grade === 'C' || healthReport.grade === 'D' || healthReport.grade === 'F') {
       console.log('  ' + DIM + 'Run npx cursor-doctor fix to improve your grade' + RESET);
     }
@@ -1819,8 +1841,9 @@ async function main() {
       // Star ask — only show on A/B grades after successful fix
       var postFixHealthReport = await doctor(cwd);
       if (postFixHealthReport.grade === 'A' || postFixHealthReport.grade === 'B') {
-        console.log('  ' + DIM + 'cursor-doctor saved you time? ' + String.fromCharCode(11088) + ' Star it so others can find it too' + RESET);
-        console.log('  ' + DIM + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+        var starCTA = getStarCTA();
+        console.log('  ' + DIM + starCTA.message + RESET);
+        console.log('  ' + DIM + starCTA.url + RESET);
       } else if (postFixHealthReport.grade === 'C' || postFixHealthReport.grade === 'D' || postFixHealthReport.grade === 'F') {
         console.log('  ' + DIM + 'Run npx cursor-doctor fix again to improve your grade further' + RESET);
       }

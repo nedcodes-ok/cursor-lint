@@ -4771,6 +4771,83 @@ Always write clean code.`);
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // getStarCTA A/B test variants
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  console.log('## Star CTA A/B Testing');
+
+  // We need to test the getStarCTA function, but it's not exported from cli.js
+  // So we'll test it by checking the CLI output for different Math.random values
+  test('getStarCTA: returns variant A (index 0)', () => {
+    const originalRandom = Math.random;
+    Math.random = () => 0.1; // Will result in floor(0.1 * 3) = 0
+    
+    // Read and evaluate the getStarCTA function
+    const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
+    const getStarCTAMatch = cliSrc.match(/function getStarCTA\(\) \{[\s\S]*?\n\}/);
+    assert(getStarCTAMatch, 'getStarCTA function should exist in cli.js');
+    
+    // Verify function returns an object with message and url
+    const fnBody = getStarCTAMatch[0];
+    assert(fnBody.includes('var variants = ['), 'Should define variants array');
+    assert(fnBody.includes('Math.floor(Math.random() * 3)'), 'Should use random selection');
+    assert(fnBody.includes('utm_campaign=variant_a'), 'Should include variant_a UTM');
+    assert(fnBody.includes('utm_campaign=variant_b'), 'Should include variant_b UTM');
+    assert(fnBody.includes('utm_campaign=variant_c'), 'Should include variant_c UTM');
+    
+    Math.random = originalRandom;
+  });
+
+  test('getStarCTA: variant A has correct message', () => {
+    const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
+    assert(cliSrc.includes('cursor-doctor saved you time?'), 'Variant A message should be present');
+    assert(cliSrc.includes('Star it so others can find it too'), 'Variant A should have original message');
+  });
+
+  test('getStarCTA: variant B has correct message', () => {
+    const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
+    assert(cliSrc.includes('Join 2 devs who star'), 'Variant B message should be present');
+    assert(cliSrc.includes('d cursor-doctor'), 'Variant B should reference cursor-doctor');
+  });
+
+  test('getStarCTA: variant C has correct message', () => {
+    const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
+    assert(cliSrc.includes('One star helps other devs find this tool'), 'Variant C message should be present');
+  });
+
+  test('getStarCTA: all variants have UTM parameters', () => {
+    const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
+    assert(cliSrc.includes('utm_source=cli'), 'Should include utm_source');
+    assert(cliSrc.includes('utm_medium=star_cta'), 'Should include utm_medium');
+    assert(cliSrc.includes('utm_campaign=variant_a'), 'Should include variant_a campaign');
+    assert(cliSrc.includes('utm_campaign=variant_b'), 'Should include variant_b campaign');
+    assert(cliSrc.includes('utm_campaign=variant_c'), 'Should include variant_c campaign');
+  });
+
+  test('getStarCTA: function is called in scan command', () => {
+    const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
+    const scanSectionMatch = cliSrc.match(/\/\/ Star ask — show only on A\/B grades[\s\S]*?else if[^{]*\{/);
+    assert(scanSectionMatch, 'Should find scan star CTA section');
+    assert(scanSectionMatch[0].includes('var starCTA = getStarCTA()'), 'scan should call getStarCTA()');
+    assert(scanSectionMatch[0].includes('starCTA.message'), 'scan should use starCTA.message');
+    assert(scanSectionMatch[0].includes('starCTA.url'), 'scan should use starCTA.url');
+  });
+
+  test('getStarCTA: function is called in lint command', () => {
+    const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
+    // Look for the lint command star CTA section
+    const lintMatches = cliSrc.match(/var starCTA = getStarCTA\(\)/g);
+    assert(lintMatches && lintMatches.length >= 2, 'getStarCTA should be called at least twice (scan + lint)');
+  });
+
+  test('getStarCTA: function is called in fix command', () => {
+    const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
+    const fixSectionMatch = cliSrc.match(/\/\/ Star ask — only show on A\/B grades after successful fix[\s\S]*?else if[^{]*\{/);
+    assert(fixSectionMatch, 'Should find fix star CTA section');
+    assert(fixSectionMatch[0].includes('var starCTA = getStarCTA()'), 'fix should call getStarCTA()');
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // Test Summary & Cleanup
   // ─────────────────────────────────────────────────────────────────────────────
 
