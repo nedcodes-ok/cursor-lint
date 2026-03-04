@@ -22,5 +22,5 @@ cursor-doctor vX.X.X -- lint
   https://nedcodes.gumroad.com/l/cursor-doctor-pro
   >> Real-time linting:  cursor-doctor extension for VS Code
   https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor
-  cursor-doctor saved you time? ⭐ Star it so others can find it too
-  https://github.com/nedcodes-ok/cursor-doctor
+  ⭐ One star helps other devs find this tool
+  https://github.com/nedcodes-ok/cursor-doctor?utm_source=cli&utm_medium=star_cta&utm_campaign=variant_c
