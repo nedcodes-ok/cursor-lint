@@ -16,7 +16,7 @@ const { showLoadOrder } = require('../src/order');
 const { migrate } = require('../src/migrate');
 const { verifyProject } = require('../src/verify');
 const { doctor } = require('../src/doctor');
-const { generateBadgeData, generateMarkdownBadge, generateHtmlBadge, generateShieldsEndpoint, GRADE_COLORS } = require('../src/badge');
+const { generateBadgeData, generateMarkdownBadge, generateHtmlBadge, generateShieldsEndpoint, generateShareUrl, GRADE_COLORS } = require('../src/badge');
 
 // Test counters
 let passed = 0;
@@ -4619,6 +4619,47 @@ Write clean code.`);
     assert.strictEqual(GRADE_COLORS.C, 'yellow', 'C should be yellow');
     assert.strictEqual(GRADE_COLORS.D, 'orange', 'D should be orange');
     assert.strictEqual(GRADE_COLORS.F, 'red', 'F should be red');
+  });
+
+  test('generateShareUrl: creates valid Twitter share URL', () => {
+    const shareUrl = generateShareUrl('A', 95);
+    assert(shareUrl.startsWith('https://twitter.com/intent/tweet?text='), 'Should use Twitter intent URL');
+    assert(shareUrl.includes('My%20Cursor%20rules%20scored'), 'Should include message text');
+    assert(shareUrl.includes('A'), 'Should include grade');
+    assert(shareUrl.includes('95'), 'Should include percentage');
+    assert(shareUrl.includes('cursor-doctor'), 'Should mention cursor-doctor');
+    assert(shareUrl.includes('https%3A%2F%2Fgithub.com%2Fnedcodes-ok%2Fcursor-doctor'), 'Should include encoded GitHub URL');
+  });
+
+  test('generateShareUrl: handles different grades', () => {
+    const grades = [
+      { grade: 'A', percentage: 100 },
+      { grade: 'B', percentage: 85 },
+      { grade: 'C', percentage: 70 },
+      { grade: 'D', percentage: 60 },
+      { grade: 'F', percentage: 45 },
+    ];
+    
+    grades.forEach(({ grade, percentage }) => {
+      const shareUrl = generateShareUrl(grade, percentage);
+      assert(shareUrl.includes(grade), `Should include grade ${grade}`);
+      assert(shareUrl.includes(String(percentage)), `Should include percentage ${percentage}`);
+      assert(shareUrl.startsWith('https://twitter.com/intent/tweet?text='), 'Should be a valid Twitter URL');
+    });
+  });
+
+  test('generateShareUrl: properly encodes tweet text', () => {
+    const shareUrl = generateShareUrl('A', 95);
+    // Check that spaces are encoded as %20
+    assert(shareUrl.includes('%20'), 'Should encode spaces');
+    // Check that special characters are encoded
+    assert(!shareUrl.includes(' '), 'Should not have literal spaces');
+    // Decode and verify full message
+    const urlParams = new URL(shareUrl).searchParams;
+    const tweetText = urlParams.get('text');
+    assert(tweetText.includes('My Cursor rules scored A (95%) with cursor-doctor!'), 'Decoded text should match expected format');
+    assert(tweetText.includes('🏥'), 'Should include emoji');
+    assert(tweetText.includes('npx cursor-doctor scan'), 'Should include npx command');
   });
 
   // ─── JSON Output Tests ───

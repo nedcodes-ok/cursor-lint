@@ -18,7 +18,7 @@ const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
 const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
 const { initProject } = require('./init');
 const { getPackNames, getPack, getAllPacks } = require('./registry');
-const { generateMarkdownBadge, generateHtmlBadge, generateShieldsEndpoint } = require('./badge');
+const { generateMarkdownBadge, generateHtmlBadge, generateShieldsEndpoint, generateShare } = require('./badge');
 
 const VERSION = require('../package.json').version;
 
@@ -322,9 +322,36 @@ async function main() {
       console.log();
     }
 
-    // Star ask — show on every scan (non-intrusive, one line)
-    if (!hasNoRules) {
-      console.log('  ' + DIM + 'Helpful? ' + String.fromCharCode(11088) + ' https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+    // Star ask — show only on A/B grades (happy users more likely to star)
+    if (!hasNoRules && (report.grade === 'A' || report.grade === 'B')) {
+      console.log('  ' + DIM + 'cursor-doctor saved you time? ' + String.fromCharCode(11088) + ' Star it so others can find it too' + RESET);
+      console.log('  ' + DIM + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+      console.log();
+    } else if (!hasNoRules && (report.grade === 'C' || report.grade === 'D' || report.grade === 'F')) {
+      console.log('  ' + DIM + 'Run npx cursor-doctor fix to improve your grade' + RESET);
+      console.log();
+    }
+
+    // --share flag: generate social share URL and badge
+    if (args.includes('--share')) {
+      console.log('  ' + CYAN + BOLD + String.fromCharCode(9881) + ' Share Your Grade' + RESET);
+      console.log();
+      
+      var shareData = await generateShare(cwd);
+      
+      console.log('  ' + BOLD + 'Share on Twitter/X:' + RESET);
+      console.log('  ' + shareData.shareUrl);
+      console.log();
+      
+      console.log('  ' + BOLD + 'README badge:' + RESET);
+      console.log('  ' + shareData.markdownBadge);
+      console.log();
+      
+      if (shareData.opened) {
+        console.log('  ' + GREEN + String.fromCharCode(10003) + ' Opened in browser' + RESET);
+      } else {
+        console.log('  ' + YELLOW + String.fromCharCode(9888) + ' Could not open browser. Copy URL above.' + RESET);
+      }
       console.log();
     }
 
@@ -651,8 +678,14 @@ async function main() {
       console.log('  ' + DIM + 'https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor' + RESET);
     }
 
-    // Star ask
-    console.log('  ' + DIM + 'Helpful? ' + String.fromCharCode(11088) + ' https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+    // Star ask — only show on A/B grades (get grade from doctor)
+    var healthReport = await doctor(cwd);
+    if (healthReport.grade === 'A' || healthReport.grade === 'B') {
+      console.log('  ' + DIM + 'cursor-doctor saved you time? ' + String.fromCharCode(11088) + ' Star it so others can find it too' + RESET);
+      console.log('  ' + DIM + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+    } else if (healthReport.grade === 'C' || healthReport.grade === 'D' || healthReport.grade === 'F') {
+      console.log('  ' + DIM + 'Run npx cursor-doctor fix to improve your grade' + RESET);
+    }
     console.log();
     process.exit(totalErrors > 0 ? 1 : 0);
   }
@@ -1783,8 +1816,14 @@ async function main() {
         console.log('  ' + GREEN + String.fromCharCode(10003) + ' All issues resolved.' + RESET);
       }
       console.log();
-      console.log('  ' + DIM + 'cursor-doctor helped? Star us on GitHub:' + RESET);
-      console.log('  ' + CYAN + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+      // Star ask — only show on A/B grades after successful fix
+      var postFixHealthReport = await doctor(cwd);
+      if (postFixHealthReport.grade === 'A' || postFixHealthReport.grade === 'B') {
+        console.log('  ' + DIM + 'cursor-doctor saved you time? ' + String.fromCharCode(11088) + ' Star it so others can find it too' + RESET);
+        console.log('  ' + DIM + 'https://github.com/nedcodes-ok/cursor-doctor' + RESET);
+      } else if (postFixHealthReport.grade === 'C' || postFixHealthReport.grade === 'D' || postFixHealthReport.grade === 'F') {
+        console.log('  ' + DIM + 'Run npx cursor-doctor fix again to improve your grade further' + RESET);
+      }
     }
     console.log();
     await exitClean((postFixIssues || 0) > 0 ? 1 : 0);

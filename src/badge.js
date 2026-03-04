@@ -66,10 +66,68 @@ async function generateShieldsEndpoint(dir) {
   };
 }
 
+/**
+ * Generate Twitter share URL for health grade
+ * @param {string} grade - Health grade (A-F)
+ * @param {number} percentage - Health percentage
+ * @returns {string} - Twitter share URL
+ */
+function generateShareUrl(grade, percentage) {
+  const tweetText = `My Cursor rules scored ${grade} (${percentage}%) with cursor-doctor! 🏥 Check yours: npx cursor-doctor scan https://github.com/nedcodes-ok/cursor-doctor`;
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
+}
+
+/**
+ * Open URL in default browser (cross-platform)
+ * @param {string} url - URL to open
+ * @returns {Promise<boolean>} - true if successful, false if failed
+ */
+async function openInBrowser(url) {
+  const { exec } = require('child_process');
+  const { promisify } = require('util');
+  const execAsync = promisify(exec);
+  
+  let command;
+  if (process.platform === 'darwin') {
+    command = `open "${url}"`;
+  } else if (process.platform === 'win32') {
+    command = `start "" "${url}"`;
+  } else {
+    command = `xdg-open "${url}"`;
+  }
+  
+  try {
+    await execAsync(command);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Generate share data and attempt to open in browser
+ * @param {string} dir - Project directory
+ * @returns {Promise<{shareUrl: string, markdownBadge: string, opened: boolean}>}
+ */
+async function generateShare(dir) {
+  const { grade, percentage } = await generateBadgeData(dir);
+  const shareUrl = generateShareUrl(grade, percentage);
+  const markdownBadge = await generateMarkdownBadge(dir);
+  const opened = await openInBrowser(shareUrl);
+  
+  return {
+    shareUrl,
+    markdownBadge,
+    opened,
+  };
+}
+
 module.exports = {
   generateBadgeData,
   generateMarkdownBadge,
   generateHtmlBadge,
   generateShieldsEndpoint,
+  generateShareUrl,
+  generateShare,
   GRADE_COLORS,
 };

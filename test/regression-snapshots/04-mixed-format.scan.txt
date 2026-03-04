@@ -30,4 +30,5 @@ exit:0
   >> Real-time linting:  cursor-doctor extension for VS Code
   https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor
 
-  Helpful? ⭐ https://github.com/nedcodes-ok/cursor-doctor
+  cursor-doctor saved you time? ⭐ Star it so others can find it too
+  https://github.com/nedcodes-ok/cursor-doctor
