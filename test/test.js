@@ -4127,6 +4127,235 @@ Avoid mixing blocking and async code (use asyncio.to_thread for blocking calls).
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // AI-Generated Rule Detection Tests
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  await asyncTest('AI-GEN: detects role-playing preamble "You are an expert"', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/role-play.mdc', `---
+description: React rules
+alwaysApply: true
+---
+You are an expert in React, TypeScript, and Node.js.
+
+Use functional components.
+Prefer named exports.`);
+    const result = await lintMdcFile(filePath);
+    const roleIssue = result.issues.find(i => i.message.includes('role-playing preamble'));
+    assert(roleIssue, 'Should detect role-playing preamble');
+    assert.strictEqual(roleIssue.severity, 'warning');
+  });
+
+  await asyncTest('AI-GEN: detects meta-instructions "think step by step"', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/meta-think.mdc', `---
+description: Coding rules
+alwaysApply: true
+---
+First think step-by-step about the problem.
+Describe your plan in pseudocode.
+Then write the code.
+
+Use TypeScript for all files.`);
+    const result = await lintMdcFile(filePath);
+    const metaIssue = result.issues.find(i => i.message.includes('meta-instructions'));
+    assert(metaIssue, 'Should detect meta-instructions');
+    assert.strictEqual(metaIssue.severity, 'warning');
+  });
+
+  await asyncTest('AI-GEN: detects stacked adjective filler', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/adjective-stack.mdc', `---
+description: Quality rules
+alwaysApply: true
+---
+Always write correct, up to date, bug free, fully functional and working, secure, performant and efficient code.
+
+Focus on readability.`);
+    const result = await lintMdcFile(filePath);
+    const adjIssue = result.issues.find(i => i.message.includes('quality adjectives'));
+    assert(adjIssue, 'Should detect stacked adjectives');
+    assert.strictEqual(adjIssue.severity, 'warning');
+  });
+
+  await asyncTest('AI-GEN: detects JavaScript syntax as rule format', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/js-syntax.mdc', `---
+description: Best practices
+alwaysApply: true
+---
+const preferFunctionalComponents = true;
+
+const bestPractices = [
+  "Use TypeScript",
+  "Prefer interfaces over types",
+];`);
+    const result = await lintMdcFile(filePath);
+    const jsIssue = result.issues.find(i => i.message.includes('JavaScript/JSON syntax'));
+    assert(jsIssue, 'Should detect JavaScript syntax as rule format');
+    assert.strictEqual(jsIssue.severity, 'warning');
+  });
+
+  await asyncTest('AI-GEN: detects AI personality tuning', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/personality.mdc', `---
+description: Assistant rules
+alwaysApply: true
+---
+Don't apologize for errors: fix them.
+Skip the AI self-references.
+
+Use TypeScript for all code.`);
+    const result = await lintMdcFile(filePath);
+    const personalityIssue = result.issues.find(i => i.message.includes('personality tuning'));
+    assert(personalityIssue, 'Should detect AI personality tuning');
+    assert.strictEqual(personalityIssue.severity, 'warning');
+  });
+
+  await asyncTest('AI-GEN: detects "if you don\'t know, say so" disclaimer', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/disclaimer.mdc', `---
+description: Coding rules
+alwaysApply: true
+---
+Use TypeScript for everything.
+If you do not know the answer, say so instead of guessing.
+Follow the project conventions.`);
+    const result = await lintMdcFile(filePath);
+    const disclaimerIssue = result.issues.find(i => i.message.includes("don't know"));
+    assert(disclaimerIssue, 'Should detect chatbot disclaimer');
+    assert.strictEqual(disclaimerIssue.severity, 'info');
+  });
+
+  await asyncTest('AI-GEN: detects "confirm before acting" instruction', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/confirm.mdc', `---
+description: Workflow rules
+alwaysApply: true
+---
+Confirm, then write code!
+Use functional components.
+Always check for null values.`);
+    const result = await lintMdcFile(filePath);
+    const confirmIssue = result.issues.find(i => i.message.includes('confirm before acting'));
+    assert(confirmIssue, 'Should detect confirm-before-acting instruction');
+    assert.strictEqual(confirmIssue.severity, 'warning');
+  });
+
+  await asyncTest('AI-GEN: detects project description masquerading as rules', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/project-desc.mdc', `---
+description: Project overview
+alwaysApply: true
+---
+This project is a tower defense game built with Unity.
+The game involves players placing turrets on a grid.
+Players earn points by defeating waves of enemies.
+The project was started in 2024 and is currently being refactored.
+We are using C# for all game logic and Unity 2021.3 for rendering.
+The game has multiple levels with increasing difficulty.
+The art style is pixel-based with retro aesthetics.
+The soundtrack was composed by an indie musician.
+We plan to release on Steam and mobile platforms.
+The development team consists of three people working part-time.
+The build system outputs to builds/ directory.`);
+    const result = await lintMdcFile(filePath);
+    const descIssue = result.issues.find(i => i.message.includes('project description'));
+    assert(descIssue, 'Should detect project description masquerading as rules');
+    assert.strictEqual(descIssue.severity, 'warning');
+  });
+
+  await asyncTest('AI-GEN: does NOT flag legitimate rules as AI-generated', async () => {
+    setupTestProject();
+    const filePath = writeFixture('.cursor/rules/legit.mdc', `---
+description: TypeScript conventions
+alwaysApply: true
+---
+Use strict TypeScript with no implicit any.
+Prefer interfaces over type aliases for object shapes.
+Use const assertions for literal types.
+Handle errors with Result types, never throw.
+Write unit tests for all public functions.
+Use named exports, avoid default exports.`);
+    const result = await lintMdcFile(filePath);
+    const aiIssues = result.issues.filter(i =>
+      i.message.includes('role-playing') ||
+      i.message.includes('meta-instructions') ||
+      i.message.includes('quality adjectives') ||
+      i.message.includes('JavaScript/JSON syntax') ||
+      i.message.includes('personality tuning') ||
+      i.message.includes('project description')
+    );
+    assert.strictEqual(aiIssues.length, 0, 'Legitimate rules should not trigger AI-generated detection');
+  });
+
+  // AI-Generated Rule Fixer Tests
+  await asyncTest('AI-GEN FIX: fixRolePlayingPreamble removes expert opener', () => {
+    const { fixRolePlayingPreamble } = require('../src/autofix');
+    const input = `---
+description: React rules
+alwaysApply: true
+---
+You are an expert in React, TypeScript, and Node.js.
+
+Use functional components.`;
+    const result = fixRolePlayingPreamble(input);
+    assert(result.changes.length > 0, 'Should have changes');
+    assert(!result.content.includes('You are an expert'), 'Should remove preamble');
+    assert(result.content.includes('Use functional components'), 'Should keep real rules');
+  });
+
+  await asyncTest('AI-GEN FIX: fixMetaInstructions removes think step by step', () => {
+    const { fixMetaInstructions } = require('../src/autofix');
+    const input = `---
+description: Rules
+alwaysApply: true
+---
+First think step-by-step about the problem.
+Confirm, then write code!
+
+Use TypeScript for all files.`;
+    const result = fixMetaInstructions(input);
+    assert(result.changes.length > 0, 'Should have changes');
+    assert(!result.content.includes('think step-by-step'), 'Should remove meta-instruction');
+    assert(result.content.includes('Use TypeScript'), 'Should keep real rules');
+  });
+
+  await asyncTest('AI-GEN FIX: fixJavaScriptSyntaxRules converts const arrays to markdown', () => {
+    const { fixJavaScriptSyntaxRules } = require('../src/autofix');
+    const input = `---
+description: Best practices
+alwaysApply: true
+---
+const preferFunctionalComponents = true;
+
+const bestPractices = [
+  "Use TypeScript",
+  "Prefer interfaces over types",
+];`;
+    const result = fixJavaScriptSyntaxRules(input);
+    assert(result.changes.length > 0, 'Should have changes');
+    assert(!result.content.includes('const '), 'Should remove JS syntax');
+    assert(result.content.includes('- Use TypeScript'), 'Should convert to markdown list');
+  });
+
+  await asyncTest('AI-GEN FIX: fixPersonalityTuning removes chatbot resets', () => {
+    const { fixPersonalityTuning } = require('../src/autofix');
+    const input = `---
+description: Rules
+alwaysApply: true
+---
+Don't apologize for errors: fix them.
+Skip the AI self-references.
+
+Use TypeScript for all code.`;
+    const result = fixPersonalityTuning(input);
+    assert(result.changes.length > 0, 'Should have changes');
+    assert(!result.content.includes('apologize'), 'Should remove personality tuning');
+    assert(result.content.includes('Use TypeScript'), 'Should keep real rules');
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // Test Summary & Cleanup
   // ─────────────────────────────────────────────────────────────────────────────
 

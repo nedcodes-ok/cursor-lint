@@ -551,6 +551,120 @@ async function lintMdcFile(filePath) {
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AI-GENERATED RULE DETECTION
+  // Rules commonly produced by ChatGPT, Cursor's built-in generator, etc.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // AI-GEN 1: Role-playing preamble ("You are an expert in...")
+  if (/^(?:you are|you're)\s+(?:an?\s+)?(?:expert|senior|experienced|skilled|proficient|master|world-class|brilliant|genius|thoughtful)/im.test(body)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule starts with role-playing preamble ("You are an expert...")',
+      hint: 'Role assignments waste tokens and don\'t improve Cursor\'s output. Skip the flattery and write specific instructions.',
+      fixable: true,
+    });
+  }
+
+  // AI-GEN 2: Meta-instructions about thinking process
+  if (/\b(?:think step[- ]by[- ]step|think carefully|think before|describe your plan|write (?:out )?in (?:great )?detail|let'?s think|chain of thought|reason through|before you (?:start|begin|code|write))\b/i.test(body)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule contains meta-instructions about thinking process',
+      hint: 'Instructions like "think step by step" are prompt engineering for chatbots, not Cursor rules. Tell the AI what to do, not how to think.',
+      fixable: true,
+    });
+  }
+
+  // AI-GEN 3: Stacked adjective filler ("write correct, up to date, bug free, fully functional...")
+  {
+    const adjPhrases = (body.match(/\b(?:correct|up[- ]to[- ]date|bug[- ]free|fully functional|working|secure|performant|efficient|clean|readable|maintainable|robust|scalable|production[- ]ready|high[- ]quality)\b/gi) || []);
+    if (adjPhrases.length >= 5) {
+      issues.push({
+        severity: 'warning',
+        message: `Rule stacks ${adjPhrases.length} quality adjectives without specifics`,
+        hint: 'Listing adjectives like "correct, bug-free, secure, performant, efficient" doesn\'t help the AI. Replace with concrete rules: what patterns to use, what to avoid, what tests to write.',
+        fixable: true,
+      });
+    }
+  }
+
+  // AI-GEN 4: JavaScript/JSON syntax used as rule format
+  if (/^(?:const|let|var)\s+\w+\s*=\s*[\[{'"true]/m.test(body)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule uses JavaScript/JSON syntax as format',
+      hint: 'const bestPractices = [...] is not a rule format. Use markdown with clear instructions. The AI reads the text, not the data structure.',
+      fixable: true,
+    });
+  }
+
+  // AI-GEN 5: Personality tuning / behavior reset
+  if (/\b(?:don'?t apologize|don'?t (?:make )?excuse|never say (?:sorry|you'?re? (?:sorry|unable|incapable))|stop saying sorry|skip the (?:ai )?self[- ]reference|save the ethics|cut the fluff)\b/i.test(body)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule contains AI personality tuning',
+      hint: 'Instructions like "don\'t apologize" and "cut the fluff" are chatbot behavior resets. Cursor doesn\'t need personality tuning. Use the tokens for actual coding rules.',
+      fixable: true,
+    });
+  }
+
+  // AI-GEN 6: Confirmation/validation prompting ("Confirm, then write code!")
+  if (/\b(?:confirm(?:[,.]?\s+(?:then|before))|ask (?:me )?(?:for )?(?:confirmation|clarification) before|wait for (?:my )?(?:approval|confirmation)|check with (?:me|the user) (?:before|first))\b/i.test(body)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule asks AI to confirm before acting',
+      hint: 'Cursor\'s agent mode is designed to act autonomously. "Confirm before coding" breaks the workflow. If you want review points, use git branches instead.',
+    });
+  }
+
+  // AI-GEN 7: "Leave NO todos / placeholders" instruction
+  if (/\b(?:leave no|no\s+(?:todo|placeholder|missing piece|stub)|don'?t leave (?:any )?(?:todo|placeholder)|fully implement|complete! verify|ensure (?:code is )?complete)\b/i.test(body)) {
+    issues.push({
+      severity: 'info',
+      message: 'Rule instructs AI to not leave TODOs/placeholders',
+      hint: 'This is a common AI-generated filler instruction. If incomplete code is a real problem, add a specific rule like "implement all function bodies; no empty stubs."',
+    });
+  }
+
+  // AI-GEN 8: ChatGPT-style "if you don't know, say so" disclaimer
+  if (/\b(?:if you (?:do not|don'?t) know|if you'?re? (?:not sure|unsure|uncertain)|say so instead of guessing|don'?t (?:make up|fabricate|hallucinate|guess))\b/i.test(body)) {
+    issues.push({
+      severity: 'info',
+      message: 'Rule contains "if you don\'t know, say so" disclaimer',
+      hint: 'This is a chatbot safety instruction, not a coding rule. Cursor operates on your codebase, it doesn\'t need to be told not to guess.',
+    });
+  }
+
+  // AI-GEN 9: "Use multiple responses for complex answers"
+  if (/\b(?:use multiple (?:responses|messages|replies)|split (?:into|across) (?:multiple )?(?:responses|messages|parts))\b/i.test(body)) {
+    issues.push({
+      severity: 'warning',
+      message: 'Rule asks AI to split responses across multiple messages',
+      hint: 'Cursor generates complete responses in one turn. Multi-message instructions come from chatbot prompting and waste tokens here.',
+    });
+  }
+
+  // AI-GEN 10: Project description masquerading as rules
+  {
+    const bodyLines = body.split('\n').filter(l => l.trim().length > 0);
+    const imperativeLines = bodyLines.filter(l => imperativeVerbs.test(l));
+    const totalLines = bodyLines.length;
+    // If less than 20% of lines have imperative verbs and body is substantial, it's probably a description
+    if (totalLines >= 10 && imperativeLines.length / totalLines < 0.15 && body.length > 500) {
+      // Check for narrative indicators
+      const narrativeIndicators = /\b(?:this project|the (?:project|app|game|system) (?:is|was|will|involves|uses)|we (?:are|were|will)|the goal (?:is|of)|the purpose)\b/i;
+      if (narrativeIndicators.test(body)) {
+        issues.push({
+          severity: 'warning',
+          message: 'Rule reads like a project description, not instructions',
+          hint: 'Descriptions of what the project IS don\'t help the AI write code. Convert to actionable instructions: what to do, what patterns to follow, what to avoid.',
+          fixable: true,
+        });
+      }
+    }
+  }
+
   // Rule references a file path that doesn't exist
   // Guard: skip bodies >10KB to avoid slow regex on large files
   if (body.length <= 10000) {

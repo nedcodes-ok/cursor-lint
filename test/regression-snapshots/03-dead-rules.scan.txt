@@ -24,7 +24,7 @@ exit:0
   5 passed  1 issue
 
   See details:  npx cursor-doctor lint
-  Auto-fix:     npx cursor-doctor fix  (7 issues fixable)
-  Pro key: $9 one-time — https://nedcodes.gumroad.com/l/cursor-doctor-pro?utm_source=cli&utm_medium=npx&utm_campaign=scan
+  ⚡ 7 issues can be auto-fixed.  Run: npx cursor-doctor fix
+  First fix is free. Unlock all: $9 one-time
 
   Helpful? ⭐ https://github.com/nedcodes-ok/cursor-doctor

@@ -723,6 +723,13 @@ async function autoFix(dir, options = {}) {
     fixBodyStartsWithDescription,
     fixRepeatedInstruction,
     fixBrokenMarkdownLinks,
+    // AI-generated rule fixers (v1.10.22+)
+    fixRolePlayingPreamble,
+    fixMetaInstructions,
+    fixStackedAdjectives,
+    fixJavaScriptSyntaxRules,
+    fixPersonalityTuning,
+    fixProjectDescription,
   ];
   
   // Fixers that need filename
@@ -1541,6 +1548,204 @@ function fixBrokenMarkdownLinks(content) {
   return { content, changes };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AI-GENERATED RULE FIXERS (v1.10.22+)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 34. Fix role-playing preamble: remove "You are an expert in..." opening lines
+function fixRolePlayingPreamble(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  // Remove "You are an expert/senior/experienced..." opening lines
+  const rolePattern = /^(?:you are|you're)\s+(?:an?\s+)?(?:expert|senior|experienced|skilled|proficient|master|world-class|brilliant|genius|thoughtful)[^\n]*\n*/im;
+  if (rolePattern.test(body)) {
+    body = body.replace(rolePattern, '');
+    // Also remove follow-up flattery lines that often come with the preamble
+    body = body.replace(/^(?:you (?:carefully|always) (?:provide|give)|you are (?:thoughtful|brilliant|careful))[^\n]*\n*/im, '');
+    content = frontmatter + body;
+    changes.push('Removed role-playing preamble');
+  }
+  
+  return { content, changes };
+}
+
+// 35. Fix meta-instructions: remove "think step by step" and similar
+function fixMetaInstructions(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  const original = body;
+  
+  // Remove common meta-instruction lines
+  const metaPatterns = [
+    /^.*(?:think step[- ]by[- ]step|first think step)[^\n]*\n*/gim,
+    /^.*(?:describe your plan (?:for what to build )?in pseudocode)[^\n]*\n*/gim,
+    /^.*(?:confirm,?\s*then (?:write )?code)[^\n]*\n*/gim,
+    /^.*(?:written (?:out )?in great detail)[^\n]*\n*/gim,
+  ];
+  
+  for (const pattern of metaPatterns) {
+    body = body.replace(pattern, '');
+  }
+  
+  if (body !== original) {
+    content = frontmatter + body;
+    changes.push('Removed meta-instructions about thinking process');
+  }
+  
+  return { content, changes };
+}
+
+// 36. Fix stacked adjectives: remove filler adjective sentences
+function fixStackedAdjectives(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  const original = body;
+  
+  // Remove lines that are just stacked quality adjectives
+  // e.g., "Always write correct, up to date, bug free, fully functional and working, secure, performant and efficient code."
+  const stackedPattern = /^.*(?:always )?write (?:(?:correct|up[- ]to[- ]date|bug[- ]free|fully functional|working|secure|performant|efficient|clean|readable|maintainable|robust|scalable|production[- ]ready|high[- ]quality)[,\s]+(?:and\s+)?){3,}[^\n]*\n*/gim;
+  body = body.replace(stackedPattern, '');
+  
+  if (body !== original) {
+    content = frontmatter + body;
+    changes.push('Removed stacked adjective filler');
+  }
+  
+  return { content, changes };
+}
+
+// 37. Fix JavaScript syntax rules: convert const x = [...] to markdown lists
+function fixJavaScriptSyntaxRules(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  const original = body;
+  
+  // Convert `const someVar = true;` to remove it (boolean flags are meaningless)
+  body = body.replace(/^(?:const|let|var)\s+\w+\s*=\s*(?:true|false)\s*;?\s*\n/gm, '');
+  
+  // Convert `const someVar = [...]` array of strings to markdown list
+  body = body.replace(/^(?:const|let|var)\s+(\w+)\s*=\s*\[\s*\n((?:\s*["'][^"']+["'],?\s*\n)*)\s*\];?\s*\n?/gm, (match, varName, items) => {
+    const listItems = items.match(/["']([^"']+)["']/g);
+    if (!listItems || listItems.length === 0) return match;
+    const title = varName.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+    return `## ${title}\n${listItems.map(item => `- ${item.replace(/^["']|["']$/g, '')}`).join('\n')}\n\n`;
+  });
+  
+  // Convert single-line `const someVar = "string"` to just the string
+  body = body.replace(/^(?:const|let|var)\s+\w+\s*=\s*["']([^"']+)["']\s*;?\s*\n/gm, '$1\n');
+  
+  // Convert `const someVar = `template string`` to just the content
+  body = body.replace(/^(?:const|let|var)\s+\w+\s*=\s*`([^`]+)`\s*;?\s*\n/gm, '$1\n');
+  
+  if (body !== original) {
+    content = frontmatter + body;
+    changes.push('Converted JavaScript syntax to markdown');
+  }
+  
+  return { content, changes };
+}
+
+// 38. Fix AI personality tuning: remove chatbot behavior resets
+function fixPersonalityTuning(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  const original = body;
+  
+  const personalityPatterns = [
+    /^.*(?:don'?t apologize|don'?t (?:make )?excuse)[^\n]*\n*/gim,
+    /^.*(?:never say (?:sorry|you'?re? (?:sorry|unable|incapable)))[^\n]*\n*/gim,
+    /^.*(?:skip the (?:ai )?self[- ]reference)[^\n]*\n*/gim,
+    /^.*(?:save the ethics)[^\n]*\n*/gim,
+    /^.*(?:cut the fluff)[^\n]*\n*/gim,
+    /^.*(?:don'?t care about sources)[^\n]*\n*/gim,
+    /^.*(?:wild speculation'?s fine)[^\n]*\n*/gim,
+  ];
+  
+  for (const pattern of personalityPatterns) {
+    body = body.replace(pattern, '');
+  }
+  
+  if (body !== original) {
+    content = frontmatter + body;
+    changes.push('Removed AI personality tuning instructions');
+  }
+  
+  return { content, changes };
+}
+
+// 39. Fix project description as rules: add comment header
+function fixProjectDescription(content) {
+  const changes = [];
+  const fm = parseFrontmatter(content);
+  
+  if (!fm.found) return { content, changes };
+  
+  const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+  if (!fmMatch) return { content, changes };
+  
+  const frontmatter = fmMatch[0];
+  let body = content.slice(frontmatter.length);
+  
+  // Check for narrative pattern (project description indicators)
+  const bodyLines = body.split('\n').filter(l => l.trim().length > 0);
+  const imperativeVerbs = /\b(use|write|create|add|remove|ensure|check|validate|follow|apply|implement|wrap|handle|return|throw|test|run|call|import|export|set|define|configure|avoid|prefer|keep|split|merge|move|rename|update|delete|include|exclude|enable|disable)\b/i;
+  const imperativeLines = bodyLines.filter(l => imperativeVerbs.test(l));
+  const totalLines = bodyLines.length;
+  
+  if (totalLines >= 10 && imperativeLines.length / totalLines < 0.15 && body.length > 500) {
+    const narrativeIndicators = /\b(?:this project|the (?:project|app|game|system) (?:is|was|will|involves|uses)|we (?:are|were|will)|the goal (?:is|of)|the purpose)\b/i;
+    if (narrativeIndicators.test(body)) {
+      // Can't auto-convert descriptions to rules, but add a warning comment
+      body = '<!-- cursor-doctor: This rule reads like a project description. Convert to actionable instructions. -->\n' + body;
+      content = frontmatter + body;
+      changes.push('Added warning comment for project description masquerading as rules');
+    }
+  }
+  
+  return { content, changes };
+}
+
 module.exports = {
   autoFix,
   fixFrontmatter,
@@ -1581,4 +1786,11 @@ module.exports = {
   fixBodyStartsWithDescription,
   fixRepeatedInstruction,
   fixBrokenMarkdownLinks,
+  // AI-generated rule fixers (v1.10.22+)
+  fixRolePlayingPreamble,
+  fixMetaInstructions,
+  fixStackedAdjectives,
+  fixJavaScriptSyntaxRules,
+  fixPersonalityTuning,
+  fixProjectDescription,
 };
