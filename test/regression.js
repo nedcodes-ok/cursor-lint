@@ -31,7 +31,7 @@ function runCommand(cmd, cwd) {
       cwd,
       encoding: 'utf8',
       timeout: 30000,
-      env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' }
+      env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0', CURSOR_DOCTOR_CTA_VARIANT: '0' }
     });
     return { exitCode: 0, output: normalizeOutput(output) };
   } catch (e) {
