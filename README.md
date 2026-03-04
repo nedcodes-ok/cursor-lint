@@ -88,6 +88,16 @@ Catch broken rules before merge:
 - uses: nedcodes-ok/cursor-doctor@v1
 ```
 
+## Pre-commit hook
+
+Validate rules locally before every commit:
+
+```bash
+cp scripts/pre-commit-hook.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+```
+
+The hook runs `cursor-doctor check` only when `.mdc`, `.cursorrules`, `CLAUDE.md`, or `AGENTS.md` files are staged.
+
 ## MCP Server
 
 Use cursor-doctor as an MCP tool inside your AI coding assistant:
