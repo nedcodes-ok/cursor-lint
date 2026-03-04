@@ -4356,6 +4356,196 @@ Use TypeScript for all code.`;
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // Coverage Gap Detection Tests
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  console.log('\n## Coverage Gap Detection');
+
+  const { detectStack, analyzeRuleCoverage, detectCoverageGaps, generateSuggestions } = require('../src/coverage-gap');
+
+  await asyncTest('detectStack: detects React from package.json', async () => {
+    setupTestProject();
+    writeFixture('package.json', JSON.stringify({
+      dependencies: { react: '^18.0.0', 'react-dom': '^18.0.0' },
+    }));
+    const stack = detectStack(TEST_PROJECT);
+    assert(stack.includes('react'), 'Should detect React');
+  });
+
+  await asyncTest('detectStack: detects Next.js and TypeScript', async () => {
+    setupTestProject();
+    writeFixture('package.json', JSON.stringify({
+      dependencies: { next: '^14.0.0', react: '^18.0.0' },
+      devDependencies: { typescript: '^5.0.0' },
+    }));
+    const stack = detectStack(TEST_PROJECT);
+    assert(stack.includes('nextjs'), 'Should detect Next.js');
+    assert(stack.includes('typescript'), 'Should detect TypeScript');
+  });
+
+  await asyncTest('detectStack: detects Python from requirements.txt', async () => {
+    setupTestProject();
+    writeFixture('requirements.txt', 'django==4.2.0\npytest==7.4.0\n');
+    const stack = detectStack(TEST_PROJECT);
+    assert(stack.includes('python'), 'Should detect Python');
+    assert(stack.includes('django'), 'Should detect Django');
+    assert(stack.includes('pytest'), 'Should detect pytest');
+  });
+
+  await asyncTest('detectStack: detects Rust from Cargo.toml', async () => {
+    setupTestProject();
+    writeFixture('Cargo.toml', '[package]\nname = "myapp"\nversion = "0.1.0"\n');
+    const stack = detectStack(TEST_PROJECT);
+    assert(stack.includes('rust'), 'Should detect Rust');
+  });
+
+  await asyncTest('detectStack: detects Go from go.mod', async () => {
+    setupTestProject();
+    writeFixture('go.mod', 'module example.com/myapp\n\ngo 1.21\n');
+    const stack = detectStack(TEST_PROJECT);
+    assert(stack.includes('go'), 'Should detect Go');
+  });
+
+  await asyncTest('analyzeRuleCoverage: detects testing rules', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/testing.mdc', `---
+description: Testing guidelines
+alwaysApply: true
+---
+Write tests for all new features.
+Use Jest for unit tests.
+Aim for 80%+ coverage.`);
+    const { categories } = analyzeRuleCoverage(TEST_PROJECT);
+    assert(categories.includes('testing'), 'Should detect testing category');
+  });
+
+  await asyncTest('analyzeRuleCoverage: detects error-handling rules', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/errors.mdc', `---
+description: Error handling
+globs: ["**/*.ts"]
+---
+Always catch and log errors.
+Use try-catch blocks for risky operations.`);
+    const { categories } = analyzeRuleCoverage(TEST_PROJECT);
+    assert(categories.includes('error-handling'), 'Should detect error-handling category');
+  });
+
+  await asyncTest('analyzeRuleCoverage: detects multiple categories in one file', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/api.mdc', `---
+description: API and security
+globs: ["**/api/*.ts"]
+---
+Handle loading and error states in all API calls.
+Validate all user input for security.
+Add proper authentication checks.`);
+    const { categories, ruleDetails } = analyzeRuleCoverage(TEST_PROJECT);
+    assert(categories.includes('api-data-fetching'), 'Should detect API category');
+    assert(categories.includes('security'), 'Should detect security category');
+    assert(categories.includes('error-handling'), 'Should detect error-handling from "error states"');
+    const apiRule = ruleDetails.find(r => r.file === 'api.mdc');
+    assert(apiRule, 'Should have rule details for api.mdc');
+    assert(apiRule.categories.length >= 2, 'Should detect multiple categories');
+  });
+
+  await asyncTest('detectCoverageGaps: identifies missing categories for React project', async () => {
+    setupTestProject();
+    writeFixture('package.json', JSON.stringify({
+      dependencies: { react: '^18.0.0' },
+    }));
+    writeFixture('.cursor/rules/react.mdc', `---
+description: React conventions
+globs: ["**/*.tsx"]
+---
+Use functional components.
+Prefer hooks over classes.`);
+    const analysis = detectCoverageGaps(TEST_PROJECT);
+    assert(analysis.detectedStack.includes('react'), 'Should detect React');
+    assert(analysis.hasRules, 'Should have rules');
+    // React expects: testing, error-handling, state-management, accessibility, performance
+    // We only have basic React rules, so there should be gaps
+    assert(analysis.gaps.length > 0, 'Should have coverage gaps');
+    assert(analysis.gaps.includes('testing') || analysis.gaps.includes('error-handling'), 'Should identify common gaps');
+  });
+
+  await asyncTest('detectCoverageGaps: no gaps when all categories covered', async () => {
+    setupTestProject();
+    writeFixture('package.json', JSON.stringify({
+      dependencies: { react: '^18.0.0' },
+    }));
+    writeFixture('.cursor/rules/testing.mdc', `---
+description: Testing
+---
+Write tests with Jest.`);
+    writeFixture('.cursor/rules/errors.mdc', `---
+description: Error handling
+---
+Always catch errors.`);
+    writeFixture('.cursor/rules/state.mdc', `---
+description: State management
+---
+Use Redux for global state.`);
+    writeFixture('.cursor/rules/a11y.mdc', `---
+description: Accessibility
+---
+Use semantic HTML and ARIA labels.`);
+    writeFixture('.cursor/rules/perf.mdc', `---
+description: Performance
+---
+Lazy load components.`);
+    const analysis = detectCoverageGaps(TEST_PROJECT);
+    assert(analysis.detectedStack.includes('react'), 'Should detect React');
+    assert.strictEqual(analysis.gaps.length, 0, 'Should have no gaps when all categories covered');
+  });
+
+  await asyncTest('generateSuggestions: provides suggestions for gaps', async () => {
+    const gaps = ['testing', 'error-handling', 'accessibility'];
+    const stack = ['react', 'typescript'];
+    const suggestions = generateSuggestions(gaps, stack);
+    assert.strictEqual(suggestions.length, 3, 'Should generate suggestion for each gap');
+    const testingSuggestion = suggestions.find(s => s.category === 'testing');
+    assert(testingSuggestion, 'Should have testing suggestion');
+    assert(testingSuggestion.reason, 'Should have reason');
+    assert(Array.isArray(testingSuggestion.examples), 'Should have examples array');
+    assert(testingSuggestion.examples.length > 0, 'Should have at least one example');
+  });
+
+  await asyncTest('coverage gap in doctor report for Next.js project', async () => {
+    setupTestProject();
+    writeFixture('package.json', JSON.stringify({
+      dependencies: { next: '^14.0.0', react: '^18.0.0' },
+      devDependencies: { typescript: '^5.0.0' },
+    }));
+    writeFixture('.cursor/rules/nextjs.mdc', `---
+description: Next.js conventions
+globs: ["**/*.tsx", "**/*.ts"]
+---
+Use App Router over Pages Router.
+Implement proper metadata.`);
+    const report = await doctor(TEST_PROJECT);
+    assert(report.coverageGapAnalysis, 'Should include coverage gap analysis');
+    assert(report.coverageGapAnalysis.displayableStack.length > 0, 'Should detect frameworks');
+    assert(report.coverageGapAnalysis.displayableStack.includes('nextjs'), 'Should include Next.js');
+    // Next.js expects: testing, error-handling, api-data-fetching, performance, security
+    // We only have basic Next.js rules
+    assert(report.coverageGapAnalysis.gaps.length > 0, 'Should identify gaps');
+  });
+
+  await asyncTest('coverage gap analysis not included when no frameworks detected', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/general.mdc', `---
+description: General coding
+alwaysApply: true
+---
+Write clean code.`);
+    const report = await doctor(TEST_PROJECT);
+    // No package.json or other stack indicators, so no coverage analysis
+    assert(!report.coverageGapAnalysis || report.coverageGapAnalysis.displayableStack.length === 0,
+      'Should not include coverage analysis when no frameworks detected');
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // Test Summary & Cleanup
   // ─────────────────────────────────────────────────────────────────────────────
 

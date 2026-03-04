@@ -6,6 +6,7 @@ const { lintPlugin } = require('./plugin');
 const { analyzeTokenBudget, CONTEXT_WINDOW_TOKENS } = require('./token-budget');
 const { lintAgentConfigs } = require('./agents-lint');
 const { lintMcpConfigs } = require('./mcp-lint');
+const { detectCoverageGaps, generateSuggestions } = require('./coverage-gap');
 
 async function doctor(dir) {
   const report = {
@@ -287,6 +288,22 @@ async function doctor(dir) {
   else if (pct >= 30) report.grade = 'D';
   else report.grade = 'F';
   report.percentage = Math.round(pct);
+
+  // Add coverage gap analysis
+  try {
+    const coverageAnalysis = detectCoverageGaps(dir);
+    if (coverageAnalysis.hasRules && coverageAnalysis.displayableStack.length > 0) {
+      report.coverageGapAnalysis = coverageAnalysis;
+      if (coverageAnalysis.gaps.length > 0) {
+        report.coverageGapAnalysis.suggestions = generateSuggestions(
+          coverageAnalysis.gaps,
+          coverageAnalysis.detectedStack
+        );
+      }
+    }
+  } catch (e) {
+    // Silently ignore coverage gap analysis errors
+  }
 
   return report;
 }

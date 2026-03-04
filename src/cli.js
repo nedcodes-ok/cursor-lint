@@ -237,6 +237,40 @@ async function main() {
     qlog('  ' + GREEN + passes + ' passed' + RESET + '  ' + (issues > 0 ? YELLOW + issues + ' issue' + (issues > 1 ? 's' : '') + RESET : ''));
     qlog();
 
+    // Coverage Gap Report
+    if (report.coverageGapAnalysis && report.coverageGapAnalysis.displayableStack.length > 0) {
+      console.log('  ' + CYAN + BOLD + String.fromCharCode(9619) + ' Coverage Report' + RESET);
+      console.log();
+      
+      // Detected stack
+      var stackList = report.coverageGapAnalysis.displayableStack.join(', ');
+      console.log('  ' + DIM + 'Detected:' + RESET + '  ' + stackList);
+      
+      // Covered categories
+      if (report.coverageGapAnalysis.coveredCategories.length > 0) {
+        var coveredList = report.coverageGapAnalysis.coveredCategories.join(', ');
+        console.log('  ' + GREEN + 'Covered:' + RESET + '   ' + coveredList);
+      }
+      
+      // Missing categories
+      if (report.coverageGapAnalysis.gaps.length > 0) {
+        var gapsList = report.coverageGapAnalysis.gaps.join(', ');
+        console.log('  ' + YELLOW + 'Missing:' + RESET + '   ' + gapsList);
+        console.log();
+        console.log('  ' + BOLD + 'Suggestions:' + RESET);
+        for (var gi = 0; gi < Math.min(3, report.coverageGapAnalysis.suggestions.length); gi++) {
+          var suggestion = report.coverageGapAnalysis.suggestions[gi];
+          console.log('    ' + YELLOW + String.fromCharCode(8226) + RESET + ' ' + BOLD + suggestion.category + RESET + ': ' + suggestion.reason);
+        }
+        if (report.coverageGapAnalysis.suggestions.length > 3) {
+          console.log('    ' + DIM + '... and ' + (report.coverageGapAnalysis.suggestions.length - 3) + ' more' + RESET);
+        }
+      } else {
+        console.log('  ' + GREEN + String.fromCharCode(10003) + ' All expected categories covered' + RESET);
+      }
+      console.log();
+    }
+
     // Check if user has no rules at all (no-rules footer should push to init, not lint/fix)
     var hasNoRules = report.checks.some(function(c) { return c.name === 'Rules exist' && c.status === 'fail'; });
     if (hasNoRules) {
