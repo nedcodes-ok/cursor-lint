@@ -279,6 +279,13 @@ async function main() {
       console.log();
     }
 
+    // VS Code extension CTA — show when issues found (high intent moment)
+    if (!hasNoRules && issues > 0) {
+      console.log('  ' + CYAN + '>> Real-time linting:' + RESET + '  cursor-doctor extension for VS Code');
+      console.log('  ' + DIM + 'https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor' + RESET);
+      console.log();
+    }
+
     // Star ask — show on every scan (non-intrusive, one line)
     if (!hasNoRules) {
       console.log('  ' + DIM + 'Helpful? ' + String.fromCharCode(11088) + ' https://github.com/nedcodes-ok/cursor-doctor' + RESET);
@@ -505,6 +512,12 @@ async function main() {
         // Only unfixable issues (contradictions) — don't suggest auto-fix
         console.log('  ' + DIM + 'These issues require manual review. Auto-fix cannot resolve contradictions.' + RESET);
       }
+    }
+
+    // VS Code extension CTA — show when issues found
+    if (totalErrors > 0 || totalWarnings > 0) {
+      console.log('  ' + CYAN + '>> Real-time linting:' + RESET + '  cursor-doctor extension for VS Code');
+      console.log('  ' + DIM + 'https://marketplace.visualstudio.com/items?itemName=nedcodes.cursor-doctor' + RESET);
     }
 
     // Star ask
