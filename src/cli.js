@@ -18,6 +18,7 @@ const { lintAgentConfigs, formatAgentLint } = require('./agents-lint');
 const { lintMcpConfigs, formatMcpLint } = require('./mcp-lint');
 const { initProject } = require('./init');
 const { getPackNames, getPack, getAllPacks } = require('./registry');
+const { generateMarkdownBadge, generateHtmlBadge, generateShieldsEndpoint } = require('./badge');
 
 const VERSION = require('../package.json').version;
 
@@ -69,6 +70,7 @@ function showHelp() {
     '  ' + BOLD + 'npx cursor-doctor scan' + RESET + '             Find what\'s wrong ' + DIM + '(default)' + RESET,
     '  ' + BOLD + 'npx cursor-doctor fix' + RESET + '              Auto-fix (1st fix free, Pro for all)',
     '  ' + DIM + 'npx cursor-doctor fix --preview    Preview all fixes' + RESET,
+    '  ' + BOLD + 'npx cursor-doctor badge' + RESET + '            Generate README badge',
     '',
     YELLOW + 'Diagnose:' + RESET,
     '  npx cursor-doctor lint           Detailed rule-by-rule linting',
@@ -327,6 +329,42 @@ async function main() {
     }
 
     process.exit(report.grade === 'F' ? 1 : 0);
+  }
+
+  // --- badge (free) ---
+  if (command === 'badge') {
+    var jsonOutput = args.includes('--json');
+    
+    if (jsonOutput) {
+      // Output shields.io endpoint JSON
+      var endpointJson = await generateShieldsEndpoint(cwd);
+      console.log(JSON.stringify(endpointJson, null, 2));
+      await exitClean(0);
+    }
+    
+    // Generate all badge formats
+    var markdown = await generateMarkdownBadge(cwd);
+    var html = await generateHtmlBadge(cwd);
+    
+    console.log();
+    console.log(BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- badge generator');
+    console.log();
+    console.log(CYAN + 'Markdown:' + RESET);
+    console.log('  ' + markdown);
+    console.log();
+    console.log(CYAN + 'HTML:' + RESET);
+    console.log('  ' + html);
+    console.log();
+    console.log(CYAN + 'Dynamic Badge (shields.io endpoint JSON):' + RESET);
+    console.log('  Save this JSON to your repo and reference it:');
+    console.log('  ' + DIM + 'npx cursor-doctor badge --json > cursor-rules-badge.json' + RESET);
+    console.log('  ' + DIM + 'https://img.shields.io/endpoint?url=https://yourrepo/cursor-rules-badge.json' + RESET);
+    console.log();
+    console.log(DIM + 'Copy the markdown or HTML snippet above to your README.' + RESET);
+    console.log(DIM + 'Badge color updates automatically when you run cursor-doctor scan.' + RESET);
+    console.log();
+    
+    await exitClean(0);
   }
 
   // --- check (free, CI) ---

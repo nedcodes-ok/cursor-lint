@@ -42,6 +42,7 @@ We scanned [50 real open-source projects](https://nedcodes.dev/guides/cursor-rul
 | `npx cursor-doctor scan` | Health check with letter grade | ✅ |
 | `npx cursor-doctor lint` | Rule-by-rule detailed diagnostics | ✅ |
 | `npx cursor-doctor check` | CI pass/fail (exit code 0 or 1) | ✅ |
+| `npx cursor-doctor badge` | Generate README badge snippets | ✅ |
 | `npx cursor-doctor init` | Generate starter rules for your stack | ✅ |
 | `npx cursor-doctor install react` | Install community rule packs | ✅ |
 | `npx cursor-doctor fix --preview` | Preview auto-fixes before applying | ✅ |
@@ -102,28 +103,36 @@ The hook runs `cursor-doctor check` only when `.mdc`, `.cursorrules`, `CLAUDE.md
 
 Show your project's Cursor rules health in your README:
 
-**Static badge** (update manually):
+```bash
+npx cursor-doctor badge
+```
+
+Output:
 
 ```markdown
-![Cursor Rules](https://img.shields.io/badge/Cursor_Rules-A-brightgreen)
+Markdown:
+  ![Cursor Rules: A (96%)](https://img.shields.io/badge/Cursor%20Rules-A%20(96%25)-brightgreen)
+
+HTML:
+  <img src="https://img.shields.io/badge/Cursor%20Rules-A%20(96%25)-brightgreen" alt="Cursor Rules: A (96%)">
 ```
 
-![Cursor Rules](https://img.shields.io/badge/Cursor_Rules-A-brightgreen)
+Example: ![Cursor Rules: A (96%)](https://img.shields.io/badge/Cursor%20Rules-A%20(96%25)-brightgreen)
 
-**Dynamic badge** (using shields.io endpoint):
+**Dynamic badge** (updates automatically via shields.io endpoint):
 
 ```bash
-# Generate badge JSON
-./scripts/generate-badge.sh
+# Generate endpoint JSON
+npx cursor-doctor badge --json > cursor-rules-badge.json
 
-# Commit .cursor-doctor-badge.json to your repo
-git add .cursor-doctor-badge.json && git commit -m "chore: update cursor rules health badge"
+# Commit to your repo
+git add cursor-rules-badge.json && git commit -m "chore: add cursor rules health badge"
 
 # Use in README.md (replace YOUR_REPO_URL)
-![Cursor Rules Health](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/YOUR_REPO_URL/main/.cursor-doctor-badge.json)
+![Cursor Rules Health](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/YOUR_REPO_URL/main/cursor-rules-badge.json)
 ```
 
-The badge color reflects your grade: A=brightgreen, B=green, C=yellow, D=orange, F=red.
+Badge colors: A=brightgreen, B=green, C=yellow, D=orange, F=red.
 
 ## MCP Server
 

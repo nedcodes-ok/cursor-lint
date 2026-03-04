@@ -16,6 +16,7 @@ const { showLoadOrder } = require('../src/order');
 const { migrate } = require('../src/migrate');
 const { verifyProject } = require('../src/verify');
 const { doctor } = require('../src/doctor');
+const { generateBadgeData, generateMarkdownBadge, generateHtmlBadge, generateShieldsEndpoint, GRADE_COLORS } = require('../src/badge');
 
 // Test counters
 let passed = 0;
@@ -4543,6 +4544,81 @@ Write clean code.`);
     // No package.json or other stack indicators, so no coverage analysis
     assert(!report.coverageGapAnalysis || report.coverageGapAnalysis.displayableStack.length === 0,
       'Should not include coverage analysis when no frameworks detected');
+  });
+
+  // ─── Badge Generator Tests ───
+  console.log('\n## Badge Generator');
+
+  await asyncTest('generateBadgeData: returns grade, percentage, and color', async () => {
+    setupTestProject();
+    writeFixture('package.json', JSON.stringify({
+      dependencies: { react: '^18.0.0' },
+    }));
+    writeFixture('.cursor/rules/react.mdc', `---
+description: React conventions
+globs: ["**/*.tsx", "**/*.jsx"]
+---
+Use functional components.
+Prefer hooks over classes.`);
+    const badgeData = await generateBadgeData(TEST_PROJECT);
+    assert(badgeData.grade, 'Should have grade');
+    assert(['A', 'B', 'C', 'D', 'F'].includes(badgeData.grade), 'Grade should be A-F');
+    assert(typeof badgeData.percentage === 'number', 'Should have numeric percentage');
+    assert(badgeData.percentage >= 0 && badgeData.percentage <= 100, 'Percentage should be 0-100');
+    assert(badgeData.color, 'Should have color');
+    assert(GRADE_COLORS[badgeData.grade] === badgeData.color, 'Color should match grade');
+  });
+
+  await asyncTest('generateMarkdownBadge: creates valid markdown badge', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/general.mdc', `---
+description: General coding
+alwaysApply: true
+---
+Write clean code.`);
+    const markdown = await generateMarkdownBadge(TEST_PROJECT);
+    assert(markdown.startsWith('![Cursor Rules:'), 'Should start with alt text');
+    assert(markdown.includes('https://img.shields.io/badge/'), 'Should use shields.io URL');
+    assert(markdown.includes('Cursor%20Rules'), 'Should encode label');
+    assert(markdown.match(/\(.*%\)/), 'Should include percentage in message');
+  });
+
+  await asyncTest('generateHtmlBadge: creates valid HTML badge', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/general.mdc', `---
+description: General coding
+alwaysApply: true
+---
+Write clean code.`);
+    const html = await generateHtmlBadge(TEST_PROJECT);
+    assert(html.startsWith('<img src="'), 'Should be an img tag');
+    assert(html.includes('https://img.shields.io/badge/'), 'Should use shields.io URL');
+    assert(html.includes('alt="Cursor Rules:'), 'Should have alt text');
+    assert(html.endsWith('">'), 'Should be a self-closing tag');
+  });
+
+  await asyncTest('generateShieldsEndpoint: creates valid shields.io endpoint JSON', async () => {
+    setupTestProject();
+    writeFixture('.cursor/rules/general.mdc', `---
+description: General coding
+alwaysApply: true
+---
+Write clean code.`);
+    const endpoint = await generateShieldsEndpoint(TEST_PROJECT);
+    assert.strictEqual(endpoint.schemaVersion, 1, 'Should have schemaVersion 1');
+    assert.strictEqual(endpoint.label, 'Cursor Rules', 'Should have correct label');
+    assert(endpoint.message, 'Should have message');
+    assert(endpoint.message.match(/[A-F] \(\d+%\)/), 'Message should be grade (percentage%)');
+    assert(endpoint.color, 'Should have color');
+    assert(['brightgreen', 'green', 'yellow', 'orange', 'red'].includes(endpoint.color), 'Color should be valid');
+  });
+
+  await asyncTest('badge color mapping: A=brightgreen, B=green, C=yellow, D=orange, F=red', async () => {
+    assert.strictEqual(GRADE_COLORS.A, 'brightgreen', 'A should be brightgreen');
+    assert.strictEqual(GRADE_COLORS.B, 'green', 'B should be green');
+    assert.strictEqual(GRADE_COLORS.C, 'yellow', 'C should be yellow');
+    assert.strictEqual(GRADE_COLORS.D, 'orange', 'D should be orange');
+    assert.strictEqual(GRADE_COLORS.F, 'red', 'F should be red');
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
