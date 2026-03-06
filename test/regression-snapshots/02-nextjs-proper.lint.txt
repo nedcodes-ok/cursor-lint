@@ -4,5 +4,5 @@ cursor-doctor vX.X.X -- lint
 
 ──────────────────────────────────────────────────
 3 passed
-  cursor-doctor saved you time? ⭐ Star it so others can find it too
+  cursor-doctor saved you time? ⭐ Star it so others find it too
   https://github.com/nedcodes-ok/cursor-doctor?utm_source=cli&utm_medium=star_cta&utm_campaign=variant_a
