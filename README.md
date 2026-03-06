@@ -12,6 +12,8 @@ npx cursor-doctor scan
 
 ![cursor-doctor scan demo](https://raw.githubusercontent.com/nedcodes-ok/cursor-doctor/main/images/demo.gif)
 
+> 🔧 **Auto-fix everything:** `npx cursor-doctor fix` — [first 3 fixes free, Pro for all](https://nedcodes.gumroad.com/l/cursor-doctor-pro)
+
 ## What you get
 
 ```
@@ -46,7 +48,7 @@ We scanned [50 real open-source projects](https://nedcodes.dev/guides/cursor-rul
 | `npx cursor-doctor init` | Generate starter rules for your stack | ✅ |
 | `npx cursor-doctor install react` | Install community rule packs | ✅ |
 | `npx cursor-doctor fix --preview` | Preview auto-fixes before applying | ✅ |
-| `npx cursor-doctor fix` | Apply all auto-fixes | Pro |
+| `npx cursor-doctor fix` | Apply all auto-fixes | 3 free / Pro for unlimited |
 | `npx cursor-doctor audit` | Full diagnostic report | Pro |
 | `npx cursor-doctor conflicts` | Cross-format conflict detection | Pro |
 | `npx cursor-doctor test <file>` | AI rule adherence testing | Pro |

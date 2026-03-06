@@ -66,15 +66,15 @@ var PURCHASE_URL = 'https://nedcodes.gumroad.com/l/cursor-doctor-pro';
 function getStarCTA() {
   var variants = [
     {
-      message: 'cursor-doctor saved you time? ' + String.fromCharCode(11088) + ' Star it so others can find it too',
+      message: 'cursor-doctor saved you time? ' + String.fromCharCode(11088) + ' Star it so others find it too',
       url: 'https://github.com/nedcodes-ok/cursor-doctor?utm_source=cli&utm_medium=star_cta&utm_campaign=variant_a'
     },
     {
-      message: 'Join 2 devs who star\'d cursor-doctor ' + String.fromCharCode(11088),
+      message: '5,000+ weekly installs — ' + String.fromCharCode(11088) + ' star it to help other devs find it',
       url: 'https://github.com/nedcodes-ok/cursor-doctor?utm_source=cli&utm_medium=star_cta&utm_campaign=variant_b'
     },
     {
-      message: String.fromCharCode(11088) + ' One star helps other devs find this tool',
+      message: String.fromCharCode(11088) + ' One star helps other devs discover cursor-doctor',
       url: 'https://github.com/nedcodes-ok/cursor-doctor?utm_source=cli&utm_medium=star_cta&utm_campaign=variant_c'
     }
   ];
@@ -90,7 +90,7 @@ function showHelp() {
     CYAN + BOLD + 'cursor-doctor' + RESET + ' v' + VERSION + ' -- Fix your Cursor rules in seconds.',
     '',
     '  ' + BOLD + 'npx cursor-doctor scan' + RESET + '             Find what\'s wrong ' + DIM + '(default)' + RESET,
-    '  ' + BOLD + 'npx cursor-doctor fix' + RESET + '              Auto-fix (1st fix free, Pro for all)',
+    '  ' + BOLD + 'npx cursor-doctor fix' + RESET + '              Auto-fix (3 free, Pro for unlimited)',
     '  ' + DIM + 'npx cursor-doctor fix --preview    Preview all fixes' + RESET,
     '  ' + BOLD + 'npx cursor-doctor badge' + RESET + '            Generate README badge',
     '',
@@ -352,6 +352,12 @@ async function main() {
       console.log();
     } else if (!hasNoRules && (report.grade === 'C' || report.grade === 'D' || report.grade === 'F')) {
       console.log('  ' + DIM + 'Run npx cursor-doctor fix to improve your grade' + RESET);
+      console.log();
+    }
+
+    // Pro CTA footer — show for all grades
+    if (!hasNoRules) {
+      console.log('  ' + CYAN + 'Pro: unlimited auto-fix — $9 one-time ' + String.fromCharCode(8594) + ' ' + DIM + 'nedcodes.gumroad.com/l/cursor-doctor-pro?utm_source=cli&utm_medium=npx&utm_campaign=scan_footer' + RESET);
       console.log();
     }
 
@@ -1720,13 +1726,14 @@ async function main() {
     await exitClean(0);
   }
 
-  // --- fix (PRO) ---
+  // --- fix (3 free, Pro for unlimited) ---
   if (command === 'fix') {
     var preview = args.includes('--preview');
     var licensed = isLicensed(cwd);
     var freeFix = !licensed && !preview;
     var dryRun = args.includes('--dry-run') || preview;
-    var results = await autoFix(cwd, { dryRun: dryRun || freeFix, freeFixMode: freeFix });
+    var maxFree = 3;
+    var results = await autoFix(cwd, { dryRun: dryRun || freeFix, freeFixMode: freeFix, maxFiles: freeFix ? maxFree : undefined });
 
     console.log();
     console.log(CYAN + BOLD + 'cursor-doctor fix' + RESET + (dryRun ? ' ' + DIM + '(dry run)' + RESET : ''));
@@ -1791,20 +1798,22 @@ async function main() {
       }
     }
     if (freeFix && totalActions > 0) {
-      // Free fix mode: apply the first fix for free, upsell the rest
-      var firstFix = results.fixed[0];
-      if (firstFix) {
-        // Re-run autoFix but only apply the first file's changes
-        var freeResults = await autoFix(cwd, { dryRun: false, maxFiles: 1 });
-        var freeChangeText = firstFix.change || (firstFix.changes ? firstFix.changes.join(', ') : 'fixed');
-        console.log('  ' + GREEN + String.fromCharCode(10003) + RESET + ' ' + BOLD + 'Fixed: ' + RESET + firstFix.file + ': ' + freeChangeText);
+      // Free fix mode: apply up to 3 fixes for free, then upsell
+      var appliedCount = Math.min(maxFree, results.fixed.length);
+      
+      // Re-run autoFix to apply the free fixes
+      if (appliedCount > 0) {
+        var freeResults = await autoFix(cwd, { dryRun: false, maxFiles: maxFree });
+        console.log('  ' + GREEN + String.fromCharCode(10003) + ' Fixed ' + appliedCount + ' issue' + (appliedCount > 1 ? 's' : '') + ' automatically' + RESET);
       }
-      var remainingFixes = totalActions - 1;
+      
+      var remainingFixes = totalActions - appliedCount;
       if (remainingFixes > 0) {
         console.log();
-        console.log('  ' + BOLD + remainingFixes + ' more fix' + (remainingFixes > 1 ? 'es' : '') + ' available.' + RESET + ' Unlock all with Pro:');
-        console.log('  ' + CYAN + PURCHASE_URL + '?utm_source=cli&utm_medium=npx&utm_campaign=free-fix' + RESET);
-        console.log('  ' + DIM + '$9 one-time. Full refund if it doesn\'t find real issues.' + RESET);
+        console.log('  ' + String.fromCharCode(128274) + ' ' + BOLD + remainingFixes + ' more issue' + (remainingFixes > 1 ? 's' : '') + ' fixable with Pro ($9 one-time)' + RESET);
+        console.log('     ' + CYAN + 'https://nedcodes.gumroad.com/l/cursor-doctor-pro?utm_source=cli&utm_medium=npx&utm_campaign=fix_limit' + RESET);
+        console.log();
+        console.log('  Or fix manually:  ' + DIM + 'npx cursor-doctor lint --fixable' + RESET);
       }
     } else if (preview && totalActions > 0) {
       // Count individual changes across all fixed files for accurate messaging

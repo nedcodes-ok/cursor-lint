@@ -4801,18 +4801,18 @@ Always write clean code.`);
   test('getStarCTA: variant A has correct message', () => {
     const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
     assert(cliSrc.includes('cursor-doctor saved you time?'), 'Variant A message should be present');
-    assert(cliSrc.includes('Star it so others can find it too'), 'Variant A should have original message');
+    assert(cliSrc.includes('Star it so others find it too'), 'Variant A should have updated message');
   });
 
   test('getStarCTA: variant B has correct message', () => {
     const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
-    assert(cliSrc.includes('Join 2 devs who star'), 'Variant B message should be present');
-    assert(cliSrc.includes('d cursor-doctor'), 'Variant B should reference cursor-doctor');
+    assert(cliSrc.includes('5,000+ weekly installs'), 'Variant B message should be present');
+    assert(cliSrc.includes('star it to help other devs find it'), 'Variant B should have download-based message');
   });
 
   test('getStarCTA: variant C has correct message', () => {
     const cliSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'cli.js'), 'utf-8');
-    assert(cliSrc.includes('One star helps other devs find this tool'), 'Variant C message should be present');
+    assert(cliSrc.includes('One star helps other devs discover cursor-doctor'), 'Variant C message should be present');
   });
 
   test('getStarCTA: all variants have UTM parameters', () => {
