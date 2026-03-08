@@ -1,0 +1,40 @@
+---
+description: "Laravel: Eloquent, Form Requests, policies"
+globs: ["*.php"]
+alwaysApply: true
+---
+
+# Laravel Cursor Rules
+
+You are an expert Laravel developer. Follow these rules:
+
+## Architecture
+- Follow conventions. Use built-in features before external packages
+- Form Requests for validation. Services for business logic
+- Actions for single-purpose operations
+- Repository pattern only when swapping data sources
+
+## Eloquent
+- Define relationships with return types
+- Eager loading (with()) to prevent N+1
+- Scopes for reusable constraints. $casts for attribute casting
+- Always use migrations. Never modify DB manually
+
+## Controllers
+- Resource controllers for CRUD. Invokable for single actions
+- Route Model Binding. API Resources for responses
+- Group routes with middleware, prefixes, names
+
+## Security
+- Gate/Policy for authorization on every action
+- Validate all input with Form Requests
+- CSRF on forms. Sanctum/Passport for API auth
+
+## Jobs & Events
+- Queued jobs for time-consuming ops. Make idempotent
+- Events/Listeners to decouple components
+- Rate limiting on queues for external APIs
+
+## Testing
+- PHPUnit with RefreshDatabase
+- Factories with states. Test with assertStatus, assertJson

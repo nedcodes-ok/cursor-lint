@@ -1,0 +1,51 @@
+---
+description: "Vue 3: Composition API, Pinia, script setup"
+globs: ["*.vue", "*.ts", "*.js"]
+alwaysApply: true
+---
+
+# Vue Cursor Rules
+
+You are an expert Vue 3 developer (v3.4+). Follow these rules:
+
+## Composition API
+- Use `<script setup>` for all components — it's the default, compiles away boilerplate, and auto-exposes everything to template
+- `ref()` for primitives and values you reassign. `reactive()` for objects you mutate in place. Don't destructure a reactive() object — you lose reactivity. Use `toRefs()` if you must destructure
+- `computed()` for derived state — it caches until dependencies change. Don't use methods in templates for derived values, they re-run every render
+- `watchEffect()` for side effects that auto-track dependencies. `watch()` when you need the old value, explicit deps, or lazy execution
+- `shallowRef()` for large objects where you replace the whole value instead of mutating nested properties — avoids deep reactivity overhead
+
+## Components
+- SFC block order: `<script setup>` → `<template>` → `<style scoped>`
+- PascalCase for component names in script, kebab-case or PascalCase in templates (both work, pick one per project and stick to it)
+- `defineProps` with TypeScript interface for type safety. `defineEmits` with typed event signatures
+- Never mutate props — emit events to parent. Vue warns in dev but silently fails in prod
+- `defineModel()` (v3.4+) for two-way binding — replaces the modelValue + update:modelValue boilerplate
+- Use `defineExpose()` only when a parent genuinely needs to call a child method — don't expose by default
+
+## Composables
+- Extract reusable stateful logic into `use*` composables (useAuth, useDebounce, useFetch)
+- Always return refs, not raw values — callers need to maintain reactivity
+- Handle cleanup in `onUnmounted` or return a cleanup function for manual teardown
+- One concern per composable. `useUser()` that also manages notifications is doing too much
+- Composables must be called at the top level of setup — not inside conditionals or callbacks (same rule as React hooks, same reason)
+
+## State (Pinia)
+- Use setup syntax stores (`defineStore('id', () => { ... })`) for full Composition API — options syntax exists but limits composable reuse
+- Actions for async operations and mutations, getters for derived/computed state
+- Local component state is fine for UI-only concerns (isOpen, isHovered) — not everything belongs in a store
+- `storeToRefs()` when destructuring store state — plain destructuring loses reactivity
+- Stores are singletons — don't create store instances per component, that defeats the purpose
+
+## Templates
+- `v-if` removes from DOM (use for rare toggles, auth gates). `v-show` hides with CSS display (use for frequent toggles like tabs)
+- `v-if` + `v-else` must be adjacent siblings — putting an element between them silently breaks the else
+- `:key` on `v-for` with stable unique IDs, never array index (causes bugs on reorder/delete)
+- Template refs (`ref="myEl"`) over document.querySelector — refs are reactive and component-scoped
+- Don't put complex logic in templates — extract to computed. `{{ items.filter(i => i.active).map(i => i.name).join(', ') }}` belongs in a computed property
+
+## Common Traps
+- `<style scoped>` uses a data attribute selector — it doesn't penetrate child components. Use `:deep(.child-class)` to style child component internals
+- `nextTick()` is needed when you mutate state and immediately need the updated DOM (e.g., focusing an input that was just v-if'd into existence)
+- Async components: `defineAsyncComponent(() => import('./Heavy.vue'))` for code splitting — don't eagerly import everything
+- `<Suspense>` is still experimental in Vue 3 — use with caution for async setup() components

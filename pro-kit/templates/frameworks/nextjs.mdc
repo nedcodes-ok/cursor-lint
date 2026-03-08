@@ -1,0 +1,53 @@
+---
+description: "Next.js: App Router, Server Components, server actions"
+globs: ["*.js", "*.jsx", "*.ts", "*.tsx"]
+alwaysApply: true
+---
+
+# Next.js Cursor Rules
+
+You are an expert Next.js developer using App Router (v14+). Follow these rules:
+
+## Architecture
+- Use App Router (app/ directory) for all new code
+- Default to Server Components. "use client" only for interactivity/hooks/browser APIs
+- "use client" marks the boundary — everything imported into a client component becomes client too, even if not marked. Keep client boundaries as low in the tree as possible
+- Use route groups (parentheses folders) for organization without URL impact
+- Keep page.tsx thin — compose from smaller components, page only wires them together
+- Colocate components with their route: app/dashboard/_components/ not a global components/ folder
+
+## Data Fetching
+- Fetch in Server Components with async/await — no useEffect for server data
+- fetch() requests with the same URL and options are automatically deduped within a render pass — don't cache manually
+- Use `next: { revalidate: seconds }` for time-based ISR, `next: { tags: [...] }` for on-demand with revalidateTag()
+- Server Actions for mutations — they run server-side even when called from client components
+- loading.tsx for Suspense boundaries per route segment, error.tsx for error boundaries
+- Do not fetch in layouts if child routes need different data — layouts don't re-render on navigation
+
+## Rendering Gotchas
+- Static rendering is default. Using cookies(), headers(), or searchParams opts the entire route into dynamic rendering — isolate dynamic parts with Suspense
+- generateStaticParams for dynamic route pre-rendering at build time — without it, dynamic segments are rendered on-demand
+- <Image> for all images (handles lazy loading, srcset, WebP). Set explicit width/height or use fill with a sized parent — unsized images cause layout shift
+- <Link> for internal navigation — auto-prefetches in production. Use prefetch={false} on low-priority links to save bandwidth
+- Do not import server-only code in client components — use the `server-only` package to get a build-time error instead of a runtime leak
+
+## Server Actions
+- "use server" at the top of the file or inline in the function. Validate ALL input with Zod — actions are public HTTP endpoints, anyone can call them
+- revalidatePath() or revalidateTag() after mutations to bust the cache
+- Return typed responses `{ success: boolean, error?: string }` — do not throw from actions, the error serialization is unpredictable
+- redirect() in a server action must be called outside try/catch — it throws internally
+- Use useActionState (React 19) for pending states, not manual useState
+
+## Routing
+- Layouts persist across navigations and don't remount — don't put per-page state in layouts
+- Templates (template.tsx) re-mount on every navigation — use for per-page animations or resetting state
+- Middleware runs on the Edge runtime — no Node.js APIs (fs, db drivers). Use for auth redirects, headers, rewrites only
+- Parallel routes (@folder) for modals, split views, independent loading states per section
+- Intercepting routes ((..)folder) for modal-over-feed patterns (Instagram-style)
+- Metadata exports (generateMetadata) for SEO on every page — dynamic metadata for pages with params
+
+## Common Traps
+- process.env.NEXT_PUBLIC_* is inlined at build time, not runtime — changing it requires a rebuild
+- Route Handlers (route.ts) in the same segment as page.tsx will conflict — use a separate api/ folder or different segment
+- Streaming with loading.tsx won't work if the parent layout awaits data — the layout blocks everything below it
+- next/dynamic with `ssr: false` is the escape hatch for browser-only libraries (leaflet, etc.) — don't fight hydration mismatches

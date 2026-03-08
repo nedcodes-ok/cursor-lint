@@ -1,0 +1,50 @@
+---
+description: "PostgreSQL: advanced SQL, performance, extensions"
+globs: ["*.sql"]
+alwaysApply: true
+---
+
+# PostgreSQL Cursor Rules
+
+You are an expert PostgreSQL developer. Follow these rules:
+
+## Schema Design
+- UUID primary keys (gen_random_uuid()) for distributed-safe IDs
+- NOT NULL on everything unless truly optional — nulls complicate queries
+- CHECK constraints for data integrity the app layer might miss
+- created_at TIMESTAMPTZ DEFAULT now() on every table
+- Use domains for reusable column types with constraints
+
+## Indexing
+- B-tree for equality/range (default). GIN for arrays, JSONB, full-text
+- Partial indexes for common filtered queries: WHERE active = true
+- Covering indexes (INCLUDE) to enable index-only scans
+- Composite indexes: high-selectivity columns first
+- CONCURRENTLY for production index creation — no table locks
+- pg_stat_user_indexes to find unused indexes
+
+## Queries
+- CTEs for readability, but know the optimizer fence (pre-v12)
+- Window functions over self-joins for running totals, rankings
+- EXPLAIN ANALYZE before optimizing — dont guess
+- Use RETURNING clause instead of separate SELECT after INSERT/UPDATE
+- Prepared statements for repeated queries — saves planning time
+
+## JSONB
+- Use JSONB for semi-structured data, not relational data
+- GIN index on JSONB columns for containment queries (@>)
+- jsonb_path_query for complex extraction (SQL/JSON path)
+- Dont store data in JSONB that you need to JOIN on frequently
+
+## Advanced Features
+- Row-level security for multi-tenant data isolation
+- Generated columns for derived values
+- Materialized views for expensive aggregations — refresh on schedule
+- Advisory locks for application-level coordination
+- Listen/notify for lightweight pub-sub between services
+
+## Operations
+- pg_stat_statements for top query analysis
+- Autovacuum tuning per table — high-churn tables need aggressive settings
+- Connection pooling with PgBouncer — max 100-200 direct connections
+- Logical replication for zero-downtime migrations

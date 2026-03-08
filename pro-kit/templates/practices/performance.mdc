@@ -1,0 +1,39 @@
+---
+description: "Performance: profiling-first optimization, caching, bottleneck patterns"
+alwaysApply: true
+---
+
+# Performance Rules
+
+## Measurement First
+- Profile before optimizing — intuition about bottlenecks is wrong more than half the time. The slow function is almost never where you think it is
+- Tools by context: Chrome DevTools Performance tab + Lighthouse for frontend, `pprof`/`perf`/flame graphs for backend, `EXPLAIN ANALYZE` for SQL, load testing (k6, Artillery) for throughput
+- Set specific budgets: "LCP under 2.5s," "API p95 under 200ms," "JS bundle under 200KB gzipped." Vague goals ("make it faster") lead to premature optimization
+- Measure in production conditions — dev machines with SSDs and fast networks hide real-world performance. Test with throttled network and realistic data volumes
+- Before/after numbers for every optimization. "I think it's faster" is not evidence. "p95 dropped from 340ms to 85ms" is
+
+## Database (most common bottleneck)
+- Missing indexes are the #1 performance problem in web applications. Index columns in WHERE, JOIN, ORDER BY. Composite indexes for multi-column queries — column order matters (most selective first)
+- `EXPLAIN ANALYZE` every slow query. Sequential scan on a large table = missing index. Nested loop join on large tables = missing index or wrong join strategy
+- N+1 queries: loading 50 users then making 50 queries for their orders. Fix with eager loading (JOIN, `select_related`, `include`). If you can't see N+1s in dev, use query logging to count queries per request
+- Pagination on every list endpoint — `LIMIT` + `OFFSET` for small datasets, cursor-based for large ones. `OFFSET 100000` scans and discards 100K rows, cursor-based skips nothing
+- Connection pooling: set pool size based on expected concurrency × query duration. Too few connections = queuing. Too many = database overload. Most frameworks default to 5-10, which is fine for small apps and wrong for everything else
+
+## Frontend
+- Lazy-load below-the-fold content: `React.lazy()`, dynamic `import()`, `loading="lazy"` on images. The fastest code is code that doesn't execute
+- JavaScript is the most expensive asset byte-for-byte: it must be downloaded, parsed, compiled, and executed. CSS and images are cheaper. Analyze with `source-map-explorer` or `bundleanalyzer` — find the 200KB dependency you import for one function
+- Critical rendering path: inline critical CSS, defer non-critical JS with `async`/`defer`, preload fonts with `<link rel="preload">`. First paint should not wait for your analytics script
+- Images: use WebP/AVIF, serve responsive sizes with `srcset`, lazy-load below fold. An unoptimized 4MB hero image destroys your LCP score and costs users real money on metered connections
+- CDN for static assets — puts files physically closer to users. Without CDN, a user in Tokyo downloads from your US-East server at 200ms round-trip per request
+
+## Backend
+- Cache at the right layer: HTTP caching (Cache-Control headers) for responses that rarely change, application cache (Redis/Memcached) for computed results, database query cache as last resort. Wrong cache layer = complexity with no benefit
+- Cache invalidation is the hard part — TTL-based is simple but stale. Event-based (invalidate on write) is fresh but complex. Pick based on how stale your data can be: product catalog = 5min TTL fine. Account balance = no caching
+- Async I/O for concurrent external calls: don't wait for API A to finish before calling API B if they're independent. `Promise.all()`, `asyncio.gather()`, goroutines — use what your language provides
+- Return only needed fields — `SELECT *` fetches 20 columns when the client needs 3. This wastes bandwidth, memory, and often prevents covering index usage
+
+## Patterns That Scale
+- Batch operations: one `INSERT INTO ... VALUES (...), (...), (...)` not 100 individual inserts. One HTTP request with 50 items not 50 requests with 1 item. Batching reduces round-trip overhead by orders of magnitude
+- Streaming for large data: don't load a 500MB file into memory to process it. Stream line-by-line or chunk-by-chunk. Same for HTTP responses — stream JSON arrays instead of serializing the entire result set
+- Set timeouts on every external call: HTTP requests, database queries, cache lookups. A missing timeout turns a slow dependency into a cascading outage — your server's threads/connections fill up waiting forever
+- Algorithmic complexity matters at scale but doesn't matter below it. O(n²) on 100 items is 10,000 operations — instant. On 1,000,000 items it's 1 trillion — dead. Know your data size before optimizing algorithms

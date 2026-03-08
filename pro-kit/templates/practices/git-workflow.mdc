@@ -1,0 +1,37 @@
+---
+description: "Git workflow: commits, branches, PRs, history management"
+alwaysApply: true
+---
+
+# Git Workflow Rules
+
+## Commits
+- Imperative mood, under 72 chars: "Add user authentication" not "Added user authentication" or "Adding user authentication." The commit message completes the sentence: "If applied, this commit will _add user authentication_"
+- Conventional commit format: `type(scope): description` — `feat(auth): add OAuth2 login`, `fix(api): handle null response from payment provider`. Types: feat, fix, refactor, docs, test, chore, perf, ci
+- One logical change per commit. A commit that adds a feature, fixes a typo, and reformats a file is three commits. If you can't describe the change without "and," split it
+- Never commit: secrets/credentials (use `.gitignore` + pre-commit hooks to block), `.env` files (commit `.env.example`), build artifacts (`dist/`, `node_modules/`), large binary files (use Git LFS)
+- `git add -p` (patch mode) to stage specific hunks — don't blindly `git add .` when you have unrelated changes in the working tree
+
+## Branches
+- Branch from `main` (or `develop` if using Gitflow). Name format: `type/short-description` — `feature/add-auth`, `fix/login-crash`, `chore/upgrade-deps`
+- Short-lived branches: merge within days, not weeks. Long-lived feature branches diverge from main, accumulate merge conflicts, and get harder to review with every day
+- Delete branches after merging — stale branches clutter the repo and confuse people about what's active. Enable auto-delete in your Git host
+- One developer per branch. If two people work on one branch, you get conflicts on every pull. Use stacked PRs or split the work into separate branches that depend on each other
+
+## Pull Requests
+- PR title is the commit message that will appear in main's history (if squash-merging) — make it meaningful, not "Update stuff"
+- Description template: **What** changed, **Why** (link to issue/ticket), **How to test**, **Screenshots** (if UI), **Risks/concerns**. A PR without context gets either rubber-stamped or ignored
+- Under 400 lines of meaningful diff. At 400+ lines, reviewers skim instead of reviewing — you get worse feedback on more code. Split large features into stacked PRs: infrastructure → API → UI
+- Draft PRs for early feedback on approach before writing all the code — cheaper to course-correct at 30% than at 100%
+
+## History Management
+- Rebase feature branches onto main before merging — keeps history linear and readable. `git rebase main` + force-push your branch, then merge
+- Squash fixup commits (`fixup!`, `wip`, `address review comments`) before merging — these are noise in the main branch history. Interactive rebase: `git rebase -i HEAD~n`
+- Never force-push shared branches (`main`, `develop`, `release/*`) — it rewrites history that others have based work on. Force-push is only safe on your personal feature branches
+- Merge commits on main preserve "this feature was a unit of work" context. Squash-merge when PRs are small and self-contained. Pick one strategy per team and be consistent
+
+## Branch Protection
+- `main` requires: PR review (minimum 1 approval), passing CI, no direct pushes. This is non-negotiable — a broken main branch blocks everyone
+- CI runs on every PR: lint, type-check, test, build. If any step fails, merge is blocked. Don't let "I'll fix it after merge" happen — it never gets fixed
+- Semantic versioning for releases: `vMAJOR.MINOR.PATCH`. Tag releases in git (`git tag v1.2.3`), publish release notes with changelog. Automated with tools like `semantic-release` or `changesets`
+- Pre-commit hooks (husky, pre-commit) for fast checks: formatting, lint, secret scanning. Catches problems before they reach CI — faster feedback loop

@@ -1,0 +1,52 @@
+---
+description: "Rust patterns: ownership, Result types, iterators"
+globs: ["*.rs"]
+alwaysApply: true
+---
+
+# Rust Cursor Rules
+
+You are an expert Rust developer. Follow these rules:
+
+## Ownership & Borrowing
+- Prefer borrowing (`&T`, `&mut T`) over cloning — `.clone()` is a code smell unless the type is cheap to clone (small Copy types, Arc)
+- Use explicit lifetime annotations only when the compiler can't infer them (multiple references in, one reference out). Don't litter code with `'a` when elision handles it
+- Parameters: `&str` over `&String`, `&[T]` over `&Vec<T>` — accepting the owned type forces callers to allocate unnecessarily. The reference form accepts both owned and borrowed
+- `Cow<'_, str>` when a function sometimes allocates and sometimes doesn't — avoids cloning in the common path while allowing owned data when needed
+- `impl AsRef<str>` or `Into<String>` for parameters that should accept both `&str` and `String` ergonomically
+
+## Error Handling
+- `thiserror` for library errors (derive Error with structured variants). `anyhow` for application code (captures any error with context)
+- Never `.unwrap()` in production code — it panics with no context. `.expect("reason why this should never fail")` is acceptable only for genuinely impossible states (verified by prior logic)
+- `?` operator for propagation — it's the entire error handling strategy in Rust. Design functions to return `Result<T, E>` so `?` composes naturally
+- Add context with `.context("what we were trying to do")` (anyhow) or `.map_err(|e| MyError::Fetch { source: e })` (thiserror) — raw propagation without context creates opaque error chains
+- `panic!` only for programmer bugs (violated invariants, unreachable states). Never for user input, network errors, or file operations
+
+## Type System
+- Newtype pattern for type safety: `struct UserId(u64)` prevents passing an `OrderId` where a `UserId` is expected — zero runtime cost
+- Enums with data over boolean flags: `enum Status { Active, Suspended { reason: String, until: DateTime } }` not `is_active: bool, suspension_reason: Option<String>`
+- Derive `Debug`, `Clone`, `PartialEq` at minimum on data types. Add `Serialize, Deserialize` (serde) when the type crosses boundaries (API, storage, config)
+- Builder pattern (or `Default` + struct update) for types with many optional fields — don't make callers construct 10-field structs manually
+
+## Iterators
+- Use iterator chains (`.filter().map().collect()`) over manual `for` loops — same compiled output, more composable, harder to introduce off-by-one bugs
+- `.collect::<Vec<_>>()` with turbofish, or let the binding type drive inference: `let names: Vec<String> = iter.collect()`
+- `.iter()` borrows, `.into_iter()` moves, `.iter_mut()` borrows mutably — choosing wrong means fighting the borrow checker
+- Lazy by default — iterator chains do nothing until consumed (`.collect()`, `.for_each()`, `.count()`). This means chaining `.map()` without consuming is a silent no-op
+
+## Performance
+- Stack over heap: `[u8; 256]` over `Vec<u8>` when size is known at compile time. `Box` only when the type is too large for the stack or needs dynamic dispatch (`Box<dyn Trait>`)
+- `Rc` for single-threaded shared ownership, `Arc` for multi-threaded. If you're using `Arc<Mutex<T>>` everywhere, reconsider the design — message passing (channels) might be clearer
+- `String` allocates, `&str` doesn't. For keys in hot-path HashMaps, consider interning or `SmallString`
+- `#[inline]` only after profiling shows the function is a bottleneck — the compiler already inlines small functions. Premature `#[inline]` bloats binary size
+
+## Patterns
+- Exhaustive `match` — avoid `_` catch-all when possible, so new enum variants cause compile errors instead of silently falling through
+- Option methods over match: `.map()`, `.and_then()`, `.unwrap_or_default()`, `.ok_or(MyError::Missing)?` — chain them instead of nesting `if let` / `match`
+- `impl Display` for user-facing output, `impl Debug` (usually derived) for developer/logging output. They serve different audiences
+- `lib.rs` / `main.rs` as thin entry points — business logic in modules, binary just parses args and calls library code. This makes everything testable
+
+## Unsafe
+- Avoid unless you need FFI, raw pointer manipulation, or performance-critical operations that can't be expressed safely
+- Every `unsafe` block gets a `// SAFETY:` comment explaining the invariants being upheld — this is a community convention and clippy enforces it
+- Wrap unsafe in safe public APIs — callers should never need to write unsafe to use your code

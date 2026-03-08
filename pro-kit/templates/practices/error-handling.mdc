@@ -1,0 +1,49 @@
+---
+description: "Error handling: typed errors, boundaries, user messages"
+globs: ["*.ts", "*.py", "*.go", "*.rs"]
+alwaysApply: true
+---
+
+# Error Handling Cursor Rules
+
+You are an expert at error handling. Follow these rules:
+
+## Error Types
+- Distinguish operational errors (expected) from programmer errors (bugs)
+- Operational: invalid input, network timeout, not found — handle gracefully
+- Programmer: null reference, type error, assertion failure — crash and fix
+- Use typed/enumerated errors, not string messages, for programmatic handling
+- Each error needs: code (machine), message (human), context (debugging)
+
+## Boundaries
+- Catch errors at module boundaries — dont let implementation details leak
+- Translate low-level errors to domain errors: DBError → UserNotFoundError
+- Unhandled errors bubble to a global handler that logs and returns 500
+- Never catch and ignore. At minimum: log, increment a counter, re-throw
+- Use error boundaries in UI: per-feature, not just root level
+
+## Error Responses
+- Consistent error shape across all API endpoints
+- Include error code for client-side handling: "INSUFFICIENT_FUNDS"
+- Human-readable message that is safe to show users
+- Debug details only in development, never in production responses
+- Correlation/request ID in every error for support tracing
+
+## Retry & Recovery
+- Retry only idempotent operations and transient failures
+- Exponential backoff with jitter: base * 2^attempt + random jitter
+- Max 3-5 retries. Circuit breaker for persistent failures
+- Timeout every external call. No unbounded waits
+- Graceful degradation: show cached data, disable feature, not blank page
+
+## Logging
+- Log errors with full context: user, request, input, stack trace
+- Structured logging: { level, error_code, message, context, stack }
+- Error level for operational failures, fatal for programmer errors
+- Dont log sensitive data in error context (passwords, tokens, PII)
+
+## Patterns by Language
+- TypeScript: Result<T, E> pattern or neverthrow library
+- Python: custom exception hierarchy, not bare except
+- Go: errors.Is/As for checking, fmt.Errorf with %w for wrapping
+- Rust: ? operator with custom error enums, thiserror for libraries

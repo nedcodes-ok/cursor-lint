@@ -1,0 +1,34 @@
+---
+description: tRPC router setup, procedures, client usage, and error handling
+globs: **/trpc/**,**/server/routers/**
+alwaysApply: false
+---
+# tRPC Rules
+
+## Router Setup
+- Organize routers by domain (userRouter, postRouter, etc.) and merge with appRouter
+- Keep procedure definitions focused — one operation per procedure
+- Use input validation with zod schemas on every procedure
+- Define output types explicitly when the inferred type is complex
+
+## Procedures
+- Use query for read operations, mutation for writes
+- Use middleware for cross-cutting concerns (auth, logging, rate limiting)
+- Protect procedures with authentication middleware, not inline checks
+- Keep business logic in separate service functions, not directly in procedures
+
+## Client Usage
+- Use the generated typed client — never call procedures with untyped fetch
+- Handle loading and error states for every query (isLoading, isError)
+- Use optimistic updates for mutations that modify displayed data
+- Invalidate related queries after mutations using utils.queryKey.invalidate()
+
+## Error Handling
+- Throw TRPCError with appropriate codes (UNAUTHORIZED, NOT_FOUND, BAD_REQUEST)
+- Do not expose internal error details to the client — map to user-friendly messages
+- Log full error details server-side
+
+## Anti-patterns
+- Do not create one giant router — split by domain
+- Do not skip input validation — every procedure needs a zod schema
+- Do not mix tRPC calls with raw fetch to the same endpoints

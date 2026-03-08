@@ -1,0 +1,39 @@
+---
+description: "Accessibility: semantic HTML, ARIA, keyboard navigation, testing"
+alwaysApply: true
+---
+
+# Accessibility Rules
+
+## Semantic HTML (the foundation)
+- Heading hierarchy: `h1` → `h2` → `h3`, never skip levels. Screen readers use headings to navigate — a page that goes h1 → h3 → h2 is like a book with shuffled chapters
+- Semantic elements: `<nav>` for navigation, `<main>` for primary content, `<article>` for standalone content, `<aside>` for related info, `<footer>` for footer. These create landmarks that screen readers use for quick navigation — a `<div>` with a class name does nothing
+- `<button>` for actions (submit, toggle, delete), `<a>` for navigation (go to another page/section). Never `<div onClick>` — it has no keyboard support, no focus, no role announcement. If you must use a div, you need `role="button"`, `tabIndex={0}`, `onKeyDown` for Enter+Space — or just use `<button>`
+- Every `<input>` needs a visible `<label>` with `htmlFor`/`for` matching the input's `id`. Placeholder text is NOT a label — it disappears on focus, isn't announced by all screen readers, and has poor contrast
+- `<table>` for tabular data, not layout. With `<caption>`, `<thead>`, `<th scope="col">` — screen readers announce "row 3, column 2: $45.00" which is useless without headers
+
+## ARIA (last resort, not first)
+- ARIA is a repair tool — use it when HTML semantics can't express the pattern. `<nav aria-label="Main">` is correct (distinguishes multiple navs). `<div role="navigation">` instead of `<nav>` is wrong — use the HTML element
+- Icon-only buttons MUST have accessible text: `<button aria-label="Close"><CloseIcon /></button>`. Without it, screen readers announce "button" with no indication of what it does
+- `aria-live="polite"` for dynamic content updates (toast notifications, form validation messages, loading states). Without it, screen readers don't announce content that changes after page load
+- `aria-expanded="true/false"` on toggles (accordion headers, dropdown triggers) — tells users whether the controlled content is visible
+- `aria-hidden="true"` on decorative elements (icons next to text labels, background SVGs) — removes them from the accessibility tree so screen readers don't announce noise
+
+## Keyboard Navigation
+- All interactive elements must work with keyboard alone: Tab to focus, Enter/Space to activate, Escape to dismiss, Arrow keys for selection within groups
+- Visible focus indicators: never `outline: none` without a custom replacement that's equally visible. The default browser outline is ugly but functional — `:focus-visible` lets you show custom focus styles only for keyboard users, not mouse clicks
+- Focus trapping in modals: Tab cycles within the modal, not behind it. When the modal closes, focus returns to the element that opened it — not to the top of the page
+- Logical tab order follows visual order: left-to-right, top-to-bottom. If `tabIndex` values are rearranging the order, the layout is wrong, not the tab order. Only use `tabIndex={0}` (natural order) and `tabIndex={-1}` (programmatic focus only), never positive values
+- Skip link as first focusable element: `<a href="#main-content" class="sr-only focus:not-sr-only">Skip to content</a>` — keyboard users shouldn't have to tab through 30 nav items on every page
+
+## Visual Design
+- 4.5:1 contrast ratio for normal text (WCAG AA), 3:1 for large text (18px+ bold or 24px+). Check with browser DevTools color picker — it shows the ratio. Low contrast fails both accessibility and readability
+- Never use color alone to convey meaning: a red/green status indicator is invisible to the 8% of men with color blindness. Add an icon, text label, or pattern alongside the color
+- Text must be resizable to 200% without content loss or overlap — use relative units (`rem`, `em`, `%`), not `px` for font sizes. Test by zooming to 200% in the browser and checking nothing breaks
+- `alt` text for meaningful images describes the content, not the format: "Chart showing 40% increase in Q3 revenue" not "image.png." Decorative images get empty `alt=""` — screen readers skip them entirely
+
+## Testing
+- Keyboard-only testing: unplug your mouse, navigate your entire app with Tab, Enter, Escape, and Arrow keys. If you get stuck anywhere, users get stuck there too
+- Screen reader testing: VoiceOver (Mac, free), NVDA (Windows, free), TalkBack (Android). Test the primary user flows — you don't need to test every page, but test signup, core feature, and any complex interactions
+- Automated scanning catches ~30% of accessibility issues: `axe-core` (browser extension or CI), Lighthouse accessibility audit. Use them as a baseline, not a guarantee — automated tools can't test if alt text is meaningful or if keyboard flow makes sense
+- Include accessibility in PR review: check for missing labels, keyboard handlers, color-only indicators, heading hierarchy. It's easier to maintain accessibility than to retrofit it

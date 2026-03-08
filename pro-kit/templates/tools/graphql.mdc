@@ -1,0 +1,48 @@
+---
+description: "GraphQL: schema design, resolvers, performance"
+globs: ["*.graphql", "*.gql", "*.ts"]
+alwaysApply: true
+---
+
+# GraphQL Cursor Rules
+
+You are an expert GraphQL developer. Follow these rules:
+
+## Schema Design
+- Schema-first design: define .graphql files before resolvers
+- Nullable by default in GraphQL — use non-null (!) intentionally for guaranteed fields
+- Input types for mutations, not raw arguments
+- Connection pattern (edges/nodes/pageInfo) for paginated lists
+- Union types for polymorphic returns, interfaces for shared fields
+
+## Naming
+- PascalCase for types: UserProfile, not user_profile
+- camelCase for fields and arguments
+- Verb for mutations: createUser, updatePost, deleteComment
+- Past tense for subscription events: userCreated, messageReceived
+
+## Resolvers
+- Keep resolvers thin — delegate to service/data layer
+- DataLoader for all N+1 query prevention. One loader per entity
+- Resolver-level auth checks — dont rely only on middleware
+- Return typed errors in the response, not just throw
+- Use context for per-request data: auth, dataloaders, request info
+
+## Performance
+- Query complexity analysis with depth/cost limiting
+- Persisted queries in production — block arbitrary queries
+- @defer and @stream for progressive delivery
+- Field-level caching with cache hints
+- Batch and cache at the DataLoader level, not the resolver level
+
+## Mutations
+- Single input argument: mutation createUser(input: CreateUserInput!)
+- Return the mutated object plus potential errors
+- Idempotency keys for critical mutations
+- Use optimistic responses on the client
+
+## Security
+- Disable introspection in production
+- Rate limiting per client/query complexity
+- Input validation in resolvers, not just schema types
+- Max query depth: 10-15 levels. Max aliases: 5-10

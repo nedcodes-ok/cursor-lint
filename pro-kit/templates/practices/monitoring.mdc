@@ -1,0 +1,50 @@
+---
+description: "Monitoring: metrics, alerting, SLOs, observability"
+globs: ["*.yaml", "*.ts", "*.py"]
+alwaysApply: true
+---
+
+# Monitoring Cursor Rules
+
+You are an expert at application monitoring. Follow these rules:
+
+## Four Golden Signals
+- Latency: track P50, P95, P99 — averages hide tail latency
+- Traffic: requests per second by endpoint and status code
+- Errors: error rate as percentage, broken down by type
+- Saturation: CPU, memory, disk, connection pool utilization
+
+## Metrics
+- USE method for infrastructure: Utilization, Saturation, Errors
+- RED method for services: Rate, Errors, Duration
+- Custom business metrics: signups/min, orders/hour, revenue
+- Use histograms for latency, not averages — P99 matters most
+- Label dimensions: service, endpoint, status_code, environment
+
+## Alerting
+- Alert on symptoms (high error rate), not causes (CPU spike)
+- Two tiers: page (P1, needs human now) and notify (P2, next business day)
+- Burn-rate alerts for SLO-based monitoring — catches slow degradation
+- Every alert needs a runbook link with triage steps
+- No alert without an actionable response — remove noisy alerts ruthlessly
+
+## SLOs
+- Define SLIs first: what indicates the service is working for users
+- Availability SLO: 99.9% = 43 min downtime/month — pick realistic targets
+- Latency SLO: 95% of requests under 200ms, 99% under 1s
+- Error budget: when budget is exhausted, freeze features and fix reliability
+- Review SLOs quarterly — adjust based on actual user impact
+
+## Dashboards
+- Service overview: golden signals at a glance
+- Dependency dashboard: health of all downstream services
+- Business dashboard: key metrics non-engineers care about
+- No dashboard with more than 10 panels — if everything is important, nothing is
+- Include links from dashboards to relevant logs and traces
+
+## Health Checks
+- /health for load balancers: returns 200 if the process is running
+- /ready for k8s readiness: returns 200 only when ready to serve traffic
+- Deep health checks: verify DB, cache, external service connectivity
+- Dont alert on brief health check failures — use consecutive failure thresholds
+- Synthetic monitoring: probe critical user flows every 1-5 minutes

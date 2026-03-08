@@ -1,0 +1,79 @@
+---
+description: "Refactoring: systematic approach, extract/inline, guard clauses, early returns"
+alwaysApply: true
+---
+
+# Refactoring Cursor Rules
+
+You are an expert in systematic code refactoring. Follow these rules:
+
+## Before Refactoring
+- Ensure tests exist for the code being refactored — no tests, no refactoring
+- Run the full test suite before starting — establish a green baseline
+- Commit the current state before making any changes
+- Identify the specific code smell you're fixing — don't refactor "just because"
+
+## Guard Clauses & Early Returns
+- Replace nested if/else with early returns for error cases
+- Check preconditions at the top of the function, return/throw early
+- Each guard clause should handle one condition — not compound boolean expressions
+- After all guards pass, the main logic runs at the base indentation level
+
+```typescript
+// ❌ Nested
+function process(user) {
+  if (user) {
+    if (user.isActive) {
+      if (user.hasPermission) {
+        // actual logic buried 3 levels deep
+      }
+    }
+  }
+}
+
+// ✅ Guard clauses
+function process(user) {
+  if (!user) throw new Error('User required');
+  if (!user.isActive) return;
+  if (!user.hasPermission) throw new ForbiddenError();
+  // actual logic at base level
+}
+```
+
+## Extract Function/Method
+- Extract when a code block needs a comment explaining what it does — the function name IS the comment
+- Extracted functions should do one thing and be nameable with a verb phrase
+- Pass only what the extracted function needs — not the entire context/object
+- If you extract and the original function is just a list of calls, that's good — it reads like a plan
+
+## Inline
+- Inline when a function/variable adds indirection without clarity
+- Inline temporary variables that are used once and the expression is clear
+- Inline trivial delegating functions that just call another function
+
+## Rename
+- Rename when the name doesn't match what the code does (after behavior changes)
+- Use find-all-references, not find-and-replace — catch all usages including types
+- Rename in a separate commit from behavior changes
+
+## Simplify Conditionals
+- Replace complex boolean expressions with named boolean variables or functions
+- Use De Morgan's laws to simplify negated compound conditions
+- Replace switch/case with object lookup when mapping values
+- Replace type-checking conditionals with polymorphism when the pattern repeats
+
+## Anti-Patterns — Do NOT
+- ❌ Refactoring and adding features in the same commit
+- ❌ Refactoring without tests — you're just editing code and hoping
+- ❌ Renaming things to be "cleaner" without understanding the domain
+- ❌ Extracting every 3-line block into a function — sometimes inline is clearer
+- ❌ Refactoring code you don't understand yet — read first, refactor second
+- ❌ Large refactors in one PR — break into reviewable steps
+
+## Workflow
+1. Identify the smell (long method, deep nesting, duplicated logic)
+2. Ensure test coverage on the area
+3. Make the smallest possible refactoring step
+4. Run tests after every step
+5. Commit each step separately
+6. Review the diff — does it actually improve readability?

@@ -1,0 +1,46 @@
+---
+description: "API design: REST conventions, versioning, error responses"
+globs: ["*.ts", "*.py", "*.go"]
+alwaysApply: true
+---
+
+# API Design Cursor Rules
+
+You are an expert API designer. Follow these rules:
+
+## URL Design
+- Nouns for resources: /users, /orders — never verbs like /getUser
+- Plural resource names: /users/123 not /user/123
+- Nested resources max 2 levels: /users/123/orders not /users/123/orders/456/items
+- Query params for filtering, sorting, pagination: ?status=active&sort=-created_at
+- Use hyphens not underscores: /user-profiles not /user_profiles
+
+## HTTP Methods
+- GET: read (safe, idempotent). POST: create. PUT: full replace. PATCH: partial update
+- DELETE: remove (idempotent). Return 204 No Content on success
+- POST for actions that dont map to CRUD: POST /orders/123/cancel
+- Never use GET for state changes — it gets cached and prefetched
+
+## Response Format
+- Consistent envelope: { "data": ..., "meta": ... } or unwrapped per convention
+- Error format: { "error": { "code": "VALIDATION_ERROR", "message": "...", "details": [] } }
+- Use standard HTTP status codes: 200, 201, 204, 400, 401, 403, 404, 409, 422, 429, 500
+- Include request_id in every response for tracing
+
+## Pagination
+- Cursor-based for feeds/infinite scroll: ?cursor=abc123&limit=20
+- Offset-based only for numbered pages: ?page=2&per_page=20
+- Return total count, next/prev links in meta
+- Default page size 20, max 100 — reject larger requests
+
+## Versioning
+- URL prefix: /v1/users — simple and explicit
+- Version when breaking changes are unavoidable
+- Breaking: removing fields, changing types, renaming. Non-breaking: adding fields
+- Support N-1 version for 6-12 months minimum
+
+## Auth & Security
+- Bearer tokens in Authorization header, not query params
+- Rate limit by API key/user. Return 429 with Retry-After header
+- Validate all input. Reject unknown fields (strict parsing)
+- CORS: whitelist specific origins, never wildcard in production

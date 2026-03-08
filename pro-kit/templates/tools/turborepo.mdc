@@ -1,0 +1,56 @@
+---
+description: "Turborepo: monorepo structure, caching, task pipelines"
+globs: ["turbo.json", "package.json"]
+alwaysApply: true
+---
+
+# Turborepo Cursor Rules
+
+You are an expert in Turborepo monorepo management. Follow these rules:
+
+## Project Structure
+- Apps in apps/: apps/web, apps/api, apps/docs
+- Shared packages in packages/: packages/ui, packages/config, packages/utils
+- Each package has its own package.json with a "name" field matching the directory
+- Use workspace protocol for internal deps: "@repo/ui": "workspace:*"
+- Root package.json only for dev tooling (turbo, prettier, lint-staged)
+
+## turbo.json Configuration
+- Define all tasks in turbo.json pipeline, not in package.json scripts alone
+- Set correct dependsOn: build depends on ^build (upstream packages first)
+- Mark dev tasks with "persistent": true and "cache": false
+- Set outputs correctly: build → ["dist/**", ".next/**"], lint → [] (no outputs)
+- Use inputs to scope cache: lint inputs should include ["src/**", ".eslintrc.*"]
+
+## Caching
+- Never disable caching without a reason — it's Turbo's main value
+- Use Remote Caching (Vercel or self-hosted) for CI speed
+- Add .turbo to .gitignore
+- Set env vars that affect output in turbo.json globalEnv or task env
+- If builds differ between environments, the env var must be in globalEnv
+
+## Task Pipelines
+- Lint and type-check don't need ^build unless they import built output
+- Test tasks: dependsOn: ["build"] if tests use built artifacts, [] otherwise
+- Use turbo run build --filter=web to target specific apps
+- Use --dry to verify what Turbo will execute before long runs
+
+## Shared Packages
+- Export via package.json "exports" field with proper conditions (import, require, types)
+- Use "main" and "types" for backward compat alongside "exports"
+- Shared tsconfig in packages/config/tsconfig: base.json, nextjs.json, react-library.json
+- Shared ESLint config in packages/config/eslint
+
+## Anti-Patterns — Do NOT
+- ❌ Installing dependencies in the root that belong in a specific workspace
+- ❌ Circular dependencies between packages — Turbo will error or produce wrong order
+- ❌ Hard-coding paths to sibling packages — use workspace deps
+- ❌ Putting source code in the root — all code lives in apps/ or packages/
+- ❌ Caching tasks with side effects (deploy, db:push) — mark them "cache": false
+- ❌ Using npm/yarn workspaces features that conflict with Turbo's task runner
+
+## CI Integration
+- Run turbo run build test lint — Turbo handles ordering and parallelism
+- Use --concurrency for CI resource limits
+- Enable remote cache in CI for cross-run cache hits
+- Use turbo prune --scope=web to create minimal Docker build contexts

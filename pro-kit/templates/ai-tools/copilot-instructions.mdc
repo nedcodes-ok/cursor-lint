@@ -1,0 +1,61 @@
+---
+description: "GitHub Copilot: custom instructions, path-specific rules, agent config"
+globs: [".github/copilot-instructions.md", ".github/instructions/**"]
+alwaysApply: false
+---
+
+# GitHub Copilot Custom Instructions Rules
+
+Copilot supports three layers of custom instructions, from broad to specific.
+
+## Repository-Wide Instructions
+- File: `.github/copilot-instructions.md`
+- Applies to all Copilot interactions in the repo: chat, completions, code review, and the coding agent
+- Plain markdown, no special frontmatter required
+- You can ask the Copilot coding agent to generate this file for you — it will analyze your repo and create one
+
+## Path-Specific Instructions
+- Files: `.github/instructions/<name>.instructions.md`
+- Each file includes a YAML frontmatter `applyTo` field with a glob pattern specifying which files the instructions apply to
+- When Copilot is working on a file that matches the glob, both the repo-wide and the matching path-specific instructions are used together
+- Example:
+
+```yaml
+---
+applyTo: "**/*.ts"
+---
+# TypeScript Instructions
+- Use strict mode
+- Prefer interfaces over type aliases for object shapes
+- Use discriminated unions for state management
+```
+
+## Agent Instructions (AGENTS.md)
+- Copilot coding agent also reads AGENTS.md files (the OpenAI Codex format)
+- Nearest AGENTS.md in the directory tree takes precedence over others
+- Copilot also supports CLAUDE.md and GEMINI.md at the repo root as alternatives
+- If you have both `copilot-instructions.md` and AGENTS.md, both are used
+
+## What Works Well
+- Build, test, and validation commands — the coding agent uses these to verify its own changes
+- Framework and library preferences: "use React Testing Library, not Enzyme," "use fetch, not axios"
+- Naming conventions, file organization expectations, import ordering
+- Code review instructions: what Copilot should flag during reviews ("check for missing error handling," "verify accessibility attributes on interactive elements")
+
+## Path-Specific Patterns
+- `**/*.test.ts` — testing conventions (framework, assertion style, mock patterns)
+- `src/api/**` — API conventions (response format, error handling, auth patterns)
+- `**/*.css` — styling conventions (methodology, naming, no inline styles)
+- `docs/**` — documentation conventions (format, required sections, link validation)
+
+## Anti-Patterns
+- Don't contradict between repo-wide and path-specific instructions — path-specific adds to repo-wide, it doesn't replace it. Contradictions confuse the model
+- Don't put secrets in instruction files — they're committed to the repo
+- Don't try to give Copilot a personality or override its safety guidelines — it won't work and wastes instruction space
+- Don't include very long code samples — keep instructions concise. Point to files in the repo for reference code instead
+
+## Copilot vs Other Tools
+- Copilot's path-specific instructions (`.github/instructions/*.instructions.md` with `applyTo` globs) are unique — no other tool has this exact pattern
+- Cursor's `.mdc` files have a similar concept with `globs` frontmatter, but the file format and location are different
+- Copilot instructions are plain markdown — no special metadata beyond `applyTo` in path-specific files
+- Personal instruction preferences can be set in VS Code settings (`github.copilot.chat.codeGeneration.instructions`) or GitHub.com profile settings, separate from repo-level files

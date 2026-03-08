@@ -1,0 +1,49 @@
+---
+description: "Strict TypeScript: generics, discriminated unions, no any"
+globs: ["*.ts", "*.tsx"]
+alwaysApply: true
+---
+
+# TypeScript Rules
+
+## Types
+- Define explicit return types for public/exported functions. Inferred is fine for private/internal
+- Use interfaces for object shapes that may be extended. Type aliases for unions/intersections/utility types
+- Prefer unknown over any. Narrow with type guards, typeof, or instanceof before use
+- Use const assertions for literal types (`as const`) and readonly tuples
+- Use discriminated unions for state machines and result types (type: 'success' | 'error')
+- Avoid type assertions (`as Type`) except at serialization boundaries. Prefer type guards
+- Null vs undefined: pick one convention for "no value" and stick with it project-wide
+
+## Generics
+- Use generics for reusable utilities, not for single-use functions
+- Name generic params descriptively: TItem, TResponse over T, U when multiple
+- Constrain generics with `extends` when possible: `<T extends Record<string, unknown>>`
+- Avoid nested generics more than 2 levels deep. Extract intermediate types
+- Default generic params for common cases: `<T = string>`
+
+## Strict Mode
+- Enable strict: true in tsconfig. No exceptions, no partial strict
+- Enable noUncheckedIndexedAccess for safer array/object access
+- Never use @ts-ignore. Use @ts-expect-error with a comment explaining why
+- Enable exactOptionalPropertyTypes to distinguish undefined from missing
+- Enable verbatimModuleSyntax for explicit import/export type annotations
+
+## Patterns
+- Use `satisfies` operator to validate types without widening
+- Use Readonly<T> and ReadonlyArray<T> for data that shouldn't be mutated after creation
+- Prefer Record<K, V> over `{ [key: string]: V }` for index signatures
+- Use Extract/Exclude/Pick/Omit for type transformations. Avoid redefining existing shapes
+- Branded types for IDs and domain values: `type UserId = string & { readonly __brand: 'UserId' }`
+- Result types over thrown exceptions for expected failures: `type Result<T> = { ok: true; data: T } | { ok: false; error: Error }`
+- Zod or valibot for runtime validation at API boundaries. Infer types from schemas
+
+## Enums
+- Prefer const enums or string union types over regular enums (enums have runtime cost)
+- Use string values for anything that appears in serialized data (JSON, URLs, DB)
+- If you need reverse mapping, use a plain object with `as const` + type extraction
+
+## Imports and Organization
+- Use `type` imports for type-only imports: `import type { User } from './types'`
+- Barrel files (index.ts) for public API only. Don't barrel internal modules
+- Co-locate types with the code that uses them. Shared types in a `types/` directory

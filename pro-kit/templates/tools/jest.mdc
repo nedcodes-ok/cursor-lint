@@ -1,0 +1,47 @@
+---
+description: "Jest: describe/it, matchers, mocking, async testing"
+globs: ["*.test.*", "*.spec.*"]
+alwaysApply: true
+---
+
+# Jest Cursor Rules
+
+You are an expert in Jest testing (v29+). Follow these rules:
+
+## Structure
+- One test file per source file: `user.service.ts` → `user.service.test.ts`. Colocate tests next to source, not in a separate `__tests__/` tree
+- `describe()` for grouping related behaviors. Nest describes for sub-behaviors: `describe('UserService')` → `describe('findById')`
+- `it()` with descriptive names that read as sentences: `it("returns null when user not found")` — not `it("test1")` or `it("should work")`
+- Tests must be independent — no shared mutable state between test cases. If test B depends on test A running first, both tests are broken
+- Arrange-Act-Assert pattern in every test: set up data, call the thing, check the result. One logical assertion per test (multiple `expect` calls checking one behavior is fine)
+
+## Matchers
+- `.toBe()` for primitives and reference equality. `.toEqual()` for deep equality on objects/arrays — `.toBe({a:1})` fails because it's a different object reference
+- `.toMatchObject()` for partial matching — don't over-specify with `.toEqual()` when you only care about 3 of 10 fields. Less brittle when the shape changes
+- `.toThrow()` requires wrapping in a function: `expect(() => fn()).toThrow()` not `expect(fn()).toThrow()` — this is the #1 gotcha
+- `.toHaveBeenCalledWith(expect.objectContaining({...}))` for partial argument matching on mocks
+- `.toMatchInlineSnapshot()` over `.toMatchSnapshot()` for small outputs — inline snapshots keep the expected value right in the test file, no separate `.snap` file to maintain
+
+## Mocking
+- `jest.fn()` for standalone mock functions. `jest.spyOn(object, 'method')` to wrap an existing method while keeping the original accessible via `.mockRestore()`
+- `jest.mock("module")` at the top level — Jest hoists it above imports automatically. Inside the mock factory, you can't reference variables from the outer scope (they're not initialized yet)
+- `jest.mocked(fn)` for TypeScript: wraps the function type so autocomplete and type-checking work on mock methods (`.mockReturnValue`, `.mockResolvedValue`)
+- `jest.clearAllMocks()` in `beforeEach` — resets call counts and return values. `jest.restoreAllMocks()` also undoes `spyOn` replacements. Pick one and be consistent
+- Mock at the boundary (HTTP client, database, file system), not internal functions — testing the wiring between your own functions gives you change-detector tests, not confidence
+
+## Async
+- Always `await` async assertions or return the promise — an unawaited `expect` silently passes even if the assertion would fail
+- `await expect(fn()).resolves.toBe(value)` for resolved promises. `await expect(fn()).rejects.toThrow("message")` for rejections
+- `jest.useFakeTimers()` for setTimeout/setInterval-dependent code. `jest.advanceTimersByTime(ms)` to move time forward. Call `jest.useRealTimers()` in afterEach or other tests hang
+- For testing event-based code, use `waitFor` patterns or flush promises: `await new Promise(process.nextTick)` — don't add arbitrary `setTimeout` delays in tests
+
+## Setup & Teardown
+- `beforeEach` for per-test setup (reset state, create fixtures). `beforeAll` for expensive one-time setup (start test DB, load large fixtures)
+- Always clean up: close connections, restore mocks, clear timers in `afterEach`. Leaked setup between tests causes flaky failures that are near-impossible to debug
+- `jest.config.ts` for project config. `setupFilesAfterFramework` for global matchers, polyfills. `globalSetup` / `globalTeardown` for test DB lifecycle
+
+## Performance
+- `--runInBand` for CI with limited resources — parallel workers fight for CPU and cause flakiness on small machines
+- `--bail` in CI to stop on first failure — don't wait 10 minutes to find out the first test failed
+- Mock heavy dependencies (HTTP, DB) in unit tests. Use real dependencies only in integration test suites with a separate config
+- `jest.isolateModules()` when testing modules that cache state on import — without it, module-level singletons leak between tests

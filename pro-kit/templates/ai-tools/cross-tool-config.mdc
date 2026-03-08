@@ -1,0 +1,51 @@
+---
+description: "Cross-tool AI config: what transfers between Cursor, Claude Code, Copilot, Windsurf, Gemini, and Codex"
+alwaysApply: false
+---
+
+# Cross-Tool AI Configuration
+
+Every AI coding tool has its own instruction format. None of them read each other's files. Here's the landscape and what actually transfers.
+
+## Config File Reference
+
+| Tool | File(s) | Location | Glob/Scope Support |
+|------|---------|----------|--------------------|
+| Cursor | `.cursorrules`, `.cursor/rules/*.mdc` | Project root | Yes (globs, alwaysApply in .mdc frontmatter) |
+| Claude Code | `CLAUDE.md` | `~/.claude/`, project root, subdirs | No (all content loaded every session) |
+| OpenAI Codex | `AGENTS.md`, `AGENTS.override.md` | `~/.codex/`, project root → cwd | No (concatenated root-to-leaf) |
+| GitHub Copilot | `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md`, also reads AGENTS.md/CLAUDE.md/GEMINI.md | `.github/` dir | Yes (applyTo globs in path-specific files) |
+| Windsurf | `.windsurfrules`, `.windsurf/rules/*.md`, `.windsurf/workflows/*.md` | Project root | No (plain markdown, 12K char limit per file) |
+| Gemini CLI | `GEMINI.md` | `~/.gemini/`, project root, subdirs (scans down too) | No (pure markdown) |
+
+## What Transfers Between Tools
+- **Build/test/lint commands** — every tool needs to know how to verify its changes. Write these once, copy to each config
+- **Coding conventions** — naming, formatting, patterns. These are language/project decisions, not tool decisions
+- **Architecture context** — project structure, key directories, tech stack. Same information, different files
+- **"Don't touch" rules** — files, directories, or patterns the AI should leave alone
+
+## What Doesn't Transfer
+- **Frontmatter/metadata** — Cursor's `alwaysApply`, `globs`, `description` don't exist in CLAUDE.md or AGENTS.md. Copilot has `applyTo` but the format is different
+- **File locations** — `.cursor/rules/` vs `.github/instructions/` vs `.windsurf/rules/` are all different paths
+- **Behavioral tuning** — each model responds differently to the same instruction. "Be concise" means different things to Claude, GPT, and Gemini
+- **Workflows** — Windsurf's step-by-step workflows have no equivalent in other tools. Cursor has no workflow concept. Claude Code uses slash commands differently
+
+## Multi-Tool Strategy
+If your team uses multiple AI coding tools:
+
+1. **Create a source-of-truth doc** with your conventions, commands, and architecture context in plain markdown
+2. **Generate tool-specific files from it** — each tool gets its own file in its own format, but the content comes from one source
+3. **Don't try to maintain one file that works everywhere** — the formats are incompatible and each tool ignores the others' files
+4. **Prioritize the tool your team uses most** — perfect config for one tool beats mediocre config for four
+5. **Version all config files** — commit them to the repo so the whole team gets them. These aren't personal preference files (except the global/home directory ones)
+
+## The Convergence Trend
+- GitHub Copilot now reads AGENTS.md, CLAUDE.md, and GEMINI.md at the repo root — this is the first sign of cross-tool compatibility
+- AGENTS.md (from OpenAI) is gaining adoption beyond Codex: Zed, OpenCode, and now Copilot support it
+- The likely future: one or two formats win, tools converge on reading each other's files. For now, you need separate configs
+
+## Common Mistakes
+- Assuming `.cursorrules` works in Claude Code (it doesn't — Claude Code only reads CLAUDE.md)
+- Putting tool-specific syntax in a cross-tool file (Cursor's frontmatter in AGENTS.md breaks nothing but also does nothing)
+- Over-investing in prompt engineering for the wrong file — if your team uses Cursor 90% of the time, spend 90% of your config effort on `.mdc` files
+- Forgetting that AI models don't persist memory between sessions — every session starts fresh. The config file IS the memory

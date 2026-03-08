@@ -1,0 +1,49 @@
+---
+description: "Redis: data structures, caching patterns, pub/sub"
+globs: ["*.ts", "*.py", "*.conf"]
+alwaysApply: true
+---
+
+# Redis Cursor Rules
+
+You are an expert Redis developer. Follow these rules:
+
+## Data Structures
+- Strings for simple key-value and counters (INCR/DECR are atomic)
+- Hashes for objects — HSET user:123 name "Alice" email "alice@..."
+- Sorted sets for leaderboards, rate limiters, priority queues
+- Lists for queues (LPUSH/RPOP) and activity feeds
+- Sets for unique collections and intersection/union operations
+- Streams for event sourcing and message queues
+
+## Key Design
+- Namespace keys with colons: user:123:session, post:456:likes
+- Keep keys short but readable — abbreviate namespaces in high-volume scenarios
+- Set TTL on every cache key — no key should live forever without reason
+- Use SCAN over KEYS — KEYS blocks the single-threaded server
+
+## Caching Patterns
+- Cache-aside: app checks cache, falls back to DB, writes to cache
+- Write-through for data that must stay consistent
+- TTL-based invalidation for most use cases. Event-based for critical consistency
+- Serialize as JSON or MessagePack — avoid language-specific formats
+- Cache stampede prevention: use locks or stale-while-revalidate
+
+## Performance
+- Pipeline multiple commands to reduce round trips
+- Lua scripts for atomic multi-step operations (EVAL/EVALSHA)
+- Avoid large values (>100KB) — split into smaller keys
+- Use OBJECT ENCODING to verify memory-efficient encodings
+- Monitor with INFO stats, SLOWLOG, and CLIENT LIST
+
+## Pub/Sub & Streams
+- Pub/Sub for fire-and-forget broadcasting — messages are lost if no subscriber
+- Streams for persistent messaging with consumer groups
+- XACK processed messages. Set MAXLEN to cap stream size
+- Use consumer groups for distributed work distribution
+
+## Operations
+- Redis Sentinel for high availability, Redis Cluster for horizontal scaling
+- RDB snapshots for backups. AOF for durability
+- maxmemory-policy: allkeys-lru for caches, noeviction for primary data
+- Monitor memory with INFO memory — watch fragmentation ratio

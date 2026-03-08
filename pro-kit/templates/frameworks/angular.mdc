@@ -1,0 +1,55 @@
+---
+description: "Angular: signals, standalone components, RxJS patterns"
+globs: ["*.ts", "*.html"]
+alwaysApply: true
+---
+
+# Angular Cursor Rules
+
+You are an expert Angular developer (v17+). Follow these rules:
+
+## Components
+- Standalone components by default — NgModules only for legacy code. Every new component, directive, and pipe should be standalone
+- Use signals for reactive state, not BehaviorSubject for local component state. Signals are synchronous, glitch-free, and work with OnPush out of the box
+- `ChangeDetectionStrategy.OnPush` on every component — this is non-negotiable for performance. Without it, Angular checks the entire subtree on every event
+- Keep templates under 50 lines — extract child components early. If a template has 3+ structural directives, it's too complex
+- Use `input()` and `output()` signal-based APIs (v17.1+) over `@Input()` / `@Output()` decorators — they're type-safe and work with signal flows
+- `input.required()` for mandatory inputs — fails at compile time, not silently undefined at runtime
+- `model()` for two-way binding (v17.2+) — replaces the input + output + event naming convention
+
+## Architecture
+- Feature-based folder structure: each feature has its own routes, components, services — not a shared components/ dumping ground
+- Smart/dumb component split: smart components inject services and fetch data, dumb components take inputs and emit outputs. Dumb components are reusable, smart components are not
+- Lazy-load feature routes with `loadComponent` / `loadChildren` — every route that isn't the landing page should be lazy
+- `inject()` function over constructor injection — works in any injection context, easier to compose in utility functions
+
+## RxJS
+- Prefer signals over observables for synchronous, UI-bound state. Keep RxJS for streams: HTTP, WebSocket, complex async coordination
+- `takeUntilDestroyed()` in constructor/field initializer context — never manual subscribe/unsubscribe pairs. `DestroyRef` is the modern approach
+- Avoid nested subscribes — use `switchMap` (cancel previous), `concatMap` (queue), `exhaustMap` (ignore while busy). Pick based on the UX you want, not randomly
+- `shareReplay({ bufferSize: 1, refCount: true })` for multicasted API responses — without `refCount: true` the subscription leaks
+- Handle errors with `catchError` inside the pipe, not in the subscribe callback — subscribe error handlers kill the observable
+
+## State Management
+- Signals + `computed()` for local and derived state — this covers 80% of cases
+- NgRx SignalStore for shared feature state that multiple components consume
+- Full NgRx Store only for complex cross-feature state with side effects — don't reach for it by default, it's heavy
+- Never store derived data — use computed signals or selectors. Duplicated state is guaranteed to drift
+
+## Forms
+- Reactive forms (FormGroup/FormControl) for anything beyond a single input. Template-driven forms are fine for simple search boxes
+- Typed `FormGroup` with `NonNullable` — Angular 14+ supports strict typing. Don't cast with `as` to silence type errors, fix the types
+- Custom validators as pure functions returning `ValidationErrors | null` — don't put validation logic in components
+- Show validation errors on blur or submit, not while the user is still typing in a pristine field. Use `updateOn: 'blur'` on the control
+
+## Templates (Control Flow — v17+)
+- Use `@if`, `@for`, `@switch` over `*ngIf`, `*ngFor`, `*ngSwitch` — new control flow is faster (no directive overhead) and more readable
+- `@for` requires a `track` expression — use a unique ID, never the index (same reorder bugs as every other framework)
+- `@defer` blocks for below-fold content — supports `on viewport`, `on idle`, `on hover`, `on interaction` triggers. Use `@placeholder` and `@loading` for UX
+- `@defer` with `prefetch on idle` for likely-next interactions — loads the chunk before the user needs it
+
+## Performance
+- `NgOptimizedImage` for all images — handles lazy loading, srcset, preconnect, and LCP priority automatically
+- Preload strategies (`PreloadAllModules` or custom) for routes the user is likely to visit next
+- Avoid function calls in templates — they re-execute on every change detection cycle. Use computed signals or pipes instead
+- `@let` (v18+) for template-local variables — avoids repeated async pipe subscriptions or redundant computed calls

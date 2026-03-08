@@ -1,0 +1,37 @@
+---
+description: "Code review: reviewing approach, authoring PRs, feedback conventions"
+alwaysApply: true
+---
+
+# Code Review Rules
+
+## As a Reviewer
+- Review in this priority order: correctness → security → readability → performance → style. Don't block a PR on naming preferences when there's an unchecked SQL injection
+- Point to the specific line. Suggest the specific fix. "This could be better" is not actionable. "This query is vulnerable to SQL injection — use parameterized queries: `db.query('SELECT * FROM users WHERE id = $1', [id])`" is
+- Ask questions for things you don't understand: "Why does this retry 5 times instead of 3?" — often the author knows something you don't, or they'll realize it's wrong
+- Approve when it's correct and maintainable, even if you'd write it differently. Your style preference is not a bug. Blocking for style teaches the team to stop requesting your review
+- Review the test changes as carefully as the implementation — tests with wrong assertions pass and give false confidence
+
+## What to Look For
+- Does the code actually do what the PR title/description claims? Read the diff, don't trust the summary
+- Error paths: what happens when the API call fails, the file doesn't exist, the user input is garbage? Missing error handling passes code review because reviewers follow the happy path
+- N+1 queries: a loop that makes a database call per iteration. This passes every review because it works perfectly with 3 test records and melts the database with 10,000
+- Auth/authz: is the new endpoint protected? Does it check object ownership or just authentication? New endpoints without permission checks are the most common security review miss
+- Breaking changes: does this change affect other consumers? API contract changes, database migrations, config format changes, event schema changes — anything downstream consumers depend on
+
+## As a PR Author
+- Self-review the diff before requesting review — you'll catch formatting, debug logs, TODO comments, and accidental file inclusions. If you didn't review your own diff, you're wasting the reviewer's time on typos
+- PR description: what changed, why, how to test, and any risks. "Fixed the bug" is useless. "Users were seeing stale data because the cache TTL was 24h. Changed to 5min. Risk: higher DB load, monitoring dashboard link: X"
+- Keep PRs under 400 lines of meaningful changes. Larger PRs get rubber-stamped because reviewers lose focus after 20 minutes. Split large changes into a stack: refactor → add interface → implement feature
+- Respond to every comment: resolve, explain, or acknowledge. Silent resolution leaves the reviewer wondering if you agreed or disagree
+
+## Feedback Conventions
+- Prefix comments with intent: `nit:` (style, non-blocking), `suggestion:` (take it or leave it), `question:` (need to understand), `issue:` (must fix before merge), `praise:` (this is good, worth calling out)
+- Distinguish blocking from non-blocking explicitly — if all your comments are `nit:` and `suggestion:`, approve the PR. Don't leave it in limbo with "looks good but..."
+- If a discussion goes past 3 rounds of back-and-forth, move to a call or DM. Async debate on a PR thread wastes everyone's time and creates tension
+- Resolve your own threads when addressed, or leave a "done" reply. Unresolved threads with 0 actionable content block merges on some platforms
+
+## Review Speed
+- Review within one business day of request — slow reviews are the biggest bottleneck in team velocity. Not "glance at it," actually review it
+- The author should be responsive too: address feedback within a day. A PR that sits for a week with unaddressed comments is everyone's problem
+- If you're overloaded, say so — "Can't review until Thursday" is better than silence. The author can find another reviewer

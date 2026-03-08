@@ -1,0 +1,50 @@
+---
+description: "Prisma: schema modeling, queries, migrations"
+globs: ["*.prisma", "*.ts"]
+alwaysApply: true
+---
+
+# Prisma Cursor Rules
+
+You are an expert Prisma developer (v5+). Follow these rules:
+
+## Schema Design
+- One `schema.prisma` file by default. Use `prismaSchemaFolder` preview feature or `prisma-merge` for multi-file schemas in large projects
+- Explicit `@relation` names on ambiguous relations (same model referenced twice) — Prisma will error without them, but naming all relations is clearer
+- `@map("snake_case")` on fields, `@@map("snake_case_table")` on models to keep camelCase in code with snake_case in the database — this is how most teams bridge JS and PostgreSQL conventions
+- `@default(cuid())` or `@default(uuid())` for public IDs — never expose auto-increment IDs to users (enumerable, leaks count)
+- Enums for fixed value sets — they generate TypeScript types automatically and constrain at the database level
+
+## Relations
+- Always define both sides of a relation — Prisma requires it for full type generation
+- `@relation(fields: [userId], references: [id])` with explicit fields and references every time — don't rely on implicit inference
+- `onDelete: Cascade` only when the parent truly owns the children (e.g., delete user → delete their sessions). Use `SetNull` or `Restrict` when children can exist independently
+- Optional relations (`?`) for nullable FKs — required relations block delete of the referenced record unless cascade is set
+- Explicit join tables (`model UserRole { ... }`) when many-to-many needs extra fields (role, assignedAt). Implicit `@relation` M2M can't hold metadata
+
+## Queries
+- `select` only the fields you need — fetching 20 columns when you need 3 wastes bandwidth and leaks data to the client
+- `include` for eager loading relations (full objects), `select` on relations for partial fields — don't include then destructure, let Prisma handle the projection
+- `findUniqueOrThrow` / `findFirstOrThrow` instead of `findUnique` + manual null checks — cleaner and throws a typed `NotFoundError`
+- Cursor-based pagination (`cursor` + `take`) for infinite scroll and large datasets. Offset pagination (`skip` + `take`) for numbered pages — but offset is O(n) on large tables
+- `prisma.$transaction([])` for multi-step mutations. Use interactive transactions `prisma.$transaction(async (tx) => { ... })` when steps depend on each other's results
+- Batch operations: `createMany`, `updateMany`, `deleteMany` are single SQL statements — don't loop `create()` for bulk inserts
+
+## Migrations
+- `prisma migrate dev` in development (creates migration + applies). `prisma migrate deploy` in production/CI (applies only, never generates)
+- Don't edit generated migration SQL unless you need data transformations — if you must, add a separate data migration script and run it between structural migrations
+- `prisma/seed.ts` for seed data — `prisma db seed` runs it. Keep seeds idempotent (upsert, not create)
+- Destructive changes (dropping columns/tables) should be done in two deploys: first deploy stops writing to the column, second deploy drops it
+
+## Performance
+- `@@index([field1, field2])` on fields you filter/sort by together — missing composite indexes are the most common Prisma performance issue
+- `@@unique` for compound uniqueness constraints — also implicitly creates an index
+- `prisma.$queryRaw` only for SQL that Prisma's query builder can't express (window functions, CTEs, full-text search) — you lose type safety
+- Serverless: set `connection_limit=1` in `DATABASE_URL` for Lambda/Vercel. Use Prisma Accelerate or PgBouncer as a connection pool proxy — without it, serverless functions exhaust connection limits fast
+- `prisma generate` after every schema change — the client is codegen'd, stale client = stale types
+
+## Common Traps
+- Prisma Client is generated code — don't import from `@prisma/client` without running `prisma generate` first. CI pipelines need a generate step
+- `$extends` (Prisma Client Extensions) for computed fields, soft deletes, audit logging — replaces the old middleware API which is deprecated
+- `Json` type fields have no schema validation at the database level — validate with Zod before writing, and type the read with `as` or a parser
+- Prisma doesn't support partial unique indexes or filtered indexes — use `prisma.$executeRaw` for those and document them outside the schema

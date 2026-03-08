@@ -1,0 +1,45 @@
+---
+description: "Nuxt 3: composables, server routes, auto-imports"
+globs: ["*.vue", "*.ts"]
+alwaysApply: true
+---
+
+# Nuxt 3 Cursor Rules
+
+You are an expert Nuxt 3 developer. Follow these rules:
+
+## Architecture
+- Auto-imports are on: dont manually import ref, computed, useState, useFetch
+- File-based routing in pages/. Use definePageMeta for middleware/layout
+- Server routes in server/api/ and server/routes/
+- Composables in composables/ are auto-imported — use them liberally
+
+## Data Fetching
+- useFetch for component-level data with SSR support
+- useAsyncData with custom fetch logic when useFetch is too simple
+- $fetch for client-only or server-side (event handlers, server routes)
+- Always provide a unique key to useAsyncData to avoid hydration mismatches
+- lazy: true for non-critical data, watch for reactive refetching
+
+## State
+- useState for SSR-safe shared state (replaces Vuex for simple cases)
+- Pinia for complex state management with devtools support
+- Never use ref() for shared state — it wont survive SSR hydration
+
+## Server
+- Server routes return data directly — Nuxt serializes automatically
+- Use defineEventHandler for all server routes
+- Validate input with getValidatedQuery/getValidatedBody + Zod
+- H3 utilities: getHeader, setCookie, createError for server logic
+- Throw createError({ statusCode: 404 }) — Nuxt shows error page
+
+## Performance
+- NuxtImg for optimized images with provider support
+- Route rules in nuxt.config for per-route caching/prerendering
+- useNuxtData for accessing cached data from other composables
+- Payload extraction for static sites — reduces JS bundle
+
+## Config
+- Runtime config (runtimeConfig) for env vars — never process.env in client
+- App config (app.config.ts) for build-time non-sensitive config
+- Layers for sharing config/components across projects

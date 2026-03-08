@@ -1,0 +1,49 @@
+---
+description: "Tailwind CSS: utility patterns, design tokens, component extraction"
+globs: ["*.css", "*.tsx", "*.vue", "*.html"]
+alwaysApply: true
+---
+
+# Tailwind CSS Cursor Rules
+
+You are an expert Tailwind CSS developer (v3.4+). Follow these rules:
+
+## Utility Usage
+- Utilities first. Extract components only after 3+ repetitions of the same combination
+- Mobile-first responsive: sm:, md:, lg: build upward from mobile — never max-width media queries
+- Group related utilities in consistent order: layout (flex, grid) → sizing (w, h) → spacing (p, m) → typography → colors → effects → transitions
+- Use arbitrary values [24px] only when the default scale genuinely doesn't cover it — check the docs first, Tailwind's spacing scale is more complete than people think (0.5, 1.5, 2.5 exist)
+- Prefer size-* (Tailwind v3.4+) when width and height are the same — `size-8` not `w-8 h-8`
+
+## Design Tokens
+- Extend theme in tailwind.config — don't repeat arbitrary values across files
+- Define semantic color names: `primary`, `surface`, `muted`, `destructive` — not `blue-500` scattered everywhere. When the brand color changes you want one edit, not fifty
+- Consistent spacing scale: extend the default, don't replace it — your custom values should fill gaps, not create a parallel system
+- Font size with leading: `text-lg/7` for paired type + line-height. This is cleaner than separate `text-lg leading-7`
+- Use CSS variables for colors that need runtime switching (themes, white-label): `--color-primary` in tailwind.config, not hardcoded hex
+
+## Component Patterns
+- @apply in CSS files for truly atomic repeated patterns (`.btn-primary`, `.input-base`)
+- Prefer component extraction (React/Vue components) over @apply for anything with structure — @apply is for styling, components are for structure + styling
+- Never @apply responsive or state variants (hover:, sm:) — those belong in markup where you can see them
+- Use CVA (class variance authority) or a similar lib for variant management — avoids massive ternary chains in className
+- cn() utility (clsx + twMerge) for conditional classes — plain string concatenation breaks with conflicting utilities (`p-4 p-2` doesn't resolve, twMerge picks the last one)
+
+## Dark Mode
+- Use dark: variant with `class` strategy for manual toggle support, `media` strategy only if you never need a manual toggle
+- Define dark palette in theme extension — don't scatter inline `dark:bg-gray-900` across every component. One semantic token (`bg-surface`) that changes in dark mode is better than 200 dark: overrides
+- Test both modes continuously — "dark mode" isn't "invert everything," contrast ratios and shadows behave differently
+
+## Layout
+- Flexbox for 1D, Grid for 2D — don't force flexbox to do grid's job with wrapping hacks
+- `container mx-auto px-4 sm:px-6 lg:px-8` for page-width constraints — not arbitrary max-w-[1200px]
+- `gap-*` for flex/grid children spacing — margins on children cause edge-spacing bugs and complicate responsive changes
+- Avoid absolute positioning when flex/grid alignment handles it. `absolute` is for overlays, badges, decorative elements
+- `divide-y` / `divide-x` for bordered list items instead of manual border-b on each child (handles last-child automatically)
+
+## Gotchas
+- Dynamic class names are purged: `bg-${color}-500` will NOT be in production CSS. Use complete class names or safelist them
+- Arbitrary values with spaces need underscores: `grid-cols-[1fr_auto_1fr]` not `grid-cols-[1fr auto 1fr]`
+- `ring-*` is not `border-*` — ring doesn't affect layout, border does. Use ring for focus indicators, border for structural edges
+- Tailwind classes are not scoped — a parent's utility can't style children. Use `group` and `group-hover:` for parent-triggered child styles, `peer` for sibling relationships
+- `overflow-hidden` on a parent kills `sticky` positioning on children — use `overflow-clip` (v3.3+) instead if you need clipping without breaking sticky

@@ -1,0 +1,44 @@
+---
+description: "Security: input validation, auth, data protection"
+alwaysApply: true
+---
+
+# Security Rules
+
+## Input Validation
+- Validate ALL user input on the server — type, length, format, range. Client-side validation is UX, not security
+- Allowlists over denylists: define what IS allowed, not what isn't. Denylists always miss something
+- Context-aware output encoding: HTML entities for HTML context, parameterized queries for SQL, shell escaping for commands. The same input needs different escaping in different outputs
+- Zod, Joi, Pydantic, or similar for structured validation — don't write regex for every field. Schema validation catches entire classes of malformed input at once
+- Reject unexpected fields, don't just ignore them. If your API accepts `{ name, email }` and receives `{ name, email, isAdmin: true }`, the extra field should cause an error or be stripped explicitly
+
+## Authentication
+- bcrypt (cost 12+) or Argon2id for password hashing — never MD5, SHA-256, or single-pass algorithms. If an attacker gets the database, bcrypt makes brute-force take years instead of hours
+- Rate limit auth endpoints: 5-10 attempts per IP per minute. After lockout, require CAPTCHA or temporary block — without this, credential stuffing is trivial
+- Session cookies: `httpOnly` (no JS access), `secure` (HTTPS only), `sameSite: strict` or `lax` (prevents CSRF). Missing any of these is a real vulnerability, not a nice-to-have
+- Implement actual logout: invalidate the session/token server-side. Just deleting the client cookie means a captured token still works
+- JWTs are not sessions: they can't be revoked until they expire. For applications that need instant revocation (admin ban, password change), use server-side sessions or a token blocklist
+
+## Authorization
+- Check permissions on every request server-side — hiding a button in the UI is not access control. Every API endpoint must verify the caller has permission
+- Object-level authorization: verifying a user is authenticated is not enough. Verify they own or have access to the specific resource: `WHERE user_id = auth.uid() AND id = :requestedId`
+- IDOR (Insecure Direct Object Reference) is the most common authorization bug: user changes `/api/orders/123` to `/api/orders/124` and sees someone else's order. Always verify ownership
+- Fail closed: if the permission check errors or is ambiguous, deny access. `if (!hasPermission) deny` not `if (hasPermission) allow else maybe allow`
+- Principle of least privilege: give each component/user/service the minimum access it needs. Database users for the app shouldn't have DROP TABLE permissions
+
+## Secrets
+- Environment variables or a secrets manager (Vault, AWS Secrets Manager, Doppler) for credentials — never in source code, config files committed to git, or Docker images
+- `.env` files are for local development only. In production, inject secrets via the platform's secret management — `.env` files in containers or servers get leaked via misconfigured directory listings
+- Rotate credentials on a schedule and immediately after any suspected breach. If you've never rotated a credential, assume it's compromised
+- Never log secrets: mask tokens, passwords, API keys in log output. `Authorization: Bearer ****` not `Authorization: Bearer sk_live_abc123...`. Grep your logs for this
+
+## Dependencies
+- Automated dependency updates: Dependabot or Renovate on a weekly cycle with CI tests — manual updates don't happen
+- `npm audit` / `pip audit` / `cargo audit` in CI pipeline — block merges with known critical vulnerabilities
+- Fewer dependencies = smaller attack surface. Every dependency is code you didn't write, didn't review, and is trusting blindly. The left-pad lesson applies to security too
+- Lock files (`package-lock.json`, `poetry.lock`, `Cargo.lock`) committed and used in CI/production (`npm ci` not `npm install`) — without locks, builds are non-deterministic and vulnerable to dependency confusion attacks
+
+## Headers & Transport
+- HTTPS everywhere, no exceptions. HSTS header (`Strict-Transport-Security: max-age=31536000; includeSubDomains`) to prevent downgrade attacks
+- CSP (Content-Security-Policy) to prevent XSS — at minimum, block inline scripts: `script-src 'self'`. This single header stops most XSS attacks
+- CORS: don't set `Access-Control-Allow-Origin: *` on authenticated endpoints — it allows any site to make credentialed requests. Allowlist your domains explicitly

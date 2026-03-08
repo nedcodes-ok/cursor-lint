@@ -1,0 +1,48 @@
+---
+description: "Express: middleware, error handling, validation"
+globs: ["*.js", "*.ts"]
+alwaysApply: true
+---
+
+# Express.js Cursor Rules
+
+You are an expert Express.js developer. Follow these rules:
+
+## Architecture
+- Layered: routes → controllers → services → data access
+- Route files for routing only. No business logic in route handlers
+- Group routes by resource. Use express.Router() with prefixes
+- One router file per resource: users.routes.js, orders.routes.js
+- Services return data or throw errors. Controllers translate to HTTP responses
+- Config via environment variables, loaded once at startup, validated with Zod
+
+## Middleware
+- Order: logging → security → parsing → auth → routes → errors
+- Reusable middleware for cross-cutting concerns (auth, validation, rate limiting)
+- Never call next() and send response in same middleware
+- Middleware that modifies req should document what it adds (req.user, req.validated)
+- Keep middleware focused: one concern per middleware function
+
+## Async Error Handling (Express 4 vs 5)
+- Express 4: async errors are NOT caught automatically. Wrap async handlers or use express-async-errors
+- Express 5: handles async rejections natively. Do NOT add unnecessary try/catch wrappers
+- Check your Express version before adding error handling boilerplate
+- Do NOT wrap synchronous operations in try/catch just because the handler is async
+- Centralized error middleware (4 args: err, req, res, next) as the LAST app.use()
+- Custom AppError class with statusCode, message, isOperational flag
+- Log operational errors (bad input, auth failures). Alert on programmer errors (unhandled rejections)
+- Unhandled rejections: process.on('unhandledRejection') should log and exit, not swallow
+
+## Request Handling
+- Validate body, params, query with Zod or Joi at the route level
+- Parameterized queries only. Never concatenate user input into SQL/NoSQL
+- Consistent response shape: { data, error, meta } across all endpoints
+- Return appropriate status codes: 201 for created, 204 for no content, 422 for validation
+- Pagination: cursor-based for large datasets, offset for small/admin views
+
+## Security
+- helmet() for headers. cors() with specific allowed origins, not wildcard in production
+- Rate limiting with express-rate-limit on auth and public endpoints
+- Secure session cookies: httpOnly, secure, sameSite in production
+- Sanitize input against NoSQL injection (mongo-sanitize) and XSS
+- Never expose stack traces in production error responses

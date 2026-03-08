@@ -1,0 +1,50 @@
+---
+description: "MongoDB: schema design, indexing, aggregation"
+globs: ["*.ts", "*.js"]
+alwaysApply: true
+---
+
+# MongoDB Cursor Rules
+
+You are an expert MongoDB developer. Follow these rules:
+
+## Schema Design
+- Design for access patterns: embed what you read together
+- Embed when: 1:1 or 1:few, data is read together, child doesnt exist alone
+- Reference when: 1:many (unbounded), data accessed independently, many:many
+- Avoid unbounded arrays — they cause document growth and slow updates
+- Use Mongoose schemas with strict mode for application-level validation
+
+## Indexing
+- Index fields used in queries, sorts, and aggregation match stages
+- Compound indexes: equality fields first, sort fields next, range last (ESR rule)
+- Use explain() to verify queries use indexes — no collection scans in production
+- Unique indexes for natural keys. Sparse indexes for optional fields
+- TTL indexes for auto-expiring documents (sessions, logs)
+- Text indexes for search, but Atlas Search for anything serious
+
+## Queries
+- Projection: return only needed fields, not entire documents
+- Use $match early in aggregation pipelines to reduce working set
+- Avoid $where and $regex without index prefix — they scan everything
+- Use bulkWrite for batch operations, not loops of single writes
+- Cursor-based pagination (sort + range query) over skip/limit
+
+## Aggregation
+- Pipeline stages ordered: $match → $project → $group → $sort
+- $lookup for joins — use pipeline form for filtered joins
+- $facet for multi-dimension results in a single query
+- Use $merge or $out to materialize views for dashboards
+
+## Data Modeling
+- _id: ObjectId by default, custom IDs only when migrating from another DB
+- Timestamps: createdAt/updatedAt with Mongoose timestamps option
+- Soft deletes with deletedAt field and partial index on active docs
+- Store monetary values as integers (cents) — never floats
+- Use change streams for real-time reactions, not polling
+
+## Operations
+- Replica sets for production — never standalone
+- Read preference: secondaryPreferred for analytics, primary for consistency
+- Connection pooling: tune maxPoolSize based on load
+- Monitor slow queries with profiler level 1

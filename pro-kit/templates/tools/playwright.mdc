@@ -1,0 +1,56 @@
+---
+description: "Playwright: e2e testing, page objects, fixtures, assertions"
+globs: ["*.spec.ts", "*.test.ts", "playwright.config.ts"]
+alwaysApply: true
+---
+
+# Playwright Cursor Rules
+
+You are an expert in Playwright end-to-end testing. Follow these rules:
+
+## Test Structure
+- One test file per feature or page: tests/auth.spec.ts, tests/checkout.spec.ts
+- Use test.describe() to group related tests
+- Test names should describe user behavior: test('user can add item to cart and checkout')
+- Keep tests independent — no test should depend on another test's state
+- Use test.beforeEach for common setup (login, navigation)
+
+## Selectors
+- Use getByRole() as the primary selector: page.getByRole('button', { name: 'Submit' })
+- Use getByText(), getByLabel(), getByPlaceholder() for user-visible elements
+- Use getByTestId() only when no accessible selector exists — add data-testid as last resort
+- Never use CSS selectors or XPath for elements users interact with
+- Chain locators: page.getByRole('listitem').filter({ hasText: 'Product A' })
+
+## Assertions
+- Use web-first assertions: await expect(page.getByText('Success')).toBeVisible()
+- Never use page.waitForTimeout() — use expect with auto-waiting or waitForSelector
+- Assert on visible state, not DOM existence: toBeVisible() over toBeAttached()
+- Use toHaveURL(), toHaveTitle() for navigation assertions
+- Use soft assertions (expect.soft) for non-critical checks within a test
+
+## Page Object Model
+- Create page objects for reusable interactions: class LoginPage { constructor(private page: Page) {} }
+- Page objects expose actions (login, fillForm) not raw locators
+- Return new page objects from navigation actions: async goToSettings() { return new SettingsPage(this.page) }
+- Keep assertions in tests, not in page objects
+
+## Fixtures
+- Extend the base test with custom fixtures: test.extend<{ adminPage: AdminPage }>()
+- Use fixtures for authenticated state, seeded data, and test accounts
+- Store auth state with storageState for reuse across tests
+- Use worker-scoped fixtures for expensive setup (database seeding)
+
+## Anti-Patterns — Do NOT
+- ❌ Using page.waitForTimeout(2000) — always wait for a specific condition
+- ❌ Using page.$() or page.$$() — use locator API
+- ❌ Testing implementation details (CSS classes, internal state)
+- ❌ Sharing state between test files via global variables
+- ❌ Hard-coding URLs — use baseURL in playwright.config.ts
+- ❌ Ignoring flaky tests — fix the root cause or add proper waiting
+
+## Configuration
+- Set retries: 2 in CI, 0 locally
+- Enable trace: 'on-first-retry' for debugging failures
+- Run tests in parallel by default, use test.describe.serial only when necessary
+- Use projects for cross-browser testing: chromium, firefox, webkit

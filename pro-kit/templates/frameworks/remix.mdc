@@ -1,0 +1,46 @@
+---
+description: "Remix: loaders, actions, progressive enhancement"
+globs: ["*.tsx", "*.ts"]
+alwaysApply: true
+---
+
+# Remix Cursor Rules
+
+You are an expert Remix developer. Follow these rules:
+
+## Data Flow
+- Loaders for all data fetching — runs server-side before render
+- Actions for all mutations — POST/PUT/DELETE through forms
+- Never fetch in useEffect. If you need client data, use a resource route
+- Return json() from loaders with proper HTTP status codes
+- Throw Response objects for errors — Remix catches them in ErrorBoundary
+
+## Forms
+- Use Remix <Form> for mutations, not fetch/axios
+- Progressive enhancement: forms work without JS by default
+- useNavigation() for pending UI, not custom loading state
+- useFetcher for non-navigation mutations (like/bookmark buttons)
+- Optimistic UI with useFetcher.formData
+
+## Routing
+- File-based routes in app/routes/. Nested layouts via folder structure
+- Pathless layout routes (_layout.tsx) for shared UI without URL segments
+- Use loader data from parent routes via useRouteLoaderData
+- Handle 404s with a $.tsx splat route
+
+## Error Handling
+- ErrorBoundary in every route that loads data
+- Throw new Response() with status codes, not Error objects
+- isRouteErrorResponse() to distinguish expected vs unexpected errors
+- Root ErrorBoundary as last resort — style it well
+
+## Sessions & Auth
+- Cookie sessions via createCookieSessionStorage
+- Redirect from loaders for auth guards — never render unauthorized content
+- CSRF protection on all actions with custom tokens
+
+## Performance
+- Return only needed data from loaders — no over-fetching
+- headers() export for Cache-Control on static-ish routes
+- Prefetch with <Link prefetch="intent"> for likely navigations
+- Defer slow data with defer() and <Await> for streaming

@@ -1,0 +1,45 @@
+---
+description: "CLAUDE.md: structuring project context for Claude Code"
+globs: ["CLAUDE.md", ".claude/**"]
+alwaysApply: false
+---
+
+# CLAUDE.md Rules
+
+CLAUDE.md is loaded into every Claude Code session. It's your one chance to onboard the model to your codebase before each conversation.
+
+## What Goes In CLAUDE.md
+- **WHAT**: tech stack, project structure, key directories. In monorepos, list the apps, shared packages, and what each one does. Claude doesn't explore on its own until prompted
+- **WHY**: purpose of the project, what the different parts do, business context that affects technical decisions ("we use polling instead of websockets because our infra doesn't support persistent connections")
+- **HOW**: build commands, test commands, lint commands, deploy process. If your project uses `pnpm` instead of `npm`, say so here or Claude will guess wrong
+
+## Discovery Hierarchy
+- `~/.claude/CLAUDE.md` — global, applies to every project
+- `CLAUDE.md` at project root — project-specific, overrides global
+- `CLAUDE.md` in subdirectories — more specific, stacks with parent files
+- Claude concatenates all found files, root to leaf. Later files override earlier ones for conflicting guidance
+
+## What Makes CLAUDE.md Get Ignored
+- Claude Code wraps CLAUDE.md with a system reminder saying "this context may or may not be relevant to your tasks." If your file is full of situational hotfixes and edge cases, Claude is more likely to skip the whole thing
+- Keep instructions broadly applicable to tasks you'll run. "Always run tests after changes" stays relevant. "When modifying the payment webhook handler, remember the Stripe API changed in v2024-06" only matters for one specific task
+- Shorter, focused files get followed more reliably than 2000-line dumps. If you hit diminishing returns, split into subdirectory CLAUDE.md files
+
+## Patterns That Work
+- Build/test/lint commands at the top — these are universally relevant and anchor the file as useful context
+- Project map with directory descriptions: `src/api/` does X, `src/workers/` does Y, `shared/` contains Z
+- Explicit tool preferences: package manager, test runner, formatter, deployment method
+- Coding conventions that differ from defaults: "we use tabs not spaces," "we use Zustand not Redux," "error responses use Problem Details format"
+
+## Anti-Patterns
+- Don't dump your entire README into CLAUDE.md — Claude can read files on demand. CLAUDE.md is for things Claude needs to know before it starts, not everything about your project
+- Don't use CLAUDE.md as a bug tracker or changelog — it gets loaded every session, stale entries waste context
+- Don't put secrets or credentials in CLAUDE.md — it's a committed file in your repo
+- Don't try to override Claude's core behavior ("never apologize," "always be concise") — these fight the system prompt and get inconsistent results
+- Don't list every file in the project — describe the structure, let Claude explore the specifics
+
+## CLAUDE.md vs .cursorrules vs AGENTS.md
+- CLAUDE.md is Claude Code specific. It only affects Claude Code sessions
+- .cursorrules / .cursor/rules/ only affect Cursor. They have frontmatter (alwaysApply, globs) that CLAUDE.md doesn't
+- AGENTS.md (OpenAI Codex) follows a similar pattern to CLAUDE.md but with override files (AGENTS.override.md)
+- None of these files cross over — your CLAUDE.md is invisible to Cursor, your .cursorrules are invisible to Claude Code
+- If you use multiple tools, you need multiple config files. There is no universal standard yet

@@ -1,0 +1,54 @@
+---
+description: "React: hooks, composition, performance patterns"
+globs: ["*.jsx", "*.tsx"]
+alwaysApply: true
+---
+
+# React Cursor Rules
+
+You are an expert React developer. Follow these rules:
+
+## Components
+- Functional components only. No class components
+- Keep under 150 lines. Extract hooks and sub-components early
+- Named exports, one component per file
+- Descriptive names: UserProfileCard not Card
+- Colocate styles, tests, and types with the component file
+- Props interface named `{ComponentName}Props`, defined above the component
+- Default props via destructuring defaults, not `defaultProps`
+- Avoid spreading props blindly (`{...props}`). Be explicit about what's passed
+
+## State Management
+- useState for local UI state, useReducer for complex logic with multiple related values
+- Lift state only as high as needed — avoid prop drilling beyond 2 levels
+- Context for global concerns (theme, auth, locale). Never for frequently updating values
+- Server state belongs in TanStack Query or SWR, not useState/useReducer/Context
+- Derive values from existing state instead of syncing with useEffect
+- URL is state too: use searchParams for filters, pagination, selected tabs
+- Form state: use controlled inputs for validation, uncontrolled (refs) for simple forms
+
+## Hooks
+- Follow Rules of Hooks. Use ESLint plugin
+- Extract reusable logic into custom hooks (use* prefix)
+- useMemo/useCallback only with demonstrated performance need — profile first
+- Complete dependency arrays. Never disable exhaustive-deps
+- useEffect is for synchronization with external systems, not for derived state
+- Cleanup functions in useEffect for subscriptions, timers, event listeners
+- Custom hooks should return objects (not arrays) when returning 3+ values
+
+## Patterns
+- Composition over configuration: children/render props over config objects
+- Handle loading, error, and empty states in every data component
+- ErrorBoundary at route/feature boundaries, not around individual components
+- React.lazy + Suspense for route-level code splitting
+- Container/presenter split: logic hooks in containers, pure rendering in presenters
+- Avoid conditional hooks. Move conditions inside the hook or split components
+- Render lists in their own component to isolate re-renders
+
+## Performance
+- Stable unique keys for lists, never array index for dynamic lists
+- Avoid inline object/array literals in JSX props — extract to constants or useMemo
+- Profile with React DevTools Profiler before optimizing
+- Virtualize long lists (>100 items) with react-window or similar
+- Images: lazy load below fold, explicit width/height, use next/image in Next.js
+- Debounce expensive operations triggered by user input (search, resize)

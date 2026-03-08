@@ -1,0 +1,53 @@
+---
+description: "Supabase: RLS, edge functions, realtime"
+globs: ["*.sql", "*.ts"]
+alwaysApply: true
+---
+
+# Supabase Cursor Rules
+
+You are an expert Supabase developer. Follow these rules:
+
+## Row Level Security (RLS)
+- ALWAYS enable RLS on every table — no exceptions. A table without RLS is publicly readable/writable through the API
+- Policies use `auth.uid()` to scope access: `USING (user_id = auth.uid())` for reads, `WITH CHECK (user_id = auth.uid())` for writes
+- Separate policies for SELECT, INSERT, UPDATE, DELETE — don't combine into one permissive policy. Be explicit about what each role can do
+- `service_role` key bypasses ALL RLS — never expose it to the client, never put it in environment variables that reach the browser. Use `anon` key for client-side
+- Test policies by switching between user contexts in the SQL editor: `SET LOCAL role = 'authenticated'; SET LOCAL request.jwt.claims = '{"sub": "user-uuid"}'`
+- RLS policies on views check the underlying tables — but functions with `SECURITY DEFINER` bypass RLS. Don't accidentally create admin-only functions callable by users
+
+## Auth
+- Use Supabase Auth — don't roll your own. It handles JWTs, refresh tokens, OAuth providers, MFA
+- Store user metadata in a `public.profiles` table with `id UUID REFERENCES auth.users(id) ON DELETE CASCADE` — never modify the `auth.users` table directly
+- Create profile rows with a trigger: `CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION create_profile()`
+- Handle auth state client-side with `onAuthStateChange` — it fires on sign-in, sign-out, and token refresh. Don't poll for session status
+- `supabase.auth.getSession()` reads from local storage (fast, may be stale). `supabase.auth.getUser()` verifies against the server (slow, always fresh). Use getUser() for sensitive operations
+
+## Database
+- Foreign keys to `auth.users(id)` with `ON DELETE CASCADE` for all user-owned data — orphaned rows after user deletion are a data leak
+- Use generated columns (`GENERATED ALWAYS AS (expression) STORED`) for denormalized fields that derive from other columns — they stay in sync automatically
+- Postgres enums (`CREATE TYPE status AS ENUM ('active', 'inactive')`) over check constraints — they show up in the generated TypeScript types
+- `created_at TIMESTAMPTZ DEFAULT now()` on every table. `updated_at` via a trigger that sets it on UPDATE — there's no built-in auto-update
+- Database functions in `plpgsql` for complex business logic that should run close to the data — keeps it in one round trip instead of multiple API calls
+- Use `supabase gen types typescript` to generate types from your schema — run it after every migration, commit the output
+
+## Edge Functions
+- Deno runtime: import from `npm:` prefix (`import { z } from "npm:zod"`) or from `esm.sh` / `deno.land`
+- Verify the JWT in every function: `const { data: { user } } = await supabase.auth.getUser(jwt)` — don't trust the request without verification
+- Create the Supabase client with `service_role` key inside functions for admin operations — the function runs server-side so the key stays secret
+- CORS headers required for browser requests: `Access-Control-Allow-Origin`, `Access-Control-Allow-Headers`. Handle OPTIONS preflight explicitly
+- Edge Functions have a 150ms CPU time limit (wall clock can be longer for I/O waits) — offload heavy computation to a separate server
+
+## Realtime
+- Subscribe to specific tables and events (`postgres_changes` with `table` and `event` filters), not the entire database — unfiltered subscriptions waste bandwidth
+- Channel-based Presence for online status, typing indicators, cursor positions — each client tracks/untracks its own state
+- Broadcast for ephemeral messages that don't need persistence (live cursors, notifications) — cheaper than database changes
+- Always `channel.unsubscribe()` on component unmount — leaked subscriptions accumulate connections and cause memory leaks
+- Realtime has a default limit of 100 concurrent connections per project on the free tier — design around this or upgrade
+
+## Storage
+- Buckets with RLS policies — same `auth.uid()` pattern as database tables. A bucket without policies is public
+- Signed URLs (`createSignedUrl`) for time-limited access to private files — set expiration to the minimum needed
+- Image transformations via URL parameters (`?width=200&height=200`) — don't store multiple sizes, Supabase transforms on the fly and caches
+- Set file size limits per bucket in the dashboard — default is 50MB, which is too high for most use cases (profile images should be 2-5MB max)
+- File paths should include the user ID: `{user_id}/{filename}` — makes RLS policies simple and prevents name collisions

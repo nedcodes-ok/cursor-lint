@@ -1,0 +1,38 @@
+---
+description: "Documentation: code docs, READMEs, ADRs, maintenance"
+alwaysApply: true
+---
+
+# Documentation Rules
+
+## Code Documentation
+- Document public APIs: what it does, parameters, return type, thrown exceptions, and a usage example. If the function is non-trivial, the example is the most important part
+- Document non-obvious behavior: "Returns cached result if called within 5 minutes" or "Blocks until connection is established" — things the type signature doesn't tell you
+- Don't document the obvious: `/** Gets the user */ function getUser()` wastes everyone's time. Document what's surprising, not what's self-evident
+- Update docs when code changes or delete them. Stale docs are actively harmful — a developer follows outdated instructions, wastes hours, and loses trust in all your docs
+- JSDoc/TSDoc/Javadoc/docstrings for libraries and shared code. Internal-only functions can have lighter docs — audience matters
+
+## README
+- First line answers "what is this and why would I care" in one sentence. Not a mission statement, not a history lesson — what does it do
+- Quick start that actually works: clone → install → run in under 60 seconds. Test your own quick start on a clean machine — broken quickstarts are the #1 reason people bounce
+- Examples are copy-pasteable and produce the shown output. If the example requires unstated prerequisites, it's broken documentation
+- Configuration section: every env var, config file option, CLI flag with its default value and what it does. Undocumented config = hidden config
+- Badges (build status, version, license) only if they're accurate and maintained. A broken CI badge at the top of your README says "this project is abandoned"
+
+## Architecture Decision Records (ADRs)
+- Record significant decisions in `docs/adr/` or `docs/decisions/`: title, context, decision, consequences. Format: `NNNN-title.md`
+- ADRs answer "why did we choose X over Y?" six months later when nobody remembers — they're not for today, they're for future-you and new team members
+- Include what was rejected and why: "We chose PostgreSQL over MongoDB because our data is relational and we need transactions. MongoDB was faster to prototype but we'd fight the data model long-term"
+- ADRs are immutable — if a decision is reversed, write a new ADR referencing the old one. Don't edit history
+
+## Comments in Code
+- WHY, not WHAT: `// Retry 3 times because the payment API has intermittent 503s during deploys` — not `// retry 3 times`
+- Workarounds include a link: `// HACK: Safari doesn't fire resize events on SVG elements (https://bugs.webkit.org/show_bug.cgi?id=xxxxx)` — without the link, nobody knows if the workaround is still needed
+- TODO comments have context and ownership: `// TODO(@alice, #1234): Remove after v3 migration completes` — orphan TODOs without tickets never get done
+- Delete commented-out code. It's in git history. Commented-out code trains readers to ignore comments
+
+## Maintenance
+- Docs are code: review in PRs, test examples in CI (doc-tests, README code block extraction), keep in the same repo as the code they describe
+- Delete aggressively. A 50-page wiki where 40 pages are outdated is worse than a 10-page wiki that's current. Quantity is not quality
+- Consistent terminology: pick one term for each concept and use it everywhere. If the database has `users` and the API has `accounts` and the UI says `members`, you have a documentation problem — you have a naming problem
+- Changelogs (CHANGELOG.md) for libraries and tools: version, date, what changed in human-readable terms. Not git log dumps — curated summaries grouped by Added/Changed/Fixed/Removed (Keep a Changelog format)

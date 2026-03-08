@@ -1,0 +1,53 @@
+---
+description: "FastAPI: Pydantic v2, dependency injection, async"
+globs: ["*.py"]
+alwaysApply: true
+---
+
+# FastAPI Cursor Rules
+
+You are an expert FastAPI developer (v0.100+, Pydantic v2). Follow these rules:
+
+## Routes
+- Path params for resource identification (`/users/{user_id}`), query params for filtering/pagination (`?page=2&status=active`)
+- Group related endpoints with `APIRouter`, use meaningful prefixes (`/api/v1/users`) and tags for OpenAPI grouping
+- Use correct HTTP methods and status codes: `201` for creation, `204` for deletion with no body, `422` for validation errors (FastAPI default). Override with `status_code=` param
+- `response_model` on every endpoint to control what's serialized — without it, FastAPI returns whatever you return, including internal fields
+- Use `Annotated[type, Depends()]` syntax (Python 3.9+) over bare `Depends()` in function params — it's reusable and type-checker friendly
+
+## Pydantic Models
+- Separate schemas: `UserCreate` (input), `UserResponse` (output), `UserDB` (internal/ORM). Never expose the DB model to the API
+- Pydantic v2: use `model_validator` for cross-field validation, `field_validator` for single-field. Validators are `@classmethod` with `mode='before'` or `mode='after'`
+- `Field(description="...", examples=["..."])` on model fields — these populate the auto-generated OpenAPI docs, which are one of FastAPI's best features
+- `model_config = ConfigDict(from_attributes=True)` (was `orm_mode` in v1) to enable SQLAlchemy model → Pydantic conversion
+- Use `Enum` or `Literal` for fields with fixed options — generates a dropdown in the Swagger UI
+
+## Dependency Injection
+- `Depends()` for cross-cutting concerns: auth, DB sessions, pagination, rate limiting, feature flags
+- Yield dependencies for resource management (DB session, file handles): `yield session` then cleanup after `yield`
+- Layer dependencies: router-level `dependencies=[Depends(require_auth)]` for whole groups, endpoint-level for specific needs
+- Dependencies are cached per-request by default — the same `Depends(get_db)` in multiple places returns the same session within one request
+- Don't put business logic in dependencies — they handle wiring, not domain rules
+
+## Async
+- `async def` for I/O-bound endpoints (DB queries, HTTP calls, file I/O). Plain `def` for CPU-bound work — FastAPI runs sync endpoints in a threadpool automatically
+- `httpx.AsyncClient` for outbound HTTP — create it once as a lifespan dependency, don't instantiate per request
+- `asyncio.gather()` for concurrent independent operations (fetch user + fetch permissions simultaneously)
+- Don't mix sync and async DB drivers — if your endpoint is async, use `asyncpg` / SQLAlchemy async, not the sync `psycopg2`
+
+## Database
+- SQLAlchemy 2.0 async with `AsyncSession` and `create_async_engine` — the 1.x style `Session` blocks the event loop
+- Alembic for migrations — `alembic revision --autogenerate` detects model changes, but always review the generated migration before running it
+- Repository or service pattern for data access — don't put raw SQL or ORM queries directly in route handlers
+- Connection pool: set `pool_size`, `max_overflow`, `pool_pre_ping=True` (detects stale connections) in production
+
+## Error Handling
+- `HTTPException` for expected errors (not found, forbidden). Don't raise generic `Exception` — the client gets a 500 with no useful info
+- Custom exception handlers with `@app.exception_handler(CustomError)` for domain errors — map them to appropriate HTTP status codes
+- Validation errors (422) are automatic from Pydantic — don't catch and re-raise them manually, you'll lose the detailed field-level error messages
+- Use `BackgroundTasks` for fire-and-forget work (sending emails, logging) — don't block the response
+
+## Common Traps
+- `@app.on_event("startup")` is deprecated — use the `lifespan` context manager pattern instead
+- Middleware order matters: first added = outermost wrapper. Auth middleware should run before rate limiting
+- `response_model_exclude_unset=True` if you want PATCH-style partial responses — without it, unset fields return as `None`

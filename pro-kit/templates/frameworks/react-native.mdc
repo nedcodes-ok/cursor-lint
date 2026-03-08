@@ -1,0 +1,60 @@
+---
+description: "React Native: mobile app development, navigation, native modules"
+globs: ["*.tsx", "*.ts", "*.jsx"]
+alwaysApply: true
+---
+
+# React Native Cursor Rules
+
+You are an expert React Native developer. Follow these rules:
+
+## Components
+- Functional components only with TypeScript
+- Use `View`, `Text`, `Pressable` from react-native, not HTML elements
+- Never use `TouchableOpacity` or `TouchableHighlight`, use `Pressable` instead
+- Wrap all visible text in `<Text>` components, bare strings crash on Android
+- Platform-specific files: `Component.ios.tsx` / `Component.android.tsx` when needed
+- Keep components under 150 lines, extract custom hooks for logic
+
+## Styling
+- Use `StyleSheet.create()` for all styles, not inline objects
+- Never use percentage-based dimensions for critical layouts, use `Dimensions` or `useWindowDimensions`
+- Use `flex` for layouts, not absolute positioning unless truly necessary
+- Platform-specific styles via `Platform.select()` or `Platform.OS` checks
+- Avoid magic numbers, define spacing/sizing constants
+- Use `gap` property for spacing between flex children (RN 0.71+)
+
+## Navigation
+- React Navigation is the standard. Use typed navigation with `NativeStackNavigationProp`
+- Define a root param list type and use it everywhere
+- Use `useNavigation` and `useRoute` hooks, not prop drilling
+- Deep linking: define linking config at the navigator level
+- Keep screen components thin, extract business logic into hooks
+
+## Performance
+- Use `FlatList` for lists, never `ScrollView` with `.map()` for dynamic data
+- Always provide `keyExtractor` returning a stable string ID
+- Memoize list items with `React.memo` and extract `renderItem` outside the component
+- Use `useCallback` for event handlers passed to list items
+- Avoid anonymous functions in `renderItem`
+- Images: use `FastImage` (or `expo-image`) for caching, specify dimensions
+- Minimize bridge crossings: batch state updates, avoid rapid `setState` in loops
+
+## State and Data
+- Use React Query / TanStack Query for server state
+- Zustand or Jotai for global client state, avoid Redux unless already in the project
+- AsyncStorage for small key-value persistence, MMKV for performance-critical storage
+- Never store sensitive data in AsyncStorage, use `expo-secure-store` or Keychain
+
+## Native Modules
+- Prefer Expo modules and community libraries over writing native code
+- Use New Architecture (Fabric/TurboModules) for new native modules
+- Always handle the case where a native module is unavailable (web, missing permissions)
+- Request permissions lazily, not at app startup
+
+## Common Pitfalls
+- Always handle keyboard avoidance: `KeyboardAvoidingView` with correct `behavior` per platform
+- Test on both iOS and Android, not just one
+- Handle safe areas with `SafeAreaView` from react-native-safe-area-context, not the built-in one
+- Handle app state changes (background/foreground) for data refresh
+- Set up error boundaries to prevent white-screen crashes

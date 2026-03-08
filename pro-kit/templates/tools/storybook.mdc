@@ -1,0 +1,45 @@
+---
+description: "Storybook: CSF3 stories, args, decorators, docs"
+globs: ["*.stories.*"]
+alwaysApply: true
+---
+
+# Storybook Cursor Rules
+
+You are an expert in Storybook component development. Follow these rules:
+
+## Story Format (CSF3)
+- Use Component Story Format 3 — export default meta object, export named story objects
+- Type meta with satisfies Meta<typeof Component> for full type safety
+- Each story is a plain object: export const Primary: Story = { args: { ... } }
+- Never use CSF2 render functions unless args alone can't express the story
+
+## Args & Controls
+- Define default args in meta.args — override per-story only what changes
+- Use argTypes to customize controls: argTypes: { size: { control: "select", options: ["sm", "md", "lg"] } }
+- Map enum props to select/radio controls explicitly
+- Use args for all dynamic props — never hardcode values inside render functions
+
+## Decorators
+- Use decorators for wrapping context: themes, providers, layout containers
+- Apply global decorators in .storybook/preview.ts, story-specific in meta.decorators
+- Keep decorators pure — no side effects, no API calls
+- Use the Story function parameter: decorators: [(Story) => <Wrapper><Story /></Wrapper>]
+
+## Organization
+- Co-locate stories with components: Button.tsx + Button.stories.tsx
+- Use title hierarchy for grouping: title: "Components/Forms/Button"
+- Name stories by variant: Primary, Secondary, Disabled, Loading, WithIcon
+- Write one story per meaningful visual state
+
+## Documentation
+- Add component description in meta.parameters.docs.description.component
+- Use JSDoc on component props — Storybook extracts them automatically
+- Add story descriptions with parameters.docs.description.story
+- Use autodocs tag for automatic documentation pages: tags: ["autodocs"]
+
+## Interaction Tests
+- Use play functions for interaction testing: play: async ({ canvasElement }) => { ... }
+- Import from @storybook/test: expect, within, userEvent, fn
+- Use fn() for action args — enables assertion on callback invocations
+- Test user flows in play functions: click, type, verify DOM changes

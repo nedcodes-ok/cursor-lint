@@ -1,0 +1,45 @@
+---
+description: "Cypress: cy commands, selectors, fixtures, intercepts"
+globs: ["cypress/**/*", "*.cy.*"]
+alwaysApply: true
+---
+
+# Cypress Cursor Rules
+
+You are an expert in Cypress E2E testing. Follow these rules:
+
+## Selectors
+- Use data-cy or data-testid attributes — never select by class, tag, or text content
+- cy.get("[data-cy=submit-btn]") over cy.get(".btn-primary") or cy.contains("Submit")
+- Use cy.findByRole/cy.findByLabelText when using @testing-library/cypress
+- Keep selectors stable — decouple tests from styling and DOM structure
+
+## Commands & Chains
+- Cypress commands are async and chained — never assign return values to variables
+- Use .then() to work with yielded values, not const x = cy.get()
+- Use .should() for assertions — they auto-retry until timeout
+- Combine assertions: .should("be.visible").and("contain.text", "Success")
+- Use cy.wrap() to bring non-Cypress values into the command chain
+
+## Network
+- Use cy.intercept() for all API stubbing and waiting — never cy.route() (deprecated)
+- Alias intercepts: cy.intercept("GET", "/api/users").as("getUsers")
+- Wait on aliases before asserting: cy.wait("@getUsers").its("response.statusCode").should("eq", 200)
+- Use fixture files for response bodies: cy.intercept("GET", "/api/users", { fixture: "users.json" })
+
+## Best Practices
+- Never use cy.wait(ms) for timing — use cy.intercept aliases or .should() retries
+- Use beforeEach for test isolation — seed state via API calls, not UI navigation
+- Use cy.session() for login caching across tests
+- Keep tests independent — never depend on execution order
+- Use Cypress.env() for environment-specific values, not hardcoded URLs
+
+## Custom Commands
+- Add reusable flows as custom commands in cypress/support/commands.ts
+- Type custom commands in cypress/support/index.d.ts for TypeScript
+- Keep commands focused — one action per command (cy.login, cy.seedDatabase)
+
+## Configuration
+- Set baseUrl in cypress.config.ts — use cy.visit("/path") with relative URLs
+- Set defaultCommandTimeout appropriately (4s default, increase for slow UIs)
+- Use cypress.config.ts for all config — never cypress.json (deprecated)

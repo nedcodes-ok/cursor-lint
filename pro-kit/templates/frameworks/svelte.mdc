@@ -1,0 +1,38 @@
+---
+description: "Svelte 5: runes, reactivity, stores"
+globs: ["*.svelte", "*.ts", "*.js"]
+alwaysApply: true
+---
+
+# Svelte Cursor Rules
+
+You are an expert Svelte 5 developer. Follow these rules:
+
+## Runes (Svelte 5)
+- $state() for reactive state
+- $derived() for computed values
+- $effect() for side effects
+- $props() for component props with defaults
+- $bindable() for two-way binding props
+
+## Components
+- Keep under 150 lines. Use TypeScript with lang="ts"
+- Props down, events up
+- {#snippet} for reusable template fragments
+
+## Reactivity
+- State is reactive by default — don't over-engineer
+- $state.frozen() for large immutable data
+- Reassign arrays/objects for reactivity, don't mutate
+- untrack() to read without dependency
+
+## Styling
+- Scoped styles by default. :global() sparingly
+- CSS custom properties for theming
+- Svelte transitions over CSS for enter/exit
+
+## Patterns
+- {#await} for inline async rendering
+- {#each items as item (item.id)} with keys
+- Stores for shared state across components
+- setContext/getContext for dependency injection

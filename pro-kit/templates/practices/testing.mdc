@@ -1,0 +1,42 @@
+---
+description: "Testing: test design, mocking strategy, coverage philosophy"
+alwaysApply: true
+---
+
+# Testing Rules
+
+## Test Structure
+- Arrange-Act-Assert: set up data → call the thing → check the result. Consistent structure makes every test scannable
+- One behavior per test — multiple `assert` calls checking the same behavior is fine (`assertThat(user).hasName("Alice"); assertThat(user).isActive()`). Multiple unrelated assertions is not
+- Test names describe the scenario and expectation: `returnsNullWhenUserNotFound`, `throwsWhenEmailIsDuplicate` — not `test1`, `testUser`, or `shouldWork`
+- Tests must be independent. If reordering tests breaks them, you have shared mutable state — a test that only passes after another test runs is two bugs
+
+## What to Test
+- Test behavior from the caller's perspective, not implementation details. "When I call createOrder with valid items, I get an order with the correct total" — not "createOrder calls calculateSubtotal then calls applyTax then calls saveToDb"
+- Edge cases are where bugs live: empty collections, zero/negative values, null/undefined, boundary values (off-by-one), Unicode, very long strings, concurrent access
+- Error paths are as important as happy paths — test that invalid input returns the right error, not just that valid input works
+- Don't test framework/library code. If you're testing that `Array.sort()` sorts, you're wasting time. Test YOUR code's behavior when it uses the sort result
+
+## Mocking Strategy
+- Mock at boundaries: HTTP clients, databases, file system, clocks, randomness — things that are slow, non-deterministic, or have side effects
+- Never mock the system under test. If you're mocking half the class to test the other half, the class is doing too much — split it
+- Prefer fakes over mocks when the boundary is complex: an in-memory repository that implements the same interface is more realistic than 20 mock configurations
+- Verify interactions only when the interaction IS the behavior: "send email to user" needs `verify(emailService).send(...)`. "calculate total" does not need `verify(calculator).add(...)` — check the result instead
+- Mock return values for queries, verify calls for commands (CQS principle applied to test doubles)
+
+## Test Pyramid
+- Many fast unit tests (milliseconds each): pure functions, business logic, data transformations
+- Fewer integration tests: API endpoints with real middleware + test database, service + repository together
+- Few E2E tests: critical user flows only (signup, checkout, payment). E2E is slow and flaky — don't E2E everything
+- If you can only pick one kind of test, integration tests at the API boundary give the most confidence per test
+
+## Coverage
+- Coverage finds untested code — it does NOT measure test quality. 100% coverage with bad assertions catches nothing
+- Cover: happy paths, error paths, edge cases, and any code that handles money/auth/data-deletion. Skip: generated code, trivial getters, framework boilerplate
+- A function with 4 branches needs at least 4 tests, not 1 test that hits the happy path and inflates coverage
+- Missing coverage on error handling is the most dangerous gap — the code that runs when things go wrong is the code that runs least in development and most in production
+
+## Flaky Tests
+- A flaky test is worse than no test — it trains the team to ignore failures. Fix or delete, never skip indefinitely
+- Common causes: time-dependent logic (use fake clocks), race conditions (don't share state), network calls (mock them), random data (use fixed seeds)
+- If a test needs `sleep()` or `waitForTimeout()`, it's testing timing, not behavior. Wait for a specific condition instead

@@ -1,0 +1,42 @@
+---
+description: "Clean code: naming, functions, simplicity"
+alwaysApply: true
+---
+
+# Clean Code Rules
+
+## Naming
+- Names reveal intent: `remainingRetries` not `r`, `fetchActiveUsers()` not `getData()`. If you need a comment to explain what a variable holds, the name is wrong
+- Booleans read as questions: `isActive`, `hasPermission`, `canEdit`, `shouldRetry`. Never `active` (adjective? noun?) or `flag` (flag for what?)
+- Functions are verbs: `fetchUser`, `calculateTotal`, `validateInput`, `parseConfig`. Not `userData`, `total`, `validator`
+- Avoid abbreviations unless universally understood (URL, ID, HTTP, API). `usr`, `mgr`, `ctx` save keystrokes and cost readability. Exception: loop variables (`i`, `j`) and lambda params in short chains
+- Don't encode types in names: `userList`, `nameString`, `isActiveBool` — the type system already tells you. Just `users`, `name`, `isActive`
+
+## Functions
+- One job per function — if you can describe it with "and" it's doing too much. `validateAndSaveUser()` is two functions
+- 3 parameters max. Beyond that, group into an options/config object: `createUser({ name, email, role })` not `createUser(name, email, role, isAdmin, sendWelcome)`
+- Return early with guard clauses to avoid nesting: check preconditions at the top, return/throw, then the happy path stays at indent level 1
+- Side effects are lies: a function named `getUser` that also logs analytics and updates a cache is lying about what it does. Name it `getOrCacheUser` or split it
+- Keep functions under 30 lines. If you're scrolling to understand a single function, it's too long. Extract helpers with descriptive names — the function calls become the documentation
+
+## Dead Code
+- Delete commented-out code immediately — git has the history. Commented code rots: it doesn't compile, doesn't get refactored, and confuses everyone about whether it's needed
+- Remove unused imports, variables, functions, and parameters. Every dead symbol is a false signal to the next reader
+- Kill feature flags for features that shipped months ago — they add branching complexity with zero value
+
+## Complexity
+- Don't abstract prematurely — wait until you see the pattern three times. Wrong abstractions are worse than duplicated code because they couple things that shouldn't be coupled
+- Prefer boring, obvious solutions over clever ones. `for` loop vs. reduce chain: pick whichever a junior dev would understand on first read
+- Ternaries for simple conditions only: `const label = isActive ? 'Active' : 'Inactive'` — nested ternaries are unreadable, use if/else
+- Avoid deep nesting (3+ levels). Flatten with early returns, extract functions, or invert conditions
+- No magic numbers: `if (retries > 3)` → `if (retries > MAX_RETRIES)`. The constant name documents the intent
+
+## Comments
+- Code says WHAT, comments say WHY. If you're commenting what code does, the code isn't clear enough — rewrite it
+- Good comments: business rules (`// FCC requires 30-day data retention`), workarounds (`// Safari doesn't support ResizeObserver on SVG`), non-obvious decisions (`// O(n²) is fine here — max 50 items, simpler than maintaining a sorted set`)
+- TODO comments include context: `// TODO(#1234): Remove after migration completes Q2 2025` not just `// TODO: fix this`
+
+## File Organization
+- One concept per file in most cases — a `User` model, a `UserService`, a `UserController` are three files, not one 500-line god file
+- Order within a file: exports/public API first, private helpers last. Reader goes top-down from interface to implementation
+- Group related code by feature, not by type. `features/auth/` with its model, service, controller, and tests together — not `models/User.ts`, `services/UserService.ts` in separate trees

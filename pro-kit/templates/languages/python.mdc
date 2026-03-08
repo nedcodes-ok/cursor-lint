@@ -1,0 +1,56 @@
+---
+description: "Python best practices: type hints, pathlib, pytest, clean error handling"
+globs: ["*.py"]
+alwaysApply: true
+---
+
+# Python Rules
+
+## Style & Structure
+- Use type hints for all function signatures, return types, and class attributes
+- Prefer f-strings over .format() or % formatting
+- Use pathlib instead of os.path for all file operations
+- Prefer list/dict/set comprehensions over map/filter when the expression fits one line
+- Use dataclasses for plain data containers. Pydantic BaseModel for validated/serialized data
+- Use Enum for fixed sets of values, StrEnum for string enums (Python 3.11+)
+- Use `__slots__` on data-heavy classes to reduce memory
+- Prefer `collections.abc` types for type hints: `Sequence`, `Mapping`, `Iterable` over concrete types
+
+## Error Handling
+- Use specific exception types, never bare `except:` or `except Exception:`
+- Use `contextlib.suppress()` for expected, recoverable exceptions
+- Return early to avoid deep nesting. Max 3 levels of indentation
+- Custom exceptions inherit from a project-level base exception
+- Never silence exceptions in production. Log at minimum
+- Use `else` clause on try/except for code that should run only when no exception occurred
+
+## Imports
+- Group imports: stdlib, third-party, local (separated by blank lines)
+- Use absolute imports over relative imports
+- Never use wildcard imports (`from x import *`)
+- Sort with isort or ruff. One import per line for third-party packages
+- Lazy imports for heavy dependencies only needed in specific code paths
+
+## Functions & Classes
+- Keep functions under 30 lines. Extract helpers aggressively
+- Use `*args` and `**kwargs` sparingly. Document types when used
+- Prefer returning values over modifying mutable arguments
+- Use generators (`yield`) for large sequences instead of building full lists
+- Keyword-only arguments after `*` for functions with 3+ params
+- Use `@staticmethod` only when the method truly needs no instance/class access
+- Prefer composition over inheritance. Use protocols (typing.Protocol) for interfaces
+- Use `@property` for computed attributes, not for hiding method calls
+
+## Testing
+- Use pytest over unittest. No test classes unless sharing fixtures
+- Name tests: `test_<function>_<scenario>_<expected>`
+- Use fixtures for shared setup, `@pytest.mark.parametrize` for multiple cases
+- Use `tmp_path` fixture for file operations, not manual temp directories
+- Mock at boundaries (HTTP, DB, filesystem), not internal functions
+- Use `pytest.raises(ExactError, match="message")` for exception testing
+
+## Project Structure
+- Use `pyproject.toml` for all config (ruff, pytest, mypy, build)
+- Use ruff for linting and formatting (replaces flake8, black, isort)
+- Use virtual environments (venv or uv). Never install to system Python
+- Pin dependencies with exact versions in requirements.txt or uv.lock

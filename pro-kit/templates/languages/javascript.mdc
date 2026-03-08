@@ -1,0 +1,45 @@
+---
+description: "Modern JavaScript: ES2023+, async patterns, common traps"
+globs: ["*.js", "*.jsx", "*.mjs"]
+alwaysApply: true
+---
+
+# JavaScript Rules
+
+## Modern Syntax
+- `const` by default, `let` when reassignment is needed, never `var`. `var` is function-scoped and hoisted — it creates bugs that `const`/`let` (block-scoped) prevent
+- Arrow functions for callbacks and short functions. Regular `function` for top-level declarations and methods that need `this`. Arrow functions inherit `this` from the enclosing scope — using them as object methods breaks `this` binding
+- Template literals over concatenation: `` `Hello ${name}` `` not `"Hello " + name`. Tagged templates (`` html`...` ``) for DSLs and sanitization
+- Destructure at point of use: `const { name, email } = user` — but don't deeply destructure (`const { address: { city } } = user`) because it obscures the data source and throws on null
+- Optional chaining (`?.`) and nullish coalescing (`??`) over manual checks. `??` only catches `null`/`undefined`, NOT `0`, `""`, or `false` — that's the difference from `||`. If you want to default on all falsy values, use `||`. If only null/undefined, use `??`
+
+## Async
+- `async/await` over `.then()` chains — flatter, readable, debuggable with stack traces. `.then()` loses the call stack on errors
+- `try/catch` in async functions catches both sync throws and rejected promises. But `catch` at the right level — wrapping every line in try/catch is noise. Catch where you can handle the error meaningfully
+- `Promise.all()` for independent concurrent operations — runs in parallel. `Promise.allSettled()` when you need all results even if some fail. `Promise.all()` short-circuits on the first rejection and you lose the other results
+- Unhandled promise rejections crash Node.js (v15+) and log warnings in browsers. Always handle them: return the promise, await it, or attach `.catch()`
+- `for await...of` for async iterables (streams, paginated APIs). Don't `await` inside a regular `for` loop when operations are independent — that serializes them unnecessarily
+
+## Functions
+- Pure functions where possible: same input → same output, no side effects. Pure functions are testable without mocks, cacheable, and safe to parallelize
+- Default parameters: `function fetch(url, retries = 3)` — but defaults are evaluated left-to-right per call, so `function f(a, b = a * 2)` works and `function f(a = b, b)` doesn't
+- Return early to flatten nesting: guard clauses at the top (`if (!user) return null;`), happy path at indent level 1
+- Named exports for tree-shaking: `export function fetchUser()` — default exports can't be tree-shaken by name and make refactoring harder (the import name is arbitrary)
+
+## Objects & Arrays
+- `structuredClone(obj)` for deep copies (ES2022+). Spread (`{...obj}`) is shallow — nested objects are still references. `JSON.parse(JSON.stringify(obj))` drops functions, undefined, Dates, and more
+- `Array.prototype` methods for transformations: `.map()` to transform, `.filter()` to select, `.find()` to locate, `.some()`/`.every()` for boolean checks. Use `for` loops for imperative operations with side effects or early breaks
+- `Object.entries()`/`Object.keys()`/`Object.values()` over `for...in` — `for...in` iterates prototype chain properties unless you add `hasOwnProperty` checks
+- `Array.from({ length: n }, (_, i) => i)` to create sequences. `Set` for uniqueness: `[...new Set(arr)]`. `Map` over plain objects when keys are dynamic or non-string
+- `.at(-1)` for last element (ES2022) instead of `arr[arr.length - 1]`. `.findLast()` and `.toSorted()` / `.toReversed()` (ES2023) for non-mutating versions
+
+## Error Handling
+- Throw `Error` objects, not strings: `throw new Error("message")` — strings have no stack trace, no `name` property, and catch blocks can't distinguish them
+- Custom error classes: `class NotFoundError extends Error { constructor(resource) { super(`${resource} not found`); this.name = 'NotFoundError'; } }` — lets callers catch specific errors
+- Global handlers as safety nets: `window.addEventListener('unhandledrejection', ...)` in browsers, `process.on('unhandledRejection', ...)` in Node.js — log and report, don't silently swallow
+
+## Common Traps
+- `typeof null === 'object'` — a 30-year-old bug that will never be fixed. Check for null explicitly: `value === null`
+- `0.1 + 0.2 !== 0.3` — floating point math. For money, use integers (cents) or a decimal library. Never store currency as a float
+- `==` coerces types: `"" == false` is true, `0 == ""` is true, `null == undefined` is true. Use `===` always. The only acceptable `==` is `value == null` to check for both null and undefined
+- Array methods don't modify the original (except `.sort()`, `.reverse()`, `.splice()`). `.sort()` mutates AND converts elements to strings by default: `[10, 2, 1].sort()` → `[1, 10, 2]`. Always pass a comparator: `.sort((a, b) => a - b)`

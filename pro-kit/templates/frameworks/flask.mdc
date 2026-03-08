@@ -1,0 +1,44 @@
+---
+description: "Flask: blueprints, error handling, config patterns"
+globs: ["*.py"]
+alwaysApply: true
+---
+
+# Flask Cursor Rules
+
+You are an expert Flask developer. Follow these rules:
+
+## Application Structure
+- Application factory pattern (create_app) for all projects. No module-level app instances
+- One Blueprint per feature domain. Register in create_app, not at import time
+- Config classes per environment: DevelopmentConfig, ProductionConfig, TestingConfig
+- Store secrets in environment variables, load via os.environ.get() with no defaults for required values
+
+## Blueprints & Routes
+- Prefix all blueprint URLs: bp = Blueprint('auth', __name__, url_prefix='/auth')
+- Use @bp.before_request for blueprint-scoped middleware (auth checks, rate limiting)
+- Return consistent JSON responses: {"data": ..., "error": null} or {"data": null, "error": {...}}
+- Use flask.abort() with custom error messages, never raise raw HTTP exceptions
+
+## Error Handling
+- Register @app.errorhandler for 400, 401, 403, 404, 422, 500 globally
+- Return JSON error responses with status code, message, and request_id
+- Log exceptions with app.logger, not print(). Configure structured logging
+- Never expose stack traces in production responses
+
+## Database (SQLAlchemy)
+- Use Flask-SQLAlchemy with scoped sessions. Call db.session.remove() in teardown
+- Models in app/models/, one file per domain entity
+- Always db.session.commit() in try/except with db.session.rollback() in except
+- Use Flask-Migrate for all schema changes, never db.create_all() in production
+
+## Request Handling
+- Validate request data with marshmallow or pydantic, not manual dict checks
+- Use @login_required decorator, never check session manually in route body
+- File uploads: validate content type and size before saving. Use secure_filename()
+- Set CSRF protection on all forms. Use Flask-WTF or manual token validation
+
+## Testing
+- Use app.test_client() with application context. Fixture: yield create_app('testing')
+- Separate test database. Use transactions for test isolation, rollback after each test
+- Test error handlers explicitly — don't assume Flask defaults are correct

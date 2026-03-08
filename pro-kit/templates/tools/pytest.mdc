@@ -1,0 +1,46 @@
+---
+description: "pytest: fixtures, parametrize, conftest, markers"
+globs: ["test_*.py", "*_test.py", "conftest.py"]
+alwaysApply: true
+---
+
+# pytest Cursor Rules
+
+You are an expert in pytest testing. Follow these rules:
+
+## Structure
+- Name test files test_*.py or *_test.py. Name test functions test_*
+- Group related tests in classes (class TestUserAuth:) — no __init__ needed
+- Use descriptive names: test_login_fails_with_expired_token over test_login_3
+- One assertion concept per test — multiple asserts are fine if testing one behavior
+
+## Fixtures
+- Define fixtures in conftest.py for shared setup — pytest discovers them automatically
+- Use @pytest.fixture with appropriate scope: function (default), class, module, session
+- Yield fixtures for setup/teardown: yield resource then cleanup after
+- Use factory fixtures (fixture that returns a factory function) for parameterized setup
+- Request fixtures by name in test parameters — no imports needed
+
+## Parametrize
+- Use @pytest.mark.parametrize("input,expected", [...]) for data-driven tests
+- Use ids parameter for readable test names: ids=["empty", "single", "overflow"]
+- Stack multiple parametrize decorators for combinatorial testing
+- Use pytest.param(..., marks=pytest.mark.xfail) for expected failures in param sets
+
+## Markers
+- Use @pytest.mark.slow, @pytest.mark.integration — register in pytest.ini/pyproject.toml
+- Run subsets with -m "not slow" or -m integration
+- Use @pytest.mark.skipif(condition, reason="...") over bare skip
+- Use @pytest.mark.usefixtures("db") when you need the fixture but not its value
+
+## Assertions & Patterns
+- Use plain assert — pytest rewrites them for detailed failure output
+- Use pytest.raises(ExceptionType, match="pattern") as context manager
+- Use pytest.approx() for float comparisons: assert result == pytest.approx(3.14, abs=1e-2)
+- Use tmp_path fixture for temp files, monkeypatch for env vars and attributes
+
+## Configuration
+- Configure in pyproject.toml [tool.pytest.ini_options] — not pytest.ini or setup.cfg
+- Set testpaths, markers, addopts (e.g., -ra --strict-markers)
+- Use --strict-markers to catch typos in marker names
+- Use conftest.py at project root for shared fixtures, in subdirs for scoped ones

@@ -1,0 +1,44 @@
+---
+description: "NestJS: decorators, modules, guards, interceptors, DTOs"
+globs: ["*.ts"]
+alwaysApply: true
+---
+
+# NestJS Cursor Rules
+
+You are an expert NestJS developer. Follow these rules:
+
+## Architecture
+- One module per feature domain. Never put unrelated providers in the same module
+- Use barrel exports (index.ts) per module for clean imports
+- Controllers handle HTTP only — business logic goes in services
+- Keep controllers thin: validate, delegate, respond
+
+## Decorators & Metadata
+- Use @Injectable() on all services. Scope defaults to singleton — use REQUEST scope only when needed
+- Custom decorators over repetitive parameter extraction: createParamDecorator for request data
+- Combine decorators with applyDecorators() to reduce decorator stacking
+- Use @ApiTags, @ApiOperation, @ApiResponse on every controller method
+
+## DTOs & Validation
+- class-validator + class-transformer on all DTOs. Never trust raw request bodies
+- Separate CreateDto, UpdateDto (PartialType), and ResponseDto per entity
+- Use ValidationPipe globally with whitelist: true, forbidNonWhitelisted: true
+- Transform payloads with @Transform() — don't transform in services
+
+## Guards & Interceptors
+- AuthGuard at controller level, RolesGuard on specific routes
+- Use interceptors for cross-cutting concerns: logging, caching, response mapping
+- Exception filters for consistent error responses — extend BaseExceptionFilter
+- Order matters: Guards → Interceptors → Pipes → Handler → Interceptors → Filters
+
+## Database
+- Repository pattern via @InjectRepository(). Never inject EntityManager directly
+- Transactions via QueryRunner for multi-step operations
+- TypeORM entities in a shared /entities directory, not inside feature modules
+- Use migrations, never synchronize: true in production
+
+## Testing
+- Unit test services with mocked repositories (getRepositoryToken)
+- E2E test controllers with supertest and actual NestJS test module
+- Use Test.createTestingModule() with .overrideProvider() for mocking

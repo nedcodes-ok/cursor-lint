@@ -1,0 +1,51 @@
+---
+description: "Django: models, views, ORM best practices"
+globs: ["*.py"]
+alwaysApply: true
+---
+
+# Django Cursor Rules
+
+You are an expert Django developer (v4.2+/v5+). Follow these rules:
+
+## Structure
+- App-based architecture — each app is independently testable and has a clear domain boundary
+- Thin views — business logic belongs in service functions or model methods, not in view code. Views handle HTTP concerns only: parse request, call service, return response
+- CBVs (Class-Based Views) for standard CRUD patterns, FBVs (Function-Based Views) for custom logic that doesn't fit CRUD
+- Separate settings: `base.py` → `development.py` / `production.py` that import from base. Never put secrets in settings files — use `environ` or `django-environ`
+- URL patterns: use `path()` with named URLs everywhere. `reverse('app:name')` in code, `{% url 'app:name' %}` in templates — never hardcode URLs
+
+## Models
+- `db_index=True` on fields you filter, order, or join on frequently. Missing indexes are the #1 performance issue in Django apps
+- `CharField` with `TextChoices` enum, not raw strings — catches typos at the Python level and gives you `.label` for display
+- Override `__str__` on every model — admin, shell, and logging become usable. `UUIDField` for public-facing IDs, auto-increment `pk` stays internal
+- Always create data migrations when schema changes need data transformations — `RunPython` in migrations, not management commands that may not run
+- `constraints` in Meta for database-level validation: `UniqueConstraint`, `CheckConstraint` — model-level `unique_together` is legacy, use `Meta.constraints`
+- Set `default_auto_field = 'django.db.models.BigAutoField'` in settings — the default `AutoField` maxes out at ~2.1B rows
+
+## QuerySets
+- `select_related()` for ForeignKey/OneToOne (SQL JOIN). `prefetch_related()` for ManyToMany and reverse FKs (separate query). Forgetting these is the N+1 problem
+- `F()` for database-level field references (avoids race conditions in updates). `Q()` for complex OR/NOT filters
+- `.exists()` not `len(qs) > 0` (stops at first row). `.count()` not `len(qs)` (SQL COUNT vs loading all objects into memory)
+- `.only()` / `.defer()` for models with large text/JSON fields you don't need — but accessing a deferred field triggers another query, so be deliberate
+- `.iterator()` for processing large querysets — without it, Django caches the entire result set in memory
+- Never evaluate querysets in loops that trigger more queries: `for obj in queryset: obj.related.name` is N+1. Profile with `django-debug-toolbar` or `nplusone`
+
+## Security
+- ORM for all queries — never raw SQL with f-strings or `.format()`. If you must use raw SQL, use parameterized queries: `cursor.execute("SELECT * FROM t WHERE id = %s", [id])`
+- `@login_required` / `LoginRequiredMixin` on every view that needs auth. CSRF middleware stays on — never disable it for convenience
+- Production: `SECURE_SSL_REDIRECT=True`, `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True`, `SECURE_HSTS_SECONDS=31536000`
+- `get_object_or_404()` not bare `.get()` — prevents leaking whether an object exists via error type differences
+
+## DRF (Django REST Framework)
+- `ModelSerializer` for standard CRUD, plain `Serializer` for custom input/output shapes
+- ViewSets + Routers for standard REST resources. `@action` decorator for non-CRUD endpoints on a resource
+- Pagination class required on all list endpoints — unbounded querysets will take down your API
+- `permission_classes` on every view — don't rely on default permissions being correct. `IsAuthenticated` minimum, object-level permissions with `has_object_permission`
+- Nested serializers: read with nested data, write with flat IDs. Use `PrimaryKeyRelatedField` for write, nested serializer for read, or use `drf-writable-nested` if you genuinely need nested writes
+
+## Django-Specific Traps
+- `auto_now` / `auto_now_add` on DateTimeField are not editable and don't show in forms or serializers — use `default=timezone.now` if you need editability
+- Signals (`post_save`, `pre_delete`) are invisible control flow — prefer explicit method calls in services. Signals are fine for truly decoupled cross-app events, not for business logic
+- `DEBUG=True` in production leaks full stack traces, settings, and SQL queries to attackers — verify this with deployment checklist
+- Test with `TransactionTestCase` or `pytest-django` with `--reuse-db` — Django's test runner creates/destroys the database per run, which is slow
